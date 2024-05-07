@@ -1,6 +1,7 @@
-#include <iostream>
 #include <complex>
 #include <opencv2/opencv.hpp>
+#include <utility>
+#include <vector>
 
 using namespace std;
 
@@ -32,12 +33,12 @@ public:
     double length;
 
     ColorPalette(vector<Color> colors, int length) {
-        this->colors = colors;
+        this->colors = std::move(colors);
         this->length = length;
     }
 
     Color fit(int val) {
-        double valAdj = (double)(val % (int)this->length);
+        auto valAdj = (double)(val % (int)this->length);
         const int N = this->colors.size();
         const double STEP = this->length / (N - 1);
         Color* left = nullptr;
@@ -54,15 +55,15 @@ public:
         if (left == nullptr || right == nullptr) {
             exit(2);
         }
-        Color* output = new Color();
-        output->red = (int)(left->red + (right->red - left->red) * ratio);
-        output->green = (int)(left->green + (right->green - left->green) * ratio);
-        output->blue = (int)(left->blue + (right->blue - left->blue) * ratio);
-        return *output;
+        Color output{};
+        output.red = (int)(left->red + (right->red - left->red) * ratio);
+        output.green = (int)(left->green + (right->green - left->green) * ratio);
+        output.blue = (int)(left->blue + (right->blue - left->blue) * ratio);
+        return output;
     }
 };
 
-void createGrayscaleImage(int* pixels) {
+void createGrayscaleImage(const int* pixels) {
     cv::Mat image(IMAGE_HEIGHT, IMAGE_WIDTH, CV_8UC1);
 
     for (int y = 0; y < IMAGE_HEIGHT; ++y) {
@@ -84,7 +85,7 @@ void createColorImage(Color* pixels) {
         for (int x = 0; x < IMAGE_WIDTH; ++x) {
             Color pixel_value = pixels[y * IMAGE_WIDTH + x];
 
-            cv::Vec3b& pixel = image.at<cv::Vec3b>(y, x); // Access the pixel at (x, y)
+            auto& pixel = image.at<cv::Vec3b>(y, x); // Access the pixel at (x, y)
             pixel[0] = pixel_value.blue; // Blue channel
             pixel[1] = pixel_value.green; // Green channel
             pixel[2] = pixel_value.red; // Red channel
@@ -110,15 +111,15 @@ int complexPointIter(complex<double>& c) {
 }
 
 void createMandelbrotSet() {
-    Color* pixels = new Color[IMAGE_HEIGHT * IMAGE_WIDTH];
+    auto* pixels = new Color[IMAGE_HEIGHT * IMAGE_WIDTH];
 
     vector<Color> colors;
 
-    Color c1;
+    Color c1{};
     c1.red = 7;
     c1.green = 6;
     c1.blue = 38;
-    Color c2;
+    Color c2{};
     c2.red = 240;
     c2.green = 43;
     c2.blue = 213;
@@ -145,7 +146,7 @@ void createMandelbrotSet() {
             int totalIters = complexPointIter(point);
             int idx = j + (i * IMAGE_WIDTH);
             if (totalIters == -1) {
-                Color black;
+                Color black{};
                 black.red = 0;
                 black.green = 0;
                 black.blue = 0;
@@ -159,15 +160,16 @@ void createMandelbrotSet() {
         }
     }
     createColorImage(pixels);
+    delete[] pixels;
 }
 
 void createColorPalette() {
     vector<Color> colors;
-    Color c1;
+    Color c1{};
     c1.red = 252;
     c1.green = 186;
     c1.blue = 3;
-    Color c2;
+    Color c2{};
     c2.red = 111;
     c2.green = 179;
     c2.blue = 242;
