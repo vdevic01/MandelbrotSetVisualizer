@@ -373,7 +373,7 @@ int calculateIters(Complex* points, int* iters, const unsigned int size, const u
 
 	size_t n_dim = 1;
 	size_t global_work_size[1] = { size };
-	size_t local_work_size[1] = { 128 };	// Maximum work size is between 1024
+	size_t local_work_size[1] = { 128 };	// Maximum work size is 1024
 
 	// -----------------------------------------------------------------------
 	// 14. Enqueue (run) the kernel(s)
