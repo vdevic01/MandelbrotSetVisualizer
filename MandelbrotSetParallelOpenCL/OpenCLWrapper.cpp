@@ -44,6 +44,8 @@ typedef struct _opencl_dev_info {
 	exit(1);                               \
 }
 
+// Used to print log file content in case of error
+// Log file may be empty despite error happening
 void printError(const cl_program& program, const cl_device_id& device) {
 	// Determine the size of the log
 	size_t log_size;
@@ -324,7 +326,7 @@ int calculateIters(Complex* points, int* iters, const unsigned int size, const u
 	cl_kernel kernel = NULL;
 	kernel = clCreateKernel(
 		program,					/* program */
-		"calculateIters",			/* kernel_name */
+		"calculateIters",			/* kernel_name - needs to match function name inside kernel */
 		&err						/* errcode_ret */
 	);
 	SIMPLE_CHECK_ERRORS(err);
@@ -397,8 +399,6 @@ int calculateIters(Complex* points, int* iters, const unsigned int size, const u
 		NULL,					/* event_wait_list */
 		NULL					/* event */
 	);
-	cout << "Max work-group size: " << CL_KERNEL_WORK_GROUP_SIZE << endl;
-	printError(program, devices[0]);
 	SIMPLE_CHECK_ERRORS(err);
 
 	// -----------------------------------------------------------------------

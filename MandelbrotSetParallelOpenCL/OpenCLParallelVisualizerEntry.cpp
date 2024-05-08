@@ -37,7 +37,7 @@ public:
     double length;
 
     ColorPalette(vector<Color> colors, int length) {
-        this->colors = std::move(colors);
+        this->colors = move(colors);
         this->length = length;
     }
 
@@ -99,8 +99,7 @@ int complexPointIter(complex<double>& c) {
     return -1;
 }
 
-void createMandelbrotSet() {
-    auto start = chrono::high_resolution_clock::now();  
+void createMandelbrotSet() {  
     auto* points = new Complex[IMAGE_HEIGHT * IMAGE_WIDTH];
     auto* iters = new int[IMAGE_HEIGHT * IMAGE_WIDTH];
 
@@ -129,6 +128,7 @@ void createMandelbrotSet() {
     colors.push_back(c2);
     ColorPalette palette(colors, PALETTE_LENGTH);
 
+    auto start = chrono::high_resolution_clock::now();
     for (int i = 0; i < IMAGE_HEIGHT; i++) {
         double imaginaryPart = mapVal(i, 0, IMAGE_HEIGHT, IM_START, IM_END);
         for (int j = 0; j < IMAGE_WIDTH; j++) {
@@ -137,7 +137,17 @@ void createMandelbrotSet() {
             points[idx] = { realPart, imaginaryPart };
         }
     }
+    auto end = chrono::high_resolution_clock::now();
+    auto duration = chrono::duration_cast<chrono::milliseconds>(end - start);
+    cout << "Pixel mapping: " << duration.count() << " ms\n\n";
+    start = chrono::high_resolution_clock::now();
+
     calculateIters(points, iters, IMAGE_SIZE, MAX_ITER);
+
+    end = chrono::high_resolution_clock::now();
+    duration = chrono::duration_cast<chrono::milliseconds>(end - start);
+    cout << "\nCalculating escape iteration: " << duration.count() << " ms" << endl;
+    start = chrono::high_resolution_clock::now();
 
     delete[] points;
 
@@ -156,15 +166,20 @@ void createMandelbrotSet() {
         }
     }
 
+    end = chrono::high_resolution_clock::now();
+    duration = chrono::duration_cast<chrono::milliseconds>(end - start);
+    cout << "Coloring: " << duration.count() << " ms" << endl;
+    start = chrono::high_resolution_clock::now();
+
     delete[] iters;
 
     createColorImage(pixels);
 
     delete[] pixels;
 
-    auto end = chrono::high_resolution_clock::now();
-    auto duration = chrono::duration_cast<chrono::seconds>(end - start);
-    std::cout << "Time taken: " << duration.count() << " seconds" << std::endl;
+    end = chrono::high_resolution_clock::now();
+    duration = chrono::duration_cast<chrono::milliseconds>(end - start);
+    cout << "Image building: " << duration.count() << " ms" << endl;
 
 }
 
