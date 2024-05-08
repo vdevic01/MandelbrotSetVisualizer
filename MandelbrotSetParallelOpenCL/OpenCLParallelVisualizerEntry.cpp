@@ -74,10 +74,10 @@ void createColorImage(Color* pixels) {
         for (int x = 0; x < IMAGE_WIDTH; ++x) {
             Color pixel_value = pixels[y * IMAGE_WIDTH + x];
 
-            auto& pixel = image.at<cv::Vec3b>(y, x); // Access the pixel at (x, y)
-            pixel[0] = pixel_value.blue; // Blue channel
-            pixel[1] = pixel_value.green; // Green channel
-            pixel[2] = pixel_value.red; // Red channel
+            auto& pixel = image.at<cv::Vec3b>(y, x);
+            pixel[0] = pixel_value.blue;
+            pixel[1] = pixel_value.green;
+            pixel[2] = pixel_value.red;
         }
     }
 
@@ -113,15 +113,6 @@ void createMandelbrotSet() {
     c2.red = 240;
     c2.green = 43;
     c2.blue = 213;
-
-    //Color c1;
-    //c1.red = 20;
-    //c1.green = 170;
-    //c1.blue = 20;
-    //Color c2;
-    //c2.red = 255;
-    //c2.green = 255;
-    //c2.blue = 255;
 
     colors.push_back(c2);
     colors.push_back(c1);
