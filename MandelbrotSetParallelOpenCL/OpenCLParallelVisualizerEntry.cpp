@@ -80,7 +80,7 @@ void createColorImage(Color* pixels) {
             pixel[2] = pixel_value.red;
         }
     }
-
+    //cv::blur(image, image, cv::Size(3, 3));
     cv::imwrite("mandelbrot_set.tiff", image);
 }
 
