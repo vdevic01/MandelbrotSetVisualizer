@@ -264,16 +264,6 @@ int calculateIters(Complex* points, int* iters, const unsigned int size, const u
 
 	SIMPLE_CHECK_ERRORS(err);
 
-	//device_buffer_max_iters = clCreateBuffer(
-	//	context,
-	//	CL_MEM_READ_ONLY,
-	//	sizeof(int),
-	//	NULL,
-	//	&err
-	//);
-
-	//SIMPLE_CHECK_ERRORS(err);
-
 	// -----------------------------------------------------------------------
 	// 9. Tranfer data from the host memory to the device memory
 
@@ -383,7 +373,7 @@ int calculateIters(Complex* points, int* iters, const unsigned int size, const u
 
 	size_t n_dim = 1;
 	size_t global_work_size[1] = { size };
-	size_t local_work_size[1] = { 1024 };	// Maximum work size is between 1024-1500 for some reason
+	size_t local_work_size[1] = { 128 };	// Maximum work size is between 1024
 
 	// -----------------------------------------------------------------------
 	// 14. Enqueue (run) the kernel(s)
