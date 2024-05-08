@@ -363,13 +363,14 @@ int calculateIters(Complex* points, int* iters, const unsigned int size, const u
 	);
 	SIMPLE_CHECK_ERRORS(err);
 
-	//err = clSetKernelArg(
-	//	kernel,
-	//	2,
-	//	sizeof(cl_mem),
-	//	&device_buffer_max_iters
-	//);
-	//SIMPLE_CHECK_ERRORS(err);
+	cl_int max_iter_kernel = max_iter;
+	err = clSetKernelArg(
+		kernel,
+		2,
+		sizeof(unsigned int),
+		&max_iter_kernel
+	);
+	SIMPLE_CHECK_ERRORS(err);
 
 	// -----------------------------------------------------------------------	
 	// 13. Define work-item and work-group

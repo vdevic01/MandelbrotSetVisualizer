@@ -3,7 +3,7 @@ typedef struct {
 	double imag;
 } Complex;
 
-__kernel void calculateIters(__global Complex* IN, __global int* OUT)
+__kernel void calculateIters(__global Complex* IN, __global int* OUT, const unsigned int max_iter)
 {
 	int idx = get_global_id(0);
 	Complex c = IN[idx];
@@ -20,7 +20,7 @@ __kernel void calculateIters(__global Complex* IN, __global int* OUT)
 	int iteration = 0;
 	
 	int result = -1;
-	for (int i = 0; i < 650; i++) {
+	for (int i = 0; i < max_iter; i++) {
 		y = (x + x) * y + y0;
 		x = x2 - y2 + x0;
 		x2 = x * x;

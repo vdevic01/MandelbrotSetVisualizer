@@ -17,7 +17,7 @@ const double RE_END = -0.152809695287500013708;
 const double IM_START = 1.039611370300000000002;
 const double IM_END = 1.039757762612500000002;
 
-const int MAX_ITER = 400;
+const int MAX_ITER = 700;
 
 const int IMAGE_WIDTH = 6144;
 const int IMAGE_HEIGHT = 4096;
@@ -110,16 +110,10 @@ void createMandelbrotSet() {
     c1.red = 7;
     c1.green = 6;
     c1.blue = 38;
-
     Color c2{};
-    c2.red = 92;
-    c2.green = 163;
-    c2.blue = 255;
-
-    Color c3{};
-    c2.red = 209;
-    c2.green = 245;
-    c2.blue = 66;
+    c2.red = 240;
+    c2.green = 43;
+    c2.blue = 213;
 
     //Color c1;
     //c1.red = 20;
@@ -132,7 +126,6 @@ void createMandelbrotSet() {
 
     colors.push_back(c2);
     colors.push_back(c1);
-    colors.push_back(c3);
     colors.push_back(c2);
     ColorPalette palette(colors, PALETTE_LENGTH);
 
