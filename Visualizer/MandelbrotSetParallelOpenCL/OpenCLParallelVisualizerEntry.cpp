@@ -68,18 +68,24 @@ public:
 };
 
 void createColorImage(Color* pixels) {
-    cv::Mat image(IMAGE_HEIGHT, IMAGE_WIDTH, CV_8UC3);    
-    for (int y = 0; y < IMAGE_HEIGHT; ++y) {
-        for (int x = 0; x < IMAGE_WIDTH; ++x) {
-            Color pixel_value = pixels[y * IMAGE_WIDTH + x];
+    cv::Mat image(IMAGE_HEIGHT, IMAGE_WIDTH, CV_8UC3);
+    uchar* imageData = image.data;
 
-            auto& pixel = image.at<cv::Vec3b>(y, x);
-            pixel[0] = pixel_value.blue;
-            pixel[1] = pixel_value.green;
-            pixel[2] = pixel_value.red;
+    for (int y = 0; y < IMAGE_HEIGHT; ++y) {
+        uchar* rowPtr = imageData + y * image.step;
+
+        for (int x = 0; x < IMAGE_WIDTH; ++x) {
+            int pixelIndex = y * IMAGE_WIDTH + x;
+            Color pixel_value = pixels[pixelIndex];
+
+            uchar* pixelPtr = rowPtr + x * 3;
+
+            pixelPtr[0] = pixel_value.blue;
+            pixelPtr[1] = pixel_value.green;
+            pixelPtr[2] = pixel_value.red;
         }
     }
-    //cv::blur(image, image, cv::Size(3, 3));
+
     cv::imwrite("mandelbrot_set.tiff", image);
 }
 
