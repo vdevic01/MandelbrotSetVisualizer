@@ -68,8 +68,7 @@ public:
 };
 
 void createColorImage(Color* pixels) {
-    cv::Mat image(IMAGE_HEIGHT, IMAGE_WIDTH, CV_8UC3);
-
+    cv::Mat image(IMAGE_HEIGHT, IMAGE_WIDTH, CV_8UC3);    
     for (int y = 0; y < IMAGE_HEIGHT; ++y) {
         for (int x = 0; x < IMAGE_WIDTH; ++x) {
             Color pixel_value = pixels[y * IMAGE_WIDTH + x];
@@ -110,13 +109,13 @@ void createMandelbrotSet() {
     c1.green = 6;
     c1.blue = 38;
     Color c2{};
-    c2.red = 240;
-    c2.green = 43;
+    c2.red = 140;
+    c2.green = 143;
     c2.blue = 213;
 
-    colors.push_back(c2);
     colors.push_back(c1);
     colors.push_back(c2);
+    colors.push_back(c1);
     ColorPalette palette(colors, PALETTE_LENGTH);
 
     auto start = chrono::high_resolution_clock::now();
