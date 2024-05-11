@@ -1,27 +1,18 @@
-// const { invoke } = window.__TAURI__.tauri;
+const { invoke } = window.__TAURI__.tauri;
+const {appDataDir, join} = window.__TAURI__.tauri;
+const { convertFileSrc } = window.__TAURI__.tauri;
 
-// let greetInputEl;
-// let greetMsgEl;
-
-// async function greet() {
-//   // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
-//   greetMsgEl.textContent = await invoke("greet", { name: greetInputEl.value });
-// }
-
-// window.addEventListener("DOMContentLoaded", () => {
-//   greetInputEl = document.querySelector("#greet-input");
-//   greetMsgEl = document.querySelector("#greet-msg");
-//   document.querySelector("#greet-form").addEventListener("submit", (e) => {
-//     e.preventDefault();
-//     greet();
-//   });
-// });
+let RE_START = -2.0;
+let RE_END = 1.0;
+let IM_START = -1.0;
+let IM_END = 1.0;
 
 const canvas = document.getElementById("main-canvas");
 
 let boxX = -1;
 let boxY = -1;
 const boxRatio = [9, 16];
+let img;
 
 let isPressed = false;
 
@@ -31,7 +22,11 @@ function setup() {
 }
 
 function draw(){
-  background(255);
+  if(img){
+    image(img, 0, 0);
+  }else{
+    background(255);
+  }
   if(isPressed){
     let width = mouseX - boxX;
     let height = mouseY - boxY;

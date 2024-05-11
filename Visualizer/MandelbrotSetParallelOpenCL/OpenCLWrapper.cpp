@@ -318,24 +318,9 @@ int calculateIters(Complex* points, int* iters, const unsigned int size, const u
 		program,					/* program */
 		"calculateIters",			/* kernel_name - needs to match function name inside kernel */
 		&err						/* errcode_ret */
-	);
+	);	
+	
 	SIMPLE_CHECK_ERRORS(err);
-
-	if (err == CL_BUILD_PROGRAM_FAILURE) {
-		// Determine the size of the log
-		size_t log_size;
-		clGetProgramBuildInfo(program, devices[0], CL_PROGRAM_BUILD_LOG, 0, NULL, &log_size);
-
-		// Allocate memory for the log
-		char* log = (char*)malloc(log_size);
-
-		// Get the log
-		clGetProgramBuildInfo(program, devices[0], CL_PROGRAM_BUILD_LOG, log_size, log, NULL);
-
-		// Print the log
-		printf("%s\n", log);
-	}
-
 	// -----------------------------------------------------------------------
 	// 12. Set kernel function argument list
 
@@ -373,7 +358,7 @@ int calculateIters(Complex* points, int* iters, const unsigned int size, const u
 
 	size_t n_dim = 1;
 	size_t global_work_size[1] = { size };
-	size_t local_work_size[1] = { 128 };	// Maximum work size is 1024
+	size_t local_work_size[1] = { 100 };	// Maximum work size is 1024
 
 	// -----------------------------------------------------------------------
 	// 14. Enqueue (run) the kernel(s)

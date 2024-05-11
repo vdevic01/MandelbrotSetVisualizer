@@ -1,7 +1,9 @@
 {
   "build": {
-    "devPath": "../src",
-    "distDir": "../src",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devPath": "http://localhost:1420",
+    "distDir": "../dist",
     "withGlobalTauri": true
   },
   "package": {
@@ -10,10 +12,22 @@
   },
   "tauri": {
     "allowlist": {
-      "all": false,
+      "all": true,
       "shell": {
         "all": false,
         "open": true
+      },
+      "protocol": {
+        "all": true,
+        "asset": true,
+        "assetScope": ["**", "**/*"]
+      },
+      "fs": {
+        "all": true,
+        "scope": ["**"]
+      },
+      "path": {
+        "all": true
       }
     },
     "windows": [
@@ -24,7 +38,7 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; img-src 'self' asset: https://asset.localhost"
     },
     "bundle": {
       "active": true,

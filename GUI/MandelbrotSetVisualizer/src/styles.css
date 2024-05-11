@@ -3,7 +3,6 @@
   font-size: 16px;
   line-height: 24px;
   font-weight: 400; */
-  background-color: #0f0f0f;
 
   /* font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -16,18 +15,19 @@ body{
   display: flex;
   flex-direction: row;
   margin: 0;
+  background-color: #47474e;
 }
 
 .sidebar{
   width: 300px;
   min-width: 300px;
-  background-color: red;
+  background-color: #0f0f0f;
   height: 100vh;
 }
 
 .canvas-wrapper{
   flex-grow: 1;
 }
-canvas{
+#main-canvas{
   margin: 25px;
 }

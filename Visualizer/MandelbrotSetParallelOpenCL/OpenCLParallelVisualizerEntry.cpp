@@ -12,18 +12,22 @@ using namespace std;
 //const double RE_END = 1.0;
 //const double IM_START = -1;
 //const double IM_END = 1;
-const double RE_START = -0.153004885037500013708;
-const double RE_END = -0.152809695287500013708;
-const double IM_START = 1.039611370300000000002;
-const double IM_END = 1.039757762612500000002;
+double RE_START = -0.153004885037500013708;
+double RE_END = -0.152809695287500013708;
+double IM_START = 1.039611370300000000002;
+double IM_END = 1.039757762612500000002;
 
-const int MAX_ITER = 700;
+int MAX_ITER = 700;
 
-const int IMAGE_WIDTH = 6144;
-const int IMAGE_HEIGHT = 4096;
-const int IMAGE_SIZE = IMAGE_WIDTH * IMAGE_HEIGHT;
+//int IMAGE_WIDTH = 6144;
+//int IMAGE_HEIGHT = 4096;
+int IMAGE_WIDTH = 900;
+int IMAGE_HEIGHT = 600;
+int IMAGE_SIZE = IMAGE_WIDTH * IMAGE_HEIGHT;
 
-const int PALETTE_LENGTH = 150;
+int PALETTE_LENGTH = 150;
+
+string OUTPUT_FILENAME = "./mandelbrot_set.png";
 
 struct Color {
     unsigned char red;
@@ -72,7 +76,7 @@ void createColorImage(Color* pixels) {
     uchar* imageData = image.data;
 
     for (int y = 0; y < IMAGE_HEIGHT; ++y) {
-        uchar* rowPtr = imageData + y * image.step;
+        uchar* rowPtr = imageData + (IMAGE_HEIGHT - y - 1) * image.step;
 
         for (int x = 0; x < IMAGE_WIDTH; ++x) {
             int pixelIndex = y * IMAGE_WIDTH + x;
@@ -86,7 +90,7 @@ void createColorImage(Color* pixels) {
         }
     }
 
-    cv::imwrite("mandelbrot_set.tiff", image);
+    cv::imwrite(OUTPUT_FILENAME, image);
 }
 
 double mapVal(double value, double inMin, double inMax, double outMin, double outMax) {
@@ -104,7 +108,7 @@ int complexPointIter(complex<double>& c) {
     return -1;
 }
 
-void createMandelbrotSet() {  
+void createMandelbrotSet() {
     auto* points = new Complex[IMAGE_HEIGHT * IMAGE_WIDTH];
     auto* iters = new int[IMAGE_HEIGHT * IMAGE_WIDTH];
 
@@ -147,7 +151,7 @@ void createMandelbrotSet() {
 
     delete[] points;
 
-    auto* pixels = new Color[IMAGE_HEIGHT * IMAGE_WIDTH];
+    auto* pixels = new Color[IMAGE_SIZE];
 
     for (int i = 0; i < IMAGE_SIZE; i++) {
         if (iters[i] == -1) {
@@ -179,6 +183,40 @@ void createMandelbrotSet() {
 
 }
 
-int main() {
+// Command line arguments:
+// RE_START, RE_END, IM_START, IM_END, IMG_WIDTH, IMG_HEIGHT, MAX_ITER, OUTPUT_FILENAME
+int main(int argc, char* argv[]) {
+    if (argc > 1) {
+        try {
+            RE_START = stod(argv[1]);
+        }
+        catch (const invalid_argument& e) {
+            return 1;
+        }
+        try {
+            RE_END = stod(argv[2]);
+        }
+        catch (const invalid_argument& e) {
+            return 1;
+        }
+        try {
+            IM_START = stod(argv[3]);
+        }
+        catch (const invalid_argument& e) {
+            return 1;
+        }
+        try {
+            IM_END = stod(argv[4]);
+        }
+        catch (const invalid_argument& e) {
+            return 1;
+        }
+        try {
+            OUTPUT_FILENAME = argv[5];
+        }
+        catch (const invalid_argument& e) {
+            return 1;
+        }
+    }
     createMandelbrotSet();
 }
