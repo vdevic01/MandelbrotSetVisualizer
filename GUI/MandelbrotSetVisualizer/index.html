@@ -11,6 +11,31 @@
 
   <body>
     <div class="sidebar">
+      <div class="section">
+        <label for="input-palette-length">Max Iterations:</label>
+        <input value="1000" class="form-field" type="number" id="input-palette-length">
+        <div class="button-row">
+          <button style="margin-right: 5px;">Apply</button>
+          <button style="margin-left: 5px;" disabled>Cancel</button>
+        </div>      
+      </div>
+      <hr>
+      <div class="section">
+        <label for="input-palette-length">Palette Length:</label>
+        <input value="250" class="form-field" type="number" id="input-palette-length">
+        <div class="button-row">
+          <button style="margin-right: 5px;">Apply</button>
+          <button style="margin-left: 5px;" disabled>Cancel</button>
+        </div>      
+      </div>
+      <hr>
+      <div class="section">
+        <label for="select-max-iter">Palette:</label>
+        <select class="form-field" id="select-max-iter">
+          <option value="navy">Navy</option>
+          <option value="grayscale">Grayscale</option>
+        </select>
+      </div>
     </div>
     <div class="canvas-wrapper">
       <div id="main-canvas"></div>

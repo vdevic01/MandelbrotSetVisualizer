@@ -76,6 +76,9 @@ window.addEventListener("DOMContentLoaded", () => {
     }
 
     p5.mousePressed = () => {
+      if(p5.mouseX < 0 || p5.mouseX > p5.width || p5.mouseY < 0 || p5.mouseY > p5.height){
+        return;
+      }
       if(p5.mouseButton == p5.LEFT){
         pressX = p5.mouseX;
         pressY = p5.mouseY;
