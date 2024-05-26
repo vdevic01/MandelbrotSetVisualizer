@@ -29,9 +29,12 @@ class BoundaryManager{
   private startingBoundary: Boundary;
   private lowPrecissionBoundary: Boundary;
   private highPrecissionBoundary?: HighPrecissionBoundary;
+  private highPrecission: boolean = false;
   private boxSidesRatio: number[];
   private pressX: number = -1;
   private pressY: number = -1;
+  private releaseX: number = -1;
+  private releaseY: number = -1;
   private p5Client: P5;
   private img?: P5.Image;
   private static imgUrl: string = "https://asset.localhost/D%3A%2FFakultet%2F8.%20semestar%2FDiplomski%20rad%2FMandelbrotSetVisualizer%2FGUI%2FMandelbrotSetVisualizer%2Fgenerated-files%2Fmandelbrot_set.png";
@@ -57,20 +60,49 @@ class BoundaryManager{
     this.pressX = pressX;
     this.pressY = pressY;
   }
+  public decimalToFixedPoint(decimal: Decimal): any {
+    let isNegative = false;
+    if(decimal.isNegative()){
+      decimal = decimal.negated();
+      isNegative = true;
+    }
+    const integerPart = decimal.trunc();
+    const fractionalPart = decimal.minus(integerPart);
+    const scaleFactor = new Decimal(2).pow(32);
+    const fractionHigh = fractionalPart.mul(scaleFactor).trunc();
+    const remainingFraction = fractionalPart.mul(scaleFactor).minus(fractionHigh);
+    const fractionLow1 = remainingFraction.mul(scaleFactor).trunc();
+    const fractionLow2 = remainingFraction.mul(scaleFactor).minus(fractionLow1).mul(scaleFactor).trunc();
+    
+    let nums = [integerPart.toNumber(), fractionHigh.toNumber(), fractionLow1.toNumber(), fractionLow2.toNumber()];
+    if(isNegative){
+      let bigNums = nums.map(num => (~BigInt(num)) & 0x00000000FFFFFFFFn);
+      bigNums[3] += 1n;
+      for(let i = bigNums.length - 1; i>= 1; i--){
+        let msb = bigNums[i] >> BigInt(32);
+        let lsb = bigNums[i] & 0xFFFFFFFFn;
+        bigNums[i - 1] += msb;
+        nums[i] = Number(lsb);
+      }
+      nums[0] = Number(bigNums[0] & 0xFFFFFFFFn);
+    }
 
-  public updateBoundary(releaseX: number, releaseY: number){
+    return nums;
+  }
+  
+  private transformMouseCoordinates(): Boundary{
     let relX;
     let relY;
 
-    let width = releaseX - this.pressX;
-    let height = releaseY - this.pressY;
-    console.log("mouseX, mouseY:" + [releaseX, releaseY]);
+    let width = this.releaseX - this.pressX;
+    let height = this.releaseY - this.pressY;
+    console.log("mouseX, mouseY:" + [this.releaseX, this.releaseY]);
     if(Math.abs(width) * this.boxSidesRatio[0] > Math.abs(height) * this.boxSidesRatio[1]){
-      relX = releaseX;
+      relX = this.releaseX;
       relY = this.pressY + Math.sign(height) * Math.abs(width) * 1.0 / this.boxSidesRatio[1] * this.boxSidesRatio[0];
     }else{
       relX = this.pressX + Math.sign(width) * Math.abs(height) * 1.0 / this.boxSidesRatio[0] * this.boxSidesRatio[1];
-      relY = releaseY;
+      relY = this.releaseY;
       console.log([relX, relY]);
     }
 
@@ -78,8 +110,47 @@ class BoundaryManager{
     let reEnd = Math.max(this.pressX, relX);
     let imStart = Math.max(this.pressY, relY);
     let imEnd = Math.min(this.pressY, relY);
-    const k1: number = (reEnd - reStart) / (imEnd - imStart);
-    console.log("Boundary side ratio (k1):" + k1);
+
+    return {
+      reStart: reStart,
+      reEnd: reEnd,
+      imStart: imStart,
+      imEnd: imEnd
+    }
+  }
+
+  private highPrecissionMapping(n: Decimal, inMin: Decimal, inMax:Decimal, outMin:Decimal, outMax:Decimal): Decimal{
+    const numerator = Decimal.sub(n, inMin).mul(Decimal.sub(outMax, outMin));
+    const denominator = Decimal.sub(inMax, inMin);
+    const fraction = Decimal.div(numerator, denominator);
+    return Decimal.sum(fraction, outMin);
+  }
+
+  private updateBoundaryHighPrecission(){
+    const {reStart, reEnd, imStart, imEnd} = this.transformMouseCoordinates();
+    let reStartDec = new Decimal(reStart);
+    let reEndDec = new Decimal(reEnd);
+    let imStartDec = new Decimal(imStart);
+    let imEndDec = new Decimal(imEnd);
+    let zeroDec = new Decimal(0);
+    let widthDec = new Decimal(this.p5Client.width);
+    let heightDec = new Decimal(this.p5Client.height);
+    
+    reStartDec = this.highPrecissionMapping(reStartDec, zeroDec, widthDec, this.highPrecissionBoundary!.reStart, this.highPrecissionBoundary!.reEnd);
+    reEndDec = this.highPrecissionMapping(reEndDec, zeroDec, widthDec, this.highPrecissionBoundary!.reStart, this.highPrecissionBoundary!.reEnd);
+    imStartDec = this.highPrecissionMapping(imStartDec, zeroDec, heightDec, this.highPrecissionBoundary!.imStart, this.highPrecissionBoundary!.imEnd);
+    imEndDec = this.highPrecissionMapping(imEndDec, zeroDec, heightDec, this.highPrecissionBoundary!.imStart, this.highPrecissionBoundary!.imEnd);
+    let newBoundary = {
+      reStart: reStartDec.toString(),
+      reEnd: reEndDec.toString(),
+      imStart: imStartDec.toString(),
+      imEnd: imEndDec.toString()
+    };
+    console.log(newBoundary);
+  }
+
+  private updateBoundaryLowPrecission(){
+    let {reStart, reEnd, imStart, imEnd} = this.transformMouseCoordinates();
 
     reStart = this.p5Client.map(reStart, 0, this.p5Client.width, this.lowPrecissionBoundary.reStart, this.lowPrecissionBoundary.reEnd);
     reEnd = this.p5Client.map(reEnd, 0, this.p5Client.width, this.lowPrecissionBoundary.reStart, this.lowPrecissionBoundary.reEnd);
@@ -95,7 +166,28 @@ class BoundaryManager{
     console.log(this.lowPrecissionBoundary);
     const k2: number = (this.lowPrecissionBoundary.reEnd - this.lowPrecissionBoundary.reStart) / (this.lowPrecissionBoundary.imEnd - this.lowPrecissionBoundary.imStart);
     console.log("Boundary side ratio (k2):" + k2);
+    console.log("Boundary length:" + (this.lowPrecissionBoundary.reEnd - this.lowPrecissionBoundary.reStart).toFixed(18));
     this.generateMandelbrot();
+    if(this.lowPrecissionBoundary.reEnd - this.lowPrecissionBoundary.reStart < 0.0000000000006){
+      console.log("!!!Precission limit reached!!!")
+      this.highPrecission = true;
+      this.highPrecissionBoundary = {
+        reStart: new Decimal(this.lowPrecissionBoundary.reStart),
+        reEnd: new Decimal(this.lowPrecissionBoundary.reEnd),
+        imStart: new Decimal(this.lowPrecissionBoundary.imStart),
+        imEnd: new Decimal(this.lowPrecissionBoundary.imEnd)
+      }
+    }
+  }
+
+  public updateBoundary(releaseX: number, releaseY: number){
+    this.releaseX = releaseX;
+    this.releaseY = releaseY;
+    if(this.highPrecission){
+      this.updateBoundaryHighPrecission();
+    }else{
+      this.updateBoundaryLowPrecission();
+    }
   }
 
   private async generateMandelbrot(){
@@ -106,6 +198,7 @@ class BoundaryManager{
   }
 
   public reset(){
+    this.highPrecission = false;
     this.lowPrecissionBoundary = {...this.startingBoundary};
     this.generateMandelbrot();
   }
@@ -116,12 +209,10 @@ window.addEventListener("DOMContentLoaded", () => {
   let pressX = -1;
   let pressY = -1;
   const boxRatio = [2, 3];
-  let p5Client: P5;
   let isPressed = false;
   let boundaryManager: BoundaryManager;
 
   const sketch = (p5: P5) => {
-    p5Client = p5;
     boundaryManager = new BoundaryManager({
       reStart: -2.0,
       reEnd: 1.0,
@@ -130,6 +221,7 @@ window.addEventListener("DOMContentLoaded", () => {
       boxRatio,
       p5
     );
+
     p5.setup = () => {
       const canvas = p5.createCanvas(900, 600);
       canvas.parent("main-canvas");
