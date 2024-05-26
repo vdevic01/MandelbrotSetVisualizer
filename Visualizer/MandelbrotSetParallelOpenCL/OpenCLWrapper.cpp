@@ -208,6 +208,16 @@ int calculateIters(Complex* points, int* iters, const unsigned int size, const u
 
 	SIMPLE_CHECK_ERRORS(err);
 
+	for (cl_uint j = 0; j < device_num; j++) {
+		char deviceName[128];
+		clGetDeviceInfo(devices[j], CL_DEVICE_NAME, 128, deviceName, nullptr);
+		std::cout << "  Device: " << deviceName << std::endl;
+
+		char openclVersion[128];
+		clGetDeviceInfo(devices[j], CL_DEVICE_VERSION, 128, openclVersion, nullptr);
+		std::cout << "    OpenCL Version: " << openclVersion << std::endl;
+	}
+
 	// -----------------------------------------------------------------------
 	// 6. Create OpenCL context
 	// We are going to use the GPU or CPU, NOT both
