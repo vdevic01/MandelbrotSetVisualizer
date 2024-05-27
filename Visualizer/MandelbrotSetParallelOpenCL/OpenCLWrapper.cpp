@@ -18,6 +18,12 @@ typedef struct _opencl_dev_info {
 	cl_uint count;
 } T_opencl_dev_info;
 
+typedef struct {
+	cl_context context;
+	cl_int err;
+	cl_command_queue cmd_queue;
+	cl_device_id* devices;
+} OpenclDeviceSetupInfo;
 
 // For now only Intel and AMD are supported
 //#ifdef OPENCL_ARCH_INTEL
@@ -44,28 +50,9 @@ typedef struct _opencl_dev_info {
 	exit(1);                               \
 }
 
-// Used to print log file content in case of error
-// Log file may be empty despite error happening
-void printError(const cl_program& program, const cl_device_id& device) {
-	// Determine the size of the log
-	size_t log_size;
-	clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, 0, NULL, &log_size);
-
-	// Allocate memory for the log
-	char* log = (char*)malloc(log_size);
-
-	// Get the log
-	clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, log_size, log, NULL);
-
-	// Print the log
-	printf("%s\n", log);
-}
-
-int calculateIters(Complex* points, int* iters, const unsigned int size, const unsigned int max_iter)
-{
-
+OpenclDeviceSetupInfo setupOpenclDevices(){
 	// The following variable stores return codes for all OpenCL calls
-	// In the code it is used with SIMPLE_CHECK_ERRORS macro
+// In the code it is used with SIMPLE_CHECK_ERRORS macro
 	cl_int err = CL_SUCCESS;
 
 	//-----------------------------------------------------------------------
@@ -140,7 +127,7 @@ int calculateIters(Complex* points, int* iters, const unsigned int size, const u
 		cerr
 			<< "There is no found platform with name containing \""
 			<< required_platform_subname << "\" as a substring.\n";
-		return 1;
+		exit(1);
 	}
 
 	cl_platform_id platform = platforms[selected_platform_index];
@@ -211,7 +198,7 @@ int calculateIters(Complex* points, int* iters, const unsigned int size, const u
 	for (cl_uint j = 0; j < device_num; j++) {
 		char deviceName[128];
 		clGetDeviceInfo(devices[j], CL_DEVICE_NAME, 128, deviceName, nullptr);
-		std::cout << "  Device: " << deviceName << std::endl;
+		std::cout << "Device: " << deviceName << std::endl;
 
 		char openclVersion[128];
 		clGetDeviceInfo(devices[j], CL_DEVICE_VERSION, 128, openclVersion, nullptr);
@@ -246,6 +233,36 @@ int calculateIters(Complex* points, int* iters, const unsigned int size, const u
 	);
 
 	SIMPLE_CHECK_ERRORS(err);
+	delete[] platforms;
+	OpenclDeviceSetupInfo output;
+	output.cmd_queue = cmd_queue;
+	output.context = context;
+	output.err = err;
+	output.devices = devices;
+	return output;
+}
+
+// Used to print log file content in case of error
+// Log file may be empty despite error happening
+void printError(const cl_program& program, const cl_device_id& device) {
+	// Determine the size of the log
+	size_t log_size;
+	clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, 0, NULL, &log_size);
+
+	// Allocate memory for the log
+	char* log = (char*)malloc(log_size);
+
+	// Get the log
+	clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, log_size, log, NULL);
+
+	// Print the log
+	printf("%s\n", log);
+}
+
+int calculateIters(Complex* points, int* iters, const unsigned int size, const unsigned int max_iter)
+{
+	OpenclDeviceSetupInfo deviceInfo = setupOpenclDevices();
+	cl_int err = deviceInfo.err;
 
 	// -----------------------------------------------------------------------
 	// 8. Create memory buffers
@@ -255,7 +272,7 @@ int calculateIters(Complex* points, int* iters, const unsigned int size, const u
 	cl_mem device_buffer_max_iters;
 
 	device_buffer_input = clCreateBuffer(
-		context,					/* context */
+		deviceInfo.context,			/* context */
 		CL_MEM_READ_ONLY,			/* flags */
 		sizeof(Complex) * size,		/* size */
 		NULL,						/* host_ptr */
@@ -265,7 +282,7 @@ int calculateIters(Complex* points, int* iters, const unsigned int size, const u
 	SIMPLE_CHECK_ERRORS(err);
 
 	device_buffer_output = clCreateBuffer(
-		context,
+		deviceInfo.context,
 		CL_MEM_WRITE_ONLY,
 		sizeof(Complex) * size,
 		NULL,
@@ -279,7 +296,7 @@ int calculateIters(Complex* points, int* iters, const unsigned int size, const u
 
 	// Transfer data from host_buffer_A to device_buffer_A
 	err = clEnqueueWriteBuffer(
-		cmd_queue,					/* command_queue */
+		deviceInfo.cmd_queue,		/* command_queue */
 		device_buffer_input,		/* buffer */
 		CL_TRUE,					/* blocking_write */
 		0,							/* offset */
@@ -301,7 +318,7 @@ int calculateIters(Complex* points, int* iters, const unsigned int size, const u
 
 	// Create Progam object
 	cl_program program = clCreateProgramWithSource(
-		context,							/* context */
+		deviceInfo.context,					/* context */
 		1,									/* count */
 		&kernelSrc,							/* strings */
 		NULL,								/* lengths */
@@ -313,7 +330,7 @@ int calculateIters(Complex* points, int* iters, const unsigned int size, const u
 	err = clBuildProgram(
 		program,			/* program */
 		1,					/* num_devices */
-		devices,			/* device_list */
+		deviceInfo.devices,	/* device_list */
 		NULL,				/* options */
 		NULL,				/* pfn_notify */
 		NULL				/* user_data */
@@ -374,7 +391,7 @@ int calculateIters(Complex* points, int* iters, const unsigned int size, const u
 	// 14. Enqueue (run) the kernel(s)
 
 	err = clEnqueueNDRangeKernel(
-		cmd_queue,				/* command_queue */
+		deviceInfo.cmd_queue,	/* command_queue */
 		kernel,					/* kernel */
 		n_dim,					/* work_dim */
 		NULL,					/* global_work_offset */
@@ -390,7 +407,7 @@ int calculateIters(Complex* points, int* iters, const unsigned int size, const u
 	// 15. Get results (output buffer) from global device memory
 
 	err = clEnqueueReadBuffer(
-		cmd_queue,				/* command_queue */
+		deviceInfo.cmd_queue,	/* command_queue */
 		device_buffer_output,	/* buffer */
 		CL_TRUE,				/* blocking_read */
 		0,						/* offset */
@@ -404,8 +421,7 @@ int calculateIters(Complex* points, int* iters, const unsigned int size, const u
 
 	// -----------------------------------------------------------------------
 	// 17. Free alocated resources
-	free(devices);
-	delete[] platforms;
+	free(deviceInfo.devices);
 
 	return CL_SUCCESS;
 }
