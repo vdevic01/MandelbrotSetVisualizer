@@ -60,6 +60,45 @@ class BoundaryManager{
     this.pressX = pressX;
     this.pressY = pressY;
   }
+
+  public fixedToDecimal(fpNum: number[]): Decimal{
+
+    let isNegative = false;
+    if((fpNum[0] & 0x80000000) != 0){
+      isNegative = true;
+      let bigNums = fpNum.map(num => (~BigInt(num)) & 0x00000000FFFFFFFFn);
+      bigNums[3] += 1n;
+      for(let i = bigNums.length - 1; i>= 1; i--){
+        let msb = bigNums[i] >> BigInt(32);
+        let lsb = bigNums[i] & 0xFFFFFFFFn;
+        bigNums[i - 1] += msb;
+        fpNum[i] = Number(lsb);
+      }
+      fpNum[0] = Number(bigNums[0] & 0xFFFFFFFFn);
+    }
+    const wholePart = fpNum[0]
+    const fractionalParts = fpNum.slice(1)
+
+    let fractionalPart = '';
+    fractionalParts.forEach(part => {
+      fractionalPart += part.toString(2).padStart(32, '0')
+    });
+
+    let fractionalDecimal = new Decimal(0);
+    for(let i = 0; i < fractionalPart.length; i++){
+      if(fractionalPart[i] === '1'){
+        fractionalDecimal = fractionalDecimal.plus(new Decimal(1).dividedBy(new Decimal(2).pow(i + 1)));
+      }
+    }
+
+    let result = new Decimal(wholePart).plus(fractionalDecimal);
+    if(isNegative){
+      result = result.mul(-1);
+    }
+
+    return result;
+  }
+
   public decimalToFixedPoint(decimal: Decimal): any {
     let isNegative = false;
     if(decimal.isNegative()){
@@ -146,7 +185,30 @@ class BoundaryManager{
       imStart: imStartDec.toString(),
       imEnd: imEndDec.toString()
     };
+    console.log("High precission boundary:");
     console.log(newBoundary);
+    console.log("Fixed point representation:")
+    console.log("===========================")
+    console.log("\treStart:")
+    let temp = this.decimalToFixedPoint(reStartDec);
+    console.log(temp)
+    console.log("Converted number:" + this.fixedToDecimal(temp).toString())
+    console.log("Absolute error:" + this.fixedToDecimal(temp).abs().minus(reStartDec.abs()).abs().toString())
+    console.log("\treEnd:")
+    temp = this.decimalToFixedPoint(reEndDec);
+    console.log(temp)
+    console.log("Converted number:" + this.fixedToDecimal(temp).toString())
+    console.log("Absolute error:" + this.fixedToDecimal(temp).abs().minus(reEndDec.abs()).abs().toString())
+    console.log("\timStart:")
+    temp = this.decimalToFixedPoint(imStartDec);
+    console.log(temp)
+    console.log("Converted number:" + this.fixedToDecimal(temp).toString())
+    console.log("Absolute error:" + this.fixedToDecimal(temp).minus(imStartDec).abs().toString())
+    console.log("\timEnd:")
+    temp = this.decimalToFixedPoint(imEndDec);
+    console.log(temp)
+    console.log("Converted number:" + this.fixedToDecimal(temp).toString())
+    console.log("Absolute error:" + this.fixedToDecimal(temp).minus(imEndDec).abs().toString())
   }
 
   private updateBoundaryLowPrecission(){
@@ -221,6 +283,8 @@ window.addEventListener("DOMContentLoaded", () => {
       boxRatio,
       p5
     );
+    console.log(boundaryManager.decimalToFixedPoint(new Decimal(2.75)));
+    console.log(boundaryManager.fixedToDecimal([0xFFFFFFFF,0x40000000,0,0]).toString());
 
     p5.setup = () => {
       const canvas = p5.createCanvas(900, 600);

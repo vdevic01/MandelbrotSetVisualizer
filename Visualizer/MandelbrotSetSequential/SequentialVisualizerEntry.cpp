@@ -4,21 +4,21 @@
 #include <vector>
 
 using namespace std;
-//const double RE_START = -2.0;
-//const double RE_END = 1.0;
-//const double IM_START = -1;
-//const double IM_END = 1;
-const double RE_START = -0.153004885037500013708;
-const double RE_END = -0.152809695287500013708;
-const double IM_START = 1.039611370300000000002;
-const double IM_END = 1.039757762612500000002;
+const double RE_START = -2.0;
+const double RE_END = 2.0;
+const double IM_START = -2;
+const double IM_END = 2;
+//const double RE_START = -0.153004885037500013708;
+//const double RE_END = -0.152809695287500013708;
+//const double IM_START = 1.039611370300000000002;
+//const double IM_END = 1.039757762612500000002;
 
-const int MAX_ITER = 1000;
+const int MAX_ITER = 100;
 
-const int IMAGE_WIDTH = 1500;
-const int IMAGE_HEIGHT = 1000;
+const int IMAGE_WIDTH = 2000;
+const int IMAGE_HEIGHT = 2000;
 
-const int PALETTE_LENGTH = 1000;
+const int PALETTE_LENGTH = 30;
 
 struct Color {
     unsigned char red;
