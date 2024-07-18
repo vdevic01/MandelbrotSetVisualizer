@@ -49,7 +49,6 @@ bool gtFixed(const uint* a, const uint* b) {
 	return sign == 1;
 }
 
-
 void mulCmplFixed(const uint* a, const uint* b, uint c[4]) {
 	ulong result[FP_BUFFER_SIZE];
 	for (int i = 0; i < FP_BUFFER_SIZE; i++) {
@@ -61,6 +60,8 @@ void mulCmplFixed(const uint* a, const uint* b, uint c[4]) {
 	char aSign = a[0] >> 31;
 	char bSign = b[0] >> 31;
 	bool negate = false;
+	uint tempA[4];
+	uint tempB[4];
 	if (aSign != bSign) {
 		if (aSign == 1) {
 			uint temp[4];
@@ -75,8 +76,6 @@ void mulCmplFixed(const uint* a, const uint* b, uint c[4]) {
 		negate = true;
 	}
 	else if (aSign == 1 && bSign == 1) {
-		uint tempA[4];
-		uint tempB[4];
 		cmplFixed(a, tempA);
 		cmplFixed(b, tempB);
 		aAbs = tempA;
