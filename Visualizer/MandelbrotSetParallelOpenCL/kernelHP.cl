@@ -64,14 +64,12 @@ void mulCmplFixed(const uint* a, const uint* b, uint c[4]) {
 	uint tempB[4];
 	if (aSign != bSign) {
 		if (aSign == 1) {
-			uint temp[4];
-			cmplFixed(a, temp);
-			aAbs = temp;
+			cmplFixed(a, tempA);
+			aAbs = tempA;
 		}
 		else {
-			uint temp[4];
-			cmplFixed(b, temp);
-			bAbs = temp;
+			cmplFixed(b, tempB);
+			bAbs = tempB;
 		}
 		negate = true;
 	}
@@ -130,17 +128,6 @@ __kernel void calculateIters(__global ComplexHP* IN, __global int* OUT, const un
 
 	int result = -1;
 	for (int i = 0; i < max_iter; i++) {
-		if (idx == 0) {
-			printf("=================\n");
-			printf("X: [%u, ", x[0]);
-			printf("%u, ", x[1]);
-			printf("%u, ", x[2]);
-			printf("%u]\n", x[3]);
-			printf("Y: [%u, ", y[0]);
-			printf("%u, ", y[1]);
-			printf("%u, ", y[2]);
-			printf("%u]\n", y[3]);
-		}
 		addFixed(x, x, temp);
 		mulCmplFixed(temp, y, temp);
 		addFixed(temp, y0, y);
@@ -150,41 +137,13 @@ __kernel void calculateIters(__global ComplexHP* IN, __global int* OUT, const un
 		addFixed(temp, x0, x);
 		//x = x2 - y2 + x0;
 
-		if (idx == 0) {
-			printf("X-debug: [%u, ", x[0]);
-			printf("%u, ", x[1]);
-			printf("%u, ", x[2]);
-			printf("%u]\n", x[3]);
-		}
 		mulCmplFixed(x, x, x2); // THIS PART DOES NOT WORK, X is right but product X*X is wrong
 		//x2 = x * x;
-		if (idx == 0) {
-			printf("X2-debug: [%u, ", x2[0]);
-			printf("%u, ", x2[1]);
-			printf("%u, ", x2[2]);
-			printf("%u]\n", x2[3]);
-		}
 
 		mulCmplFixed(y, y, y2);
 		//y2 = y * y;
 
 		addFixed(x2, y2, temp);
-		if (idx == 0) {
-			printf("x2: [%u, ", x2[0]);
-			printf("%u, ", x2[1]);
-			printf("%u, ", x2[2]);
-			printf("%u]\n", x2[3]);
-
-			printf("y2: [%u, ", y2[0]);
-			printf("%u, ", y2[1]);
-			printf("%u, ", y2[2]);
-			printf("%u]\n", y2[3]);
-
-			printf("temp: [%u, ", temp[0]);
-			printf("%u, ", temp[1]);
-			printf("%u, ", temp[2]);
-			printf("%u]\n", temp[3]);
-		}
 		if (gtFixed(temp, fourFixed)) {
 			result = i;
 			break;

@@ -25,19 +25,19 @@ cpp_dec_float_100 RE_START_HP = RE_START;
 cpp_dec_float_100 RE_END_HP = RE_END;
 cpp_dec_float_100 IM_START_HP = IM_START;
 cpp_dec_float_100 IM_END_HP = IM_END;
-bool USE_HIGH_PRECISSION = true;
+bool USE_HIGH_PRECISSION = false;
 
 int MAX_ITER = 700;
 
 //int IMAGE_WIDTH = 6144;
 //int IMAGE_HEIGHT = 4096;
-int IMAGE_WIDTH = 750;
-int IMAGE_HEIGHT = 500;
+int IMAGE_WIDTH = 900;
+int IMAGE_HEIGHT = 600;
 int IMAGE_SIZE = IMAGE_WIDTH * IMAGE_HEIGHT;
 
 int PALETTE_LENGTH = 256;
 
-string OUTPUT_FILENAME = "./mandelbrot_set.tiff";
+string OUTPUT_FILENAME = "./mandelbrot_set.png";
 
 struct Color {
     unsigned char red;
@@ -127,22 +127,14 @@ void createMandelbrotSet() {
 
     vector<Color> colors;
 
-    //Color c1{};
-    //c1.red = 7;
-    //c1.green = 6;
-    //c1.blue = 38;
-    //Color c2{};
-    //c2.red = 140;
-    //c2.green = 143;
-    //c2.blue = 213;
     Color c1{};
-    c1.red = 255;
-    c1.green = 255;
-    c1.blue = 255;
+    c1.red = 7;
+    c1.green = 6;
+    c1.blue = 38;
     Color c2{};
-    c2.red = 0;
-    c2.green = 0;
-    c2.blue = 0;
+    c2.red = 140;
+    c2.green = 143;
+    c2.blue = 213;
 
     colors.push_back(c1);
     colors.push_back(c2);
@@ -173,9 +165,7 @@ void createMandelbrotSet() {
     delete[] points;
 
     auto* pixels = new Color[IMAGE_SIZE];
-    //for (int i = 0; i < 10; i++) {
-    //    cout << iters[i] << endl;
-    //}
+
     for (int i = 0; i < IMAGE_SIZE; i++) {
         if (iters[i] == -1) {
             Color black{};
@@ -240,13 +230,13 @@ void createMandelbrotSetHP() {
     vector<Color> colors;
 
     Color c1{};
-    c1.red = 255;
-    c1.green = 255;
-    c1.blue = 255;
+    c1.red = 7;
+    c1.green = 6;
+    c1.blue = 38;
     Color c2{};
-    c2.red = 0;
-    c2.green = 0;
-    c2.blue = 0;
+    c2.red = 140;
+    c2.green = 143;
+    c2.blue = 213;
 
     colors.push_back(c1);
     colors.push_back(c2);
@@ -284,9 +274,7 @@ void createMandelbrotSetHP() {
     delete[] points;
 
     auto* pixels = new Color[IMAGE_SIZE];
-    /*for (int i = 0; i < 10; i++) {
-        cout << iters[i] << endl;
-    }*/
+
     for (int i = 0; i < IMAGE_SIZE; i++) {
         if (iters[i] == -1) {
             Color black{};
