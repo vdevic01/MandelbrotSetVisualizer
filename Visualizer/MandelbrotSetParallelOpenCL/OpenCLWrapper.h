@@ -9,7 +9,7 @@ struct Complex {
 };
 
 struct ComplexHP {
-    unsigned int real[4]; // One 4 bytes for whole part and 12 bytes for fraction part, using big endian
+    unsigned int real[4]; // 4 bytes for whole part and 12 bytes for fraction part, using big endian
     unsigned int imag[4];
 };
 

@@ -1,5 +1,5 @@
 typedef struct {
-	uint real[4]; // One 4 bytes for whole part and 12 bytes for fraction part, using big endian
+	uint real[4]; // 4 bytes for whole part and 12 bytes for fraction part, using big endian
 	uint imag[4];
 } ComplexHP;
 
