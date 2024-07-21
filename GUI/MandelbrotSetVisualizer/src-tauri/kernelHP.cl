@@ -1,5 +1,5 @@
 typedef struct {
-	uint real[4]; // One 4 bytes for whole part and 12 bytes for fraction part, using big endian
+	uint real[4]; // 4 bytes for whole part and 12 bytes for fraction part, using big endian
 	uint imag[4];
 } ComplexHP;
 
@@ -21,8 +21,12 @@ void addFixed(const uint* a, const uint* b, uint c[FP_SIZE]) {
 };
 
 void incFixed(const uint* a, uint c[FP_SIZE]) {
-	uint one[] = { 0, 0, 0, 1 };
-	addFixed(a, one, c);
+	uint carry = 1;
+	for (int i = FP_SIZE - 1; i >= 0; i--) {
+		ulong temp = (ulong)a[i] + carry;
+		carry = temp >> 32;
+		c[i] = (uint)temp;
+	}
 }
 
 void cmplFixed(const uint* a, uint c[FP_SIZE]) {
