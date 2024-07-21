@@ -2,15 +2,6 @@ import { invoke } from "@tauri-apps/api/tauri";
 import P5 from "p5";
 import Decimal from "decimal.js";
 
-// async function greet() {
-//   if (greetMsgEl && greetInputEl) {
-//     // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
-//     greetMsgEl.textContent = await invoke("greet", {
-//       name: greetInputEl.value,
-//     });
-//   }
-// }
-
 type Boundary = {
   reStart: number,
   reEnd: number,
