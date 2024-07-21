@@ -10,6 +10,7 @@
 
 #include "OpenCLWrapper.h"
 #include "FixedPointArithmetics.h"
+#include "ColorManager.h"
 
 using namespace std;
 using namespace boost::multiprecision;
@@ -26,7 +27,7 @@ cpp_dec_float_100 RE_START_HP = RE_START;
 cpp_dec_float_100 RE_END_HP = RE_END;
 cpp_dec_float_100 IM_START_HP = IM_START;
 cpp_dec_float_100 IM_END_HP = IM_END;
-bool USE_HIGH_PRECISSION = true;
+bool USE_HIGH_PRECISSION = false;
 
 int MAX_ITER = 700;
 
@@ -40,47 +41,13 @@ int PALETTE_LENGTH = 256;
 
 string OUTPUT_FILENAME = "./mandelbrot_set.png";
 
-struct Color {
-    unsigned char red;
-    unsigned char green;
-    unsigned char blue;
+vector<Color> colors = {
+        {7, 6, 38},
+        {140, 143, 213},
+        {7, 6, 38}
 };
-
-class ColorPalette {
-public:
-    vector<Color> colors;
-    double length;
-
-    ColorPalette(vector<Color> colors, int length) {
-        this->colors = move(colors);
-        this->length = length;
-    }
-
-    Color fit(int val) {
-        auto valAdj = (double)(val % (int)this->length);
-        const int N = this->colors.size();
-        const double STEP = this->length / (N - 1);
-        Color* left = nullptr;
-        Color* right = nullptr;
-        double ratio;
-        for (int i = 0; i < N; i++) {
-            if (STEP * i > valAdj) {
-                left = &this->colors[i - 1];
-                right = &this->colors[i];
-                ratio = (valAdj - STEP * (i - 1)) / STEP;
-                break;
-            }
-        }
-        if (left == nullptr || right == nullptr) {
-            exit(2);
-        }
-        Color output{};
-        output.red = (int)(left->red + (right->red - left->red) * ratio);
-        output.green = (int)(left->green + (right->green - left->green) * ratio);
-        output.blue = (int)(left->blue + (right->blue - left->blue) * ratio);
-        return output;
-    }
-};
+//CyclicColorPalette colorManager(IMAGE_SIZE, colors, PALETTE_LENGTH);
+HistogramColorPalette colorManager(IMAGE_SIZE, MAX_ITER);
 
 void createColorImage(Color* pixels) {
     cv::Mat image(IMAGE_HEIGHT, IMAGE_WIDTH, CV_8UC3);
@@ -123,22 +90,6 @@ void createMandelbrotSet() {
     auto* points = new Complex[IMAGE_HEIGHT * IMAGE_WIDTH];
     auto* iters = new int[IMAGE_HEIGHT * IMAGE_WIDTH];
 
-    vector<Color> colors;
-
-    Color c1{};
-    c1.red = 7;
-    c1.green = 6;
-    c1.blue = 38;
-    Color c2{};
-    c2.red = 140;
-    c2.green = 143;
-    c2.blue = 213;
-
-    colors.push_back(c1);
-    colors.push_back(c2);
-    colors.push_back(c1);
-    ColorPalette palette(colors, PALETTE_LENGTH);
-
     auto start = chrono::high_resolution_clock::now();
     for (int i = 0; i < IMAGE_HEIGHT; i++) {
         double imaginaryPart = mapVal(i, 0, IMAGE_HEIGHT, IM_START, IM_END);
@@ -164,18 +115,7 @@ void createMandelbrotSet() {
 
     auto* pixels = new Color[IMAGE_SIZE];
 
-    for (int i = 0; i < IMAGE_SIZE; i++) {
-        if (iters[i] == -1) {
-            Color black{};
-            black.red = 0;
-            black.green = 0;
-            black.blue = 0;
-            pixels[i] = black;
-        }
-        else {
-            pixels[i] = palette.fit(iters[i]);
-        }
-    }
+    colorManager.paint(iters, pixels);
 
     end = chrono::high_resolution_clock::now();
     duration = chrono::duration_cast<chrono::milliseconds>(end - start);
@@ -217,22 +157,6 @@ void createMandelbrotSetHP() {
     auto* points = new ComplexHP[IMAGE_HEIGHT * IMAGE_WIDTH];
     auto* iters = new int[IMAGE_HEIGHT * IMAGE_WIDTH];
 
-    vector<Color> colors;
-
-    Color c1{};
-    c1.red = 7;
-    c1.green = 6;
-    c1.blue = 38;
-    Color c2{};
-    c2.red = 140;
-    c2.green = 143;
-    c2.blue = 213;
-
-    colors.push_back(c1);
-    colors.push_back(c2);
-    colors.push_back(c1);
-    ColorPalette palette(colors, PALETTE_LENGTH);
-
     auto start = chrono::high_resolution_clock::now();
     cpp_dec_float_100 zeroHP = 0;
     cpp_dec_float_100 scaleImaginary = (IM_END_HP - IM_START_HP) / cpp_dec_float_100(IMAGE_HEIGHT);
@@ -271,18 +195,7 @@ void createMandelbrotSetHP() {
 
     auto* pixels = new Color[IMAGE_SIZE];
 
-    for (int i = 0; i < IMAGE_SIZE; i++) {
-        if (iters[i] == -1) {
-            Color black{};
-            black.red = 0;
-            black.green = 0;
-            black.blue = 0;
-            pixels[i] = black;
-        }
-        else {
-            pixels[i] = palette.fit(iters[i]);
-        }
-    }
+    colorManager.paint(iters, pixels);
 
     end = chrono::high_resolution_clock::now();
     duration = chrono::duration_cast<chrono::milliseconds>(end - start);

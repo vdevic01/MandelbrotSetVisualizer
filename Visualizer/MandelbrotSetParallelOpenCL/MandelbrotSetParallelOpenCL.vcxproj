@@ -116,7 +116,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>OPENCL_ARCH_AMD;WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\opencv\build\include;$(OCL_ROOT)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>D:\Fakultet\8. semestar\Diplomski rad\MandelbrotSetVisualizer\Visualizer\MandelbrotSetParallelOpenCL;C:\opencv\build\include;$(OCL_ROOT)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -135,6 +135,7 @@
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>D:\Fakultet\8. semestar\Diplomski rad\MandelbrotSetVisualizer\Visualizer\MandelbrotSetParallelOpenCL;C:\opencv\build\include;$(OCL_ROOT)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <OpenMPSupport>true</OpenMPSupport>
+      <Optimization>MaxSpeed</Optimization>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -146,6 +147,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="ColorManager.cpp" />
     <ClCompile Include="FixedPointArithmetics.cpp" />
     <ClCompile Include="OpenCLParallelVisualizerEntry.cpp" />
     <ClCompile Include="OpenCLWrapper.cpp" />
@@ -155,6 +157,7 @@
     <None Include="kernelHP.cl" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="ColorManager.h" />
     <ClInclude Include="errors.h" />
     <ClInclude Include="FixedPointArithmetics.h" />
     <ClInclude Include="OpenCLWrapper.h" />

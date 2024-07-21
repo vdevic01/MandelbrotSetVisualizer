@@ -27,6 +27,9 @@
     <ClCompile Include="FixedPointArithmetics.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="ColorManager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="kernel.cl">
@@ -44,6 +47,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="FixedPointArithmetics.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ColorManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
