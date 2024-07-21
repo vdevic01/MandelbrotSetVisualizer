@@ -8,6 +8,11 @@ struct Complex {
     double imag;
 };
 
-int calculateIters(struct Complex* c, int* max_iters, unsigned int width, unsigned int height);
+struct ComplexHP {
+    unsigned int real[4]; // 4 bytes for whole part and 12 bytes for fraction part, using big endian
+    unsigned int imag[4];
+};
 
+int calculateIters(Complex* points, int* iters, unsigned int size, unsigned int max_iter);
+int calculateItersHighPrecision(ComplexHP* points, int* iters, unsigned int size, unsigned int max_iter);
 #endif

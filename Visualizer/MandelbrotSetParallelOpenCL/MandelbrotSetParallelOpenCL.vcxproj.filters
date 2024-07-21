@@ -13,6 +13,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Kernel Files">
+      <UniqueIdentifier>{24b52414-bbe9-40f4-98ca-e37f6d42c5b2}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="OpenCLParallelVisualizerEntry.cpp">
@@ -21,10 +24,16 @@
     <ClCompile Include="OpenCLWrapper.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="FixedPointArithmetics.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="kernel.cl">
-      <Filter>Source Files</Filter>
+      <Filter>Kernel Files</Filter>
+    </None>
+    <None Include="kernelHP.cl">
+      <Filter>Kernel Files</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>
@@ -32,6 +41,9 @@
       <Filter>Resource Files</Filter>
     </ClInclude>
     <ClInclude Include="OpenCLWrapper.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="FixedPointArithmetics.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

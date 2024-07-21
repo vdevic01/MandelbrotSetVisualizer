@@ -16,8 +16,6 @@ __kernel void calculateIters(__global Complex* IN, __global int* OUT, const unsi
 
 	double x = 0;
 	double y = 0;
-
-	int iteration = 0;
 	
 	int result = -1;
 	for (int i = 0; i < max_iter; i++) {
