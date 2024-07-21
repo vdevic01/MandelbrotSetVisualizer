@@ -360,7 +360,7 @@ int main(int argc, char* argv[]) {
             return 1;
         }
         try {
-            OUTPUT_FILENAME = argv[5];
+            OUTPUT_FILENAME = argv[6];
         }
         catch (const invalid_argument& e) {
             return 1;

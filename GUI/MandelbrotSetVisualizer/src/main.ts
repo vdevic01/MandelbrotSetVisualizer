@@ -177,38 +177,15 @@ class BoundaryManager{
     
     reStartDec = this.highPrecissionMapping(reStartDec, zeroDec, widthDec, this.highPrecissionBoundary!.reStart, this.highPrecissionBoundary!.reEnd);
     reEndDec = this.highPrecissionMapping(reEndDec, zeroDec, widthDec, this.highPrecissionBoundary!.reStart, this.highPrecissionBoundary!.reEnd);
-    imStartDec = this.highPrecissionMapping(imStartDec, zeroDec, heightDec, this.highPrecissionBoundary!.imStart, this.highPrecissionBoundary!.imEnd);
-    imEndDec = this.highPrecissionMapping(imEndDec, zeroDec, heightDec, this.highPrecissionBoundary!.imStart, this.highPrecissionBoundary!.imEnd);
-    let newBoundary = {
-      reStart: reStartDec.toString(),
-      reEnd: reEndDec.toString(),
-      imStart: imStartDec.toString(),
-      imEnd: imEndDec.toString()
+    imStartDec = this.highPrecissionMapping(imStartDec, heightDec, zeroDec, this.highPrecissionBoundary!.imStart, this.highPrecissionBoundary!.imEnd);
+    imEndDec = this.highPrecissionMapping(imEndDec, heightDec, zeroDec, this.highPrecissionBoundary!.imStart, this.highPrecissionBoundary!.imEnd);
+    this.highPrecissionBoundary = {
+      reStart: reStartDec,
+      reEnd: reEndDec,
+      imStart: imStartDec,
+      imEnd: imEndDec
     };
-    console.log("High precission boundary:");
-    console.log(newBoundary);
-    console.log("Fixed point representation:")
-    console.log("===========================")
-    console.log("\treStart:")
-    let temp = this.decimalToFixedPoint(reStartDec);
-    console.log(temp)
-    console.log("Converted number:" + this.fixedToDecimal(temp).toString())
-    console.log("Absolute error:" + this.fixedToDecimal(temp).abs().minus(reStartDec.abs()).abs().toString())
-    console.log("\treEnd:")
-    temp = this.decimalToFixedPoint(reEndDec);
-    console.log(temp)
-    console.log("Converted number:" + this.fixedToDecimal(temp).toString())
-    console.log("Absolute error:" + this.fixedToDecimal(temp).abs().minus(reEndDec.abs()).abs().toString())
-    console.log("\timStart:")
-    temp = this.decimalToFixedPoint(imStartDec);
-    console.log(temp)
-    console.log("Converted number:" + this.fixedToDecimal(temp).toString())
-    console.log("Absolute error:" + this.fixedToDecimal(temp).minus(imStartDec).abs().toString())
-    console.log("\timEnd:")
-    temp = this.decimalToFixedPoint(imEndDec);
-    console.log(temp)
-    console.log("Converted number:" + this.fixedToDecimal(temp).toString())
-    console.log("Absolute error:" + this.fixedToDecimal(temp).minus(imEndDec).abs().toString())
+    this.generateMandelbrotHighPrecission();
   }
 
   private updateBoundaryLowPrecission(){
@@ -225,10 +202,6 @@ class BoundaryManager{
       imStart: imStart,
       imEnd: imEnd
     };
-    console.log(this.lowPrecissionBoundary);
-    const k2: number = (this.lowPrecissionBoundary.reEnd - this.lowPrecissionBoundary.reStart) / (this.lowPrecissionBoundary.imEnd - this.lowPrecissionBoundary.imStart);
-    console.log("Boundary side ratio (k2):" + k2);
-    console.log("Boundary length:" + (this.lowPrecissionBoundary.reEnd - this.lowPrecissionBoundary.reStart).toFixed(18));
     this.generateMandelbrot();
     if(this.lowPrecissionBoundary.reEnd - this.lowPrecissionBoundary.reStart < 0.0000000000006){
       console.log("!!!Precission limit reached!!!")
@@ -258,6 +231,18 @@ class BoundaryManager{
     console.log("All good");
     console.log("status:" + status);
   }
+  private async generateMandelbrotHighPrecission(){
+    const args = {
+      reStart: this.highPrecissionBoundary?.reStart.toString(),
+      reEnd: this.highPrecissionBoundary?.reEnd.toString(),
+      imStart: this.highPrecissionBoundary?.imStart.toString(),
+      imEnd: this.highPrecissionBoundary?.imEnd.toString()
+    };
+    const status = await invoke("generate_mandelbrot_hp", args);
+    this.img = this.p5Client.loadImage(BoundaryManager.imgUrl);
+    console.log("All good");
+    console.log("status:" + status);
+  }
 
   public reset(){
     this.highPrecission = false;
@@ -283,9 +268,6 @@ window.addEventListener("DOMContentLoaded", () => {
       boxRatio,
       p5
     );
-    console.log(boundaryManager.decimalToFixedPoint(new Decimal(2.75)));
-    console.log(boundaryManager.fixedToDecimal([0xFFFFFFFF,0x40000000,0,0]).toString());
-
     p5.setup = () => {
       const canvas = p5.createCanvas(900, 600);
       canvas.parent("main-canvas");
