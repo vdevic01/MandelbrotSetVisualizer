@@ -6,6 +6,7 @@
 #include <boost/multiprecision/cpp_dec_float.hpp>
 #include <boost/multiprecision/cpp_int.hpp>
 #include <iomanip>
+#include <omp.h>
 
 #include "OpenCLWrapper.h"
 #include "FixedPointArithmetics.h"
@@ -25,7 +26,7 @@ cpp_dec_float_100 RE_START_HP = RE_START;
 cpp_dec_float_100 RE_END_HP = RE_END;
 cpp_dec_float_100 IM_START_HP = IM_START;
 cpp_dec_float_100 IM_END_HP = IM_END;
-bool USE_HIGH_PRECISSION = false;
+bool USE_HIGH_PRECISSION = true;
 
 int MAX_ITER = 700;
 
@@ -104,9 +105,6 @@ void createColorImage(Color* pixels) {
 }
 
 double mapVal(double value, double inMin, double inMax, double outMin, double outMax) {
-    return (value - inMin) * (outMax - outMin) / (inMax - inMin) + outMin;
-}
-cpp_dec_float_100 mapVal(cpp_dec_float_100 value, cpp_dec_float_100 inMin, cpp_dec_float_100 inMax, cpp_dec_float_100 outMin, cpp_dec_float_100 outMax) {
     return (value - inMin) * (outMax - outMin) / (inMax - inMin) + outMin;
 }
 
@@ -197,28 +195,20 @@ void createMandelbrotSet() {
 }
 
 void convertToFixedPoint(const cpp_dec_float_100& num, unsigned int res[4]) {
-    bool isNegative = false;
-    cpp_dec_float_100 temp = cpp_dec_float_100(num);
-    if (num < 0) {
-        isNegative = true;
-        temp = -temp;
-    }
-    cpp_dec_float_100 whole_part = floor(temp);
-    cpp_dec_float_100 fractional_part = temp - whole_part;
+    cpp_dec_float_100 temp = num < 0 ? -num : num;
+    cpp_int whole_int = floor(temp).convert_to<cpp_int>();
+    cpp_dec_float_100 fractional_part = temp - cpp_dec_float_100(whole_int);
+    res[0] = whole_int.convert_to<unsigned int>();
 
-    cpp_int whole_int = whole_part.convert_to<cpp_int>();
-    unsigned int whole_part_int = whole_int.convert_to<unsigned int>();
-
-    res[0] = whole_part_int;
-
-    cpp_dec_float_100 scale = cpp_dec_float_100("79228162514264337593543950336");
+    cpp_dec_float_100 scale("79228162514264337593543950336");
     cpp_int fractional_int = (fractional_part * scale).convert_to<cpp_int>();
 
     for (int i = 3; i >= 1; --i) {
         res[i] = static_cast<unsigned int>(fractional_int & 0xFFFFFFFF);
         fractional_int >>= 32;
     }
-    if (isNegative) {
+
+    if (num < 0) {
         fpa::cmplFixed(res, res);
     }
 }
@@ -244,13 +234,19 @@ void createMandelbrotSetHP() {
     ColorPalette palette(colors, PALETTE_LENGTH);
 
     auto start = chrono::high_resolution_clock::now();
+    cpp_dec_float_100 zeroHP = 0;
+    cpp_dec_float_100 scaleImaginary = (IM_END_HP - IM_START_HP) / cpp_dec_float_100(IMAGE_HEIGHT);
+    cpp_dec_float_100 scaleReal = (RE_END_HP - RE_START_HP) / cpp_dec_float_100(IMAGE_WIDTH);
+
+    unsigned int realPartFP[4];
+    unsigned int imagPartFP[4];
+
+    #pragma omp parallel for private(realPartFP, imagPartFP)
     for (int i = 0; i < IMAGE_HEIGHT; i++) {
-        cpp_dec_float_100 imaginaryPart = mapVal(cpp_dec_float_100(i), cpp_dec_float_100(0), cpp_dec_float_100(IMAGE_HEIGHT), IM_START_HP, IM_END_HP);
+        cpp_dec_float_100 imaginaryPart = IM_START_HP + cpp_dec_float_100(i) * scaleImaginary;
         for (int j = 0; j < IMAGE_WIDTH; j++) {
-            cpp_dec_float_100 realPart = mapVal(cpp_dec_float_100(j), cpp_dec_float_100(0), cpp_dec_float_100(IMAGE_WIDTH), RE_START_HP, RE_END_HP);
+            cpp_dec_float_100 realPart = RE_START_HP + cpp_dec_float_100(j) * scaleReal;
             int idx = j + (i * IMAGE_WIDTH);
-            unsigned int* realPartFP = new unsigned int[4];
-            unsigned int* imagPartFP = new unsigned int[4];
             convertToFixedPoint(realPart, realPartFP);
             convertToFixedPoint(imaginaryPart, imagPartFP);
             for (int k = 0; k < 4; k++) {
