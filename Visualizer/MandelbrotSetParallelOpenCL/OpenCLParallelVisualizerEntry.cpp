@@ -15,10 +15,10 @@
 using namespace std;
 using namespace boost::multiprecision;
 
-//const double RE_START = -2.0;
-//const double RE_END = 1.0;
-//const double IM_START = -1;
-//const double IM_END = 1;
+//double RE_START = -2.0;
+//double RE_END = 1.0;
+//double IM_START = -1;
+//double IM_END = 1;
 double RE_START = -0.153004885037500013708;
 double RE_END = -0.152809695287500013708;
 double IM_START = 1.039611370300000000002;
@@ -46,8 +46,20 @@ vector<Color> colors = {
         {140, 143, 213},
         {7, 6, 38}
 };
-//CyclicColorPalette colorManager(IMAGE_SIZE, colors, PALETTE_LENGTH);
-HistogramColorPalette colorManager(IMAGE_SIZE, MAX_ITER);
+vector<Color> colors2 = {
+        {10, 11, 48},
+        {29, 73, 173},
+        {34, 175, 245},
+        {112, 241, 255},
+        {86, 165, 214},
+        {6, 6, 33},
+        {71, 119, 173},
+        {166, 240, 255},
+        {165, 212, 242},
+        {165, 212, 242}
+};
+//CyclicColorPalette colorManager(IMAGE_SIZE, colors2, PALETTE_LENGTH);
+HistogramColorPalette colorManager(IMAGE_SIZE, MAX_ITER, colors2, 1000);
 
 void createColorImage(Color* pixels) {
     cv::Mat image(IMAGE_HEIGHT, IMAGE_WIDTH, CV_8UC3);

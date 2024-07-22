@@ -48,8 +48,10 @@ void CyclicColorPalette::paint(int* iters, Color pixels[]) {
     }
 }
 
-HistogramColorPalette::HistogramColorPalette(int imageSize, int maxIter) : ColorManager(imageSize) {
+HistogramColorPalette::HistogramColorPalette(int imageSize, int maxIter, vector<Color> colors, int length) : ColorManager(imageSize) {
     this->maxIter = maxIter;
+    this->colors = colors;
+    this->length = length;
 }
 
 Color HistogramColorPalette::interpolateColor(Color& lCol, Color& rCol, double val) {
@@ -58,6 +60,32 @@ Color HistogramColorPalette::interpolateColor(Color& lCol, Color& rCol, double v
     g = static_cast<unsigned char>(lCol.green + ((rCol.green - lCol.green) * val));
     b = static_cast<unsigned char>(lCol.blue + ((rCol.blue - lCol.blue) * val));
     return Color{ r,g,b };
+}
+
+Color HistogramColorPalette::fit(int val) {
+    double valAdj = (double)(val % (int)this->length);
+    const int N = this->colors.size();
+    const double STEP = this->length / (N - 1);
+    Color* left = nullptr;
+    Color* right = nullptr;
+    double ratio;
+    for (int i = 0; i < N; i++) {
+        if (STEP * i > valAdj) {
+            left = &this->colors[i - 1];
+            right = &this->colors[i];
+            ratio = (valAdj - STEP * (i - 1)) / STEP;
+            break;
+        }
+    }
+    if (left == nullptr || right == nullptr) {
+        throw std::runtime_error("Something went wrong - colors are not defined");
+    }
+
+    Color output{};
+    output.red = (int)(left->red + (right->red - left->red) * ratio);
+    output.green = (int)(left->green + (right->green - left->green) * ratio);
+    output.blue = (int)(left->blue + (right->blue - left->blue) * ratio);
+    return output;
 }
 
 void HistogramColorPalette::paint(int* iters, Color pixels[]) {
@@ -78,7 +106,8 @@ void HistogramColorPalette::paint(int* iters, Color pixels[]) {
             pixels[i] = Color{ 0,0,0 };
         }
         else {
-            pixels[i] = this->interpolateColor(c1, c2, hue);;
+            //pixels[i] = this->interpolateColor(c1, c2, hue);
+            pixels[i] = this->fit(hue * this->length * 1.175);
         }
     }
 }

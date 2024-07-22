@@ -36,10 +36,13 @@ private:
 
 class HistogramColorPalette : public ColorManager {
 public:
-    HistogramColorPalette(int imageSize, int maxIter);
+    HistogramColorPalette(int imageSize, int maxIter, vector<Color> colors, int length);
     void paint(int* iters, Color pixels[]) override;
 private:
     Color interpolateColor(Color& l, Color& r, double val);
     int maxIter;
+    vector<Color> colors;
+    Color fit(int val);
+    double length;
 };
 #endif
