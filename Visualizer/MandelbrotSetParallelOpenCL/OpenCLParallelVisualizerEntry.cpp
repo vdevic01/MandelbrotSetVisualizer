@@ -55,11 +55,12 @@ vector<Color> colors2 = {
         {6, 6, 33},
         {71, 119, 173},
         {166, 240, 255},
-        {165, 212, 242},
-        {165, 212, 242}
+        {47, 235, 235},
+        {0, 82, 122}
 };
-//CyclicColorPalette colorManager(IMAGE_SIZE, colors2, PALETTE_LENGTH);
-HistogramColorPalette colorManager(IMAGE_SIZE, MAX_ITER, colors2, 1000);
+CyclicColorPalette colorManager(IMAGE_SIZE, colors2, PALETTE_LENGTH);
+//HistogramColorPalette colorManager(IMAGE_SIZE, MAX_ITER, colors2);
+//ExponentialColorPalette colorManager(IMAGE_SIZE, MAX_ITER, colors2);
 
 void createColorImage(Color* pixels) {
     cv::Mat image(IMAGE_HEIGHT, IMAGE_WIDTH, CV_8UC3);

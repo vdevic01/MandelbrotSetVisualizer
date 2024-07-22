@@ -31,18 +31,24 @@ public:
 private:
     vector<Color> colors;
     double length;
-    Color fit(int val);
 };
 
 class HistogramColorPalette : public ColorManager {
 public:
-    HistogramColorPalette(int imageSize, int maxIter, vector<Color> colors, int length);
+    HistogramColorPalette(int imageSize, int maxIter, vector<Color> colors);
     void paint(int* iters, Color pixels[]) override;
 private:
     Color interpolateColor(Color& l, Color& r, double val);
     int maxIter;
     vector<Color> colors;
-    Color fit(int val);
-    double length;
+};
+
+class ExponentialColorPalette : public ColorManager {
+public:
+    ExponentialColorPalette(int imageSize, int maxIter, vector<Color> colors);
+    void paint(int* iters, Color pixels[]) override;
+private:
+    int maxIter;
+    vector<Color> colors;
 };
 #endif
