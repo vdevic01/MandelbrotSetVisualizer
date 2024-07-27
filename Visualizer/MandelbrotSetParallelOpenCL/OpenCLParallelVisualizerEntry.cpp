@@ -75,13 +75,13 @@ void createColorImage(Color* pixels) {
 
         for (int x = 0; x < IMAGE_WIDTH; ++x) {
             int pixelIndex = y * IMAGE_WIDTH + x;
-            Color pixel_value = pixels[pixelIndex];
+            Color pixelValue = pixels[pixelIndex];
 
             uchar* pixelPtr = rowPtr + x * 3;
 
-            pixelPtr[0] = pixel_value.blue;
-            pixelPtr[1] = pixel_value.green;
-            pixelPtr[2] = pixel_value.red;
+            pixelPtr[0] = pixelValue.blue;
+            pixelPtr[1] = pixelValue.green;
+            pixelPtr[2] = pixelValue.red;
         }
     }
 
@@ -92,16 +92,6 @@ double mapVal(double value, double inMin, double inMax, double outMin, double ou
     return (value - inMin) * (outMax - outMin) / (inMax - inMin) + outMin;
 }
 
-int complexPointIter(complex<double>& c) {
-    complex<double> z(0, 0);
-    for (int i = 0; i < MAX_ITER; i++) {
-        z = z * z + c;
-        if (abs(z) > 2) {
-            return i;
-        }
-    }
-    return -1;
-}
 
 void createMandelbrotSet() {
     auto* points = new Complex[IMAGE_HEIGHT * IMAGE_WIDTH];
@@ -232,7 +222,11 @@ void createMandelbrotSetHP() {
 }
 
 // Command line arguments:
-// RE_START, RE_END, IM_START, IM_END, IMG_WIDTH, IMG_HEIGHT, MAX_ITER, OUTPUT_FILENAME
+// HIGHG_PRECISION
+// RE_START, RE_END, IM_START, IM_END,
+// OUTPUT_FILENAME
+// MAX_ITER
+// PALETTE_LENGTH
 int main(int argc, char* argv[]) {
     if (argc > 1) {
         try {
