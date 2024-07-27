@@ -2,6 +2,7 @@
 #include <opencv2/opencv.hpp>
 #include <utility>
 #include <vector>
+#include <iomanip>
 
 using namespace std;
 const double RE_START = -2.0;
@@ -13,12 +14,12 @@ const double IM_END = 2;
 //const double IM_START = 1.039611370300000000002;
 //const double IM_END = 1.039757762612500000002;
 
-const int MAX_ITER = 100;
+const int MAX_ITER = 500;
 
-const int IMAGE_WIDTH = 2000;
-const int IMAGE_HEIGHT = 2000;
+const int IMAGE_WIDTH = 1000;
+const int IMAGE_HEIGHT = 1000;
 
-const int PALETTE_LENGTH = 30;
+const int PALETTE_LENGTH = 130;
 
 struct Color {
     unsigned char red;
@@ -109,6 +110,30 @@ int complexPointIter(complex<double>& c) {
     return -1;
 }
 
+int complexPointIterOptimized(complex<double>& c) {
+    complex<double> z(0, 0);
+
+    double x0 = c.real();
+    double y0 = c.imag();
+
+    double x2 = 0;
+    double y2 = 0;
+
+    double x = 0;
+    double y = 0;
+
+    for (int i = 0; i < MAX_ITER; i++) {
+        y = (x + x) * y + y0;
+        x = x2 - y2 + x0;
+        x2 = x * x;
+        y2 = y * y;
+        if (x2 + y2 > 4) {
+            return i;
+        }
+    }
+    return -1;
+}
+
 void createMandelbrotSet() {
     auto* pixels = new Color[IMAGE_HEIGHT * IMAGE_WIDTH];
 
@@ -137,12 +162,19 @@ void createMandelbrotSet() {
     colors.push_back(c1);
     ColorPalette palette(colors, PALETTE_LENGTH);
 
+    chrono::steady_clock::time_point start;
+    chrono::steady_clock::time_point end;
+    long long int totalTime = 0;
     for (int i = 0; i < IMAGE_HEIGHT; i++) {
         for (int j = 0; j < IMAGE_WIDTH; j++) {
             double realPart = mapVal(j, 0, IMAGE_WIDTH, RE_START, RE_END);
             double imaginaryPart = mapVal(i, 0, IMAGE_HEIGHT, IM_START, IM_END);
             complex<double> point(realPart, imaginaryPart);
-            int totalIters = complexPointIter(point);
+
+            start = chrono::high_resolution_clock::now();
+            int totalIters = complexPointIterOptimized(point);
+            end = chrono::high_resolution_clock::now();
+            totalTime += chrono::duration_cast<chrono::nanoseconds>(end - start).count();
             int idx = j + (i * IMAGE_WIDTH);
             if (totalIters == -1) {
                 Color black{};
@@ -153,11 +185,10 @@ void createMandelbrotSet() {
             }
             else {
                 pixels[idx] = palette.fit(totalIters);
-            }
-            
-            //pixels[idx] = ceil(mapVal(totalIters, MAX_ITER, 0, 0, 255));
+            }     
         }
     }
+    std::cout << setprecision(16) << "Pixel mapping: " << totalTime * 1.0 / 1000000000.0 << " s\n\n";
     createColorImage(pixels);
     delete[] pixels;
 }
