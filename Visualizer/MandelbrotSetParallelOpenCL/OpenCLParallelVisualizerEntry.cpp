@@ -232,7 +232,11 @@ void createMandelbrotSetHP() {
 }
 
 // Command line arguments:
-// RE_START, RE_END, IM_START, IM_END, IMG_WIDTH, IMG_HEIGHT, MAX_ITER, OUTPUT_FILENAME
+// HIGHG_PRECISION
+// RE_START, RE_END, IM_START, IM_END,
+// OUTPUT_FILENAME
+// MAX_ITER
+// PALETTE_LENGTH
 int main(int argc, char* argv[]) {
     if (argc > 1) {
         try {
