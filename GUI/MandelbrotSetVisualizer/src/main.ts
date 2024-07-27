@@ -28,6 +28,8 @@ class BoundaryManager{
   private releaseY: number = -1;
   private p5Client: P5;
   private img?: P5.Image;
+  private paletteLength: number = 250;
+  private maxIter: number = 700;
   private static imgUrl: string = "https://asset.localhost/D%3A%2FFakultet%2F8.%20semestar%2FDiplomski%20rad%2FMandelbrotSetVisualizer%2FGUI%2FMandelbrotSetVisualizer%2Fgenerated-files%2Fmandelbrot_set.png";
 
   public constructor(boundary: Boundary, boxSidesRatio: number[], p5: P5){
@@ -37,7 +39,22 @@ class BoundaryManager{
     this.startingBoundary = {... boundary};
     this.generateMandelbrot();
   }
-
+  public setPaletteLength(paletteLength: number){
+    this.paletteLength = paletteLength;
+    if(this.highPrecission){
+      this.generateMandelbrotHighPrecission();
+    }else{
+      this.generateMandelbrot()
+    }
+  }
+  public setMaxIter(maxIter: number){
+    this.maxIter = maxIter;
+    if(this.highPrecission){
+      this.generateMandelbrotHighPrecission();
+    }else{
+      this.generateMandelbrot()
+    }
+  }
   public getImage(): P5.Image | undefined{
     return this.img;
   }
@@ -217,7 +234,12 @@ class BoundaryManager{
   }
 
   private async generateMandelbrot(){
-    const status = await invoke("generate_mandelbrot", this.lowPrecissionBoundary);
+    const args = {
+      ...this.lowPrecissionBoundary,
+      maxIter: this.maxIter,
+      paletteLength: this.paletteLength
+    }
+    const status = await invoke("generate_mandelbrot", args);
     this.img = this.p5Client.loadImage(BoundaryManager.imgUrl);
     console.log("All good");
     console.log("status:" + status);
@@ -227,7 +249,9 @@ class BoundaryManager{
       reStart: this.highPrecissionBoundary?.reStart.toString(),
       reEnd: this.highPrecissionBoundary?.reEnd.toString(),
       imStart: this.highPrecissionBoundary?.imStart.toString(),
-      imEnd: this.highPrecissionBoundary?.imEnd.toString()
+      imEnd: this.highPrecissionBoundary?.imEnd.toString(),
+      maxIter: this.maxIter,
+      paletteLength: this.paletteLength
     };
     const status = await invoke("generate_mandelbrot_hp", args);
     this.img = this.p5Client.loadImage(BoundaryManager.imgUrl);
@@ -316,6 +340,14 @@ window.addEventListener("DOMContentLoaded", () => {
 
   document.getElementById("button-reset")?.addEventListener("click", () => {
     boundaryManager.reset();
+  });
+  document.getElementById("button-palette-length")?.addEventListener("click", () => {
+    const paletteLength: number = parseInt((document.getElementById("input-palette-length") as HTMLInputElement)?.value);
+    boundaryManager.setPaletteLength(paletteLength);
+  });
+  document.getElementById("button-max-iter")?.addEventListener("click", () => {
+    const maxIter: number = parseInt((document.getElementById("input-max-iter") as HTMLInputElement)?.value);
+    boundaryManager.setMaxIter(maxIter);
   });
 });
 

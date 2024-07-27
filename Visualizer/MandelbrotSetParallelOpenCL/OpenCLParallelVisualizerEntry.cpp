@@ -15,14 +15,14 @@
 using namespace std;
 using namespace boost::multiprecision;
 
-//double RE_START = -2.0;
-//double RE_END = 1.0;
-//double IM_START = -1;
-//double IM_END = 1;
-double RE_START = -0.153004885037500013708;
-double RE_END = -0.152809695287500013708;
-double IM_START = 1.039611370300000000002;
-double IM_END = 1.039757762612500000002;
+double RE_START = -2.0;
+double RE_END = 1.0;
+double IM_START = -1;
+double IM_END = 1;
+//double RE_START = -0.153004885037500013708;
+//double RE_END = -0.152809695287500013708;
+//double IM_START = 1.039611370300000000002;
+//double IM_END = 1.039757762612500000002;
 cpp_dec_float_100 RE_START_HP = RE_START;
 cpp_dec_float_100 RE_END_HP = RE_END;
 cpp_dec_float_100 IM_START_HP = IM_START;
@@ -56,11 +56,15 @@ vector<Color> colors2 = {
         {71, 119, 173},
         {166, 240, 255},
         {47, 235, 235},
-        {0, 82, 122}
+        {0, 82, 122},
+        {10, 11, 48}
 };
-CyclicColorPalette colorManager(IMAGE_SIZE, colors2, PALETTE_LENGTH);
+
+
+ColorManager* colorManager = new CyclicColorPalette(IMAGE_SIZE, colors2, PALETTE_LENGTH);
+//CyclicColorPalette colorManager(IMAGE_SIZE, colors2, PALETTE_LENGTH);
 //HistogramColorPalette colorManager(IMAGE_SIZE, MAX_ITER, colors2);
-//ExponentialColorPalette colorManager(IMAGE_SIZE, MAX_ITER, colors2);
+//ExponentialColorPalette colorManager(IMAGE_SIZE, MAX_ITER, colors2, PALETTE_LENGTH);
 
 void createColorImage(Color* pixels) {
     cv::Mat image(IMAGE_HEIGHT, IMAGE_WIDTH, CV_8UC3);
@@ -128,7 +132,7 @@ void createMandelbrotSet() {
 
     auto* pixels = new Color[IMAGE_SIZE];
 
-    colorManager.paint(iters, pixels);
+    colorManager->paint(iters, pixels);
 
     end = chrono::high_resolution_clock::now();
     duration = chrono::duration_cast<chrono::milliseconds>(end - start);
@@ -208,7 +212,7 @@ void createMandelbrotSetHP() {
 
     auto* pixels = new Color[IMAGE_SIZE];
 
-    colorManager.paint(iters, pixels);
+    colorManager->paint(iters, pixels);
 
     end = chrono::high_resolution_clock::now();
     duration = chrono::duration_cast<chrono::milliseconds>(end - start);
@@ -283,6 +287,19 @@ int main(int argc, char* argv[]) {
         }
         try {
             OUTPUT_FILENAME = argv[6];
+        }
+        catch (const invalid_argument& e) {
+            return 1;
+        }
+        try {
+            MAX_ITER = stod(argv[7]);
+        }
+        catch (const invalid_argument& e) {
+            return 1;
+        }
+        try {
+            PALETTE_LENGTH = stod(argv[8]);
+            colorManager = new ExponentialColorPalette(IMAGE_SIZE, MAX_ITER, colors2, PALETTE_LENGTH);
         }
         catch (const invalid_argument& e) {
             return 1;

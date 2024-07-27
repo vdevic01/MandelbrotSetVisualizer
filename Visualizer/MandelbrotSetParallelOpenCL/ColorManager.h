@@ -45,10 +45,11 @@ private:
 
 class ExponentialColorPalette : public ColorManager {
 public:
-    ExponentialColorPalette(int imageSize, int maxIter, vector<Color> colors);
+    ExponentialColorPalette(int imageSize, int maxIter, vector<Color> colors, int length);
     void paint(int* iters, Color pixels[]) override;
 private:
     int maxIter;
     vector<Color> colors;
+    double length;
 };
 #endif

@@ -81,27 +81,27 @@ void HistogramColorPalette::paint(int* iters, Color pixels[]) {
         else {
             //pixels[i] = this->interpolateColor(c1, c2, hue);
             int length = 1000;
-            pixels[i] = getColorFromPalette(hue * length * 0.75, this->colors, length);
+            pixels[i] = getColorFromPalette(hue * length, this->colors, length);
         }
     }
 }
 
 
-ExponentialColorPalette::ExponentialColorPalette(int imageSize, int maxIter, vector<Color> colors) : ColorManager(imageSize) {
+ExponentialColorPalette::ExponentialColorPalette(int imageSize, int maxIter, vector<Color> colors, int length) : ColorManager(imageSize) {
     this->maxIter = maxIter;
     this->colors = colors;
+    this->length = length;
 }
 
 void ExponentialColorPalette::paint(int* iters, Color pixels[]) {
-    const double S = 1.75;      // exponent
-    const int N = 500;          // palette length
+    const double S = 2.0;      // exponent
     for (int i = 0; i < this->imageSize; i++) {
         if (iters[i] == -1) {
             pixels[i] = Color{ 0,0,0 };
             continue;
         }
-        double temp = pow(iters[i] * 1.0 / this->maxIter, S) * N;
-        int v = (int)pow(temp, 1.5) % N;
-        pixels[i] = getColorFromPalette(v, this->colors, N);
+        double scaledIter = pow(iters[i] * 1.0 / this->maxIter, S);
+        int v = (int)(scaledIter * (this->length - 1));
+        pixels[i] = getColorFromPalette(v, this->colors, this->length);
     }
 }
