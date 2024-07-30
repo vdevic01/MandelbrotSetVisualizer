@@ -110,9 +110,7 @@ int complexPointIter(complex<double>& c) {
     return -1;
 }
 
-int complexPointIterOptimized(complex<double>& c) {
-    complex<double> z(0, 0);
-
+int calculateEscapeIterOptimized(complex<double>& c) {
     double x0 = c.real();
     double y0 = c.imag();
 
