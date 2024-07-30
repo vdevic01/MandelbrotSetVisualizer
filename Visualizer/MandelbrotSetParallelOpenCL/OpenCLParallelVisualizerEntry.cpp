@@ -15,26 +15,26 @@
 using namespace std;
 using namespace boost::multiprecision;
 
-double RE_START = -2.0;
-double RE_END = 1.0;
-double IM_START = -1;
-double IM_END = 1;
-//double RE_START = -0.153004885037500013708;
-//double RE_END = -0.152809695287500013708;
-//double IM_START = 1.039611370300000000002;
-//double IM_END = 1.039757762612500000002;
-cpp_dec_float_100 RE_START_HP = RE_START;
-cpp_dec_float_100 RE_END_HP = RE_END;
-cpp_dec_float_100 IM_START_HP = IM_START;
-cpp_dec_float_100 IM_END_HP = IM_END;
-bool USE_HIGH_PRECISSION = false;
+//double RE_START = -2.0;
+//double RE_END = 1.0;
+//double IM_START = -1;
+//double IM_END = 1;
+double RE_START = -0.153004885037500013708;
+double RE_END = -0.152809695287500013708;
+double IM_START = 1.039611370300000000002;
+double IM_END = 1.039757762612500000002;
+cpp_dec_float_50 RE_START_HP = RE_START;
+cpp_dec_float_50 RE_END_HP = RE_END;
+cpp_dec_float_50 IM_START_HP = IM_START;
+cpp_dec_float_50 IM_END_HP = IM_END;
+bool USE_HIGH_PRECISSION = true;
 
-int MAX_ITER = 700;
+int MAX_ITER = 500;
 
 //int IMAGE_WIDTH = 6144;
 //int IMAGE_HEIGHT = 4096;
-int IMAGE_WIDTH = 900;
-int IMAGE_HEIGHT = 600;
+int IMAGE_WIDTH = 1000;
+int IMAGE_HEIGHT = 1000;
 int IMAGE_SIZE = IMAGE_WIDTH * IMAGE_HEIGHT;
 
 int PALETTE_LENGTH = 256;
@@ -98,6 +98,7 @@ void createMandelbrotSet() {
     auto* iters = new int[IMAGE_HEIGHT * IMAGE_WIDTH];
 
     auto start = chrono::high_resolution_clock::now();
+    auto startX = chrono::high_resolution_clock::now();
     for (int i = 0; i < IMAGE_HEIGHT; i++) {
         double imaginaryPart = mapVal(i, 0, IMAGE_HEIGHT, IM_START, IM_END);
         for (int j = 0; j < IMAGE_WIDTH; j++) {
@@ -138,16 +139,18 @@ void createMandelbrotSet() {
     end = chrono::high_resolution_clock::now();
     duration = chrono::duration_cast<chrono::milliseconds>(end - start);
     cout << "Image building: " << duration.count() << " ms" << endl;
+    auto endX = chrono::high_resolution_clock::now();
+    cout << "Total time: " << chrono::duration_cast<chrono::milliseconds>(endX - startX).count() << " ms" << endl;
 
 }
 
-void convertToFixedPoint(const cpp_dec_float_100& num, unsigned int res[4]) {
-    cpp_dec_float_100 temp = num < 0 ? -num : num;
+void convertToFixedPoint(const cpp_dec_float_50& num, unsigned int res[4]) {
+    cpp_dec_float_50 temp = num < 0 ? -num : num;
     cpp_int whole_int = floor(temp).convert_to<cpp_int>();
-    cpp_dec_float_100 fractional_part = temp - cpp_dec_float_100(whole_int);
+    cpp_dec_float_50 fractional_part = temp - cpp_dec_float_50(whole_int);
     res[0] = whole_int.convert_to<unsigned int>();
 
-    cpp_dec_float_100 scale("79228162514264337593543950336");
+    cpp_dec_float_50 scale("79228162514264337593543950336");
     cpp_int fractional_int = (fractional_part * scale).convert_to<cpp_int>();
 
     for (int i = 3; i >= 1; --i) {
@@ -165,18 +168,18 @@ void createMandelbrotSetHP() {
     auto* iters = new int[IMAGE_HEIGHT * IMAGE_WIDTH];
 
     auto start = chrono::high_resolution_clock::now();
-    cpp_dec_float_100 zeroHP = 0;
-    cpp_dec_float_100 scaleImaginary = (IM_END_HP - IM_START_HP) / cpp_dec_float_100(IMAGE_HEIGHT);
-    cpp_dec_float_100 scaleReal = (RE_END_HP - RE_START_HP) / cpp_dec_float_100(IMAGE_WIDTH);
+    cpp_dec_float_50 zeroHP = 0;
+    cpp_dec_float_50 scaleImaginary = (IM_END_HP - IM_START_HP) / cpp_dec_float_50(IMAGE_HEIGHT);
+    cpp_dec_float_50 scaleReal = (RE_END_HP - RE_START_HP) / cpp_dec_float_50(IMAGE_WIDTH);
 
     unsigned int realPartFP[4];
     unsigned int imagPartFP[4];
 
     #pragma omp parallel for private(realPartFP, imagPartFP)
     for (int i = 0; i < IMAGE_HEIGHT; i++) {
-        cpp_dec_float_100 imaginaryPart = IM_START_HP + cpp_dec_float_100(i) * scaleImaginary;
+        cpp_dec_float_50 imaginaryPart = IM_START_HP + cpp_dec_float_50(i) * scaleImaginary;
         for (int j = 0; j < IMAGE_WIDTH; j++) {
-            cpp_dec_float_100 realPart = RE_START_HP + cpp_dec_float_100(j) * scaleReal;
+            cpp_dec_float_50 realPart = RE_START_HP + cpp_dec_float_50(j) * scaleReal;
             int idx = j + (i * IMAGE_WIDTH);
             convertToFixedPoint(realPart, realPartFP);
             convertToFixedPoint(imaginaryPart, imagPartFP);
@@ -237,7 +240,7 @@ int main(int argc, char* argv[]) {
         }
         try {
             if (USE_HIGH_PRECISSION) {
-                RE_START_HP = cpp_dec_float_100(argv[2]);
+                RE_START_HP = cpp_dec_float_50(argv[2]);
             }
             else {
                 RE_START = stod(argv[2]);
@@ -248,7 +251,7 @@ int main(int argc, char* argv[]) {
         }
         try {
             if (USE_HIGH_PRECISSION) {
-                RE_END_HP = cpp_dec_float_100(argv[3]);
+                RE_END_HP = cpp_dec_float_50(argv[3]);
             }
             else {
                 RE_END = stod(argv[3]);
@@ -259,7 +262,7 @@ int main(int argc, char* argv[]) {
         }
         try {           
             if (USE_HIGH_PRECISSION) {
-                IM_START_HP = cpp_dec_float_100(argv[4]);
+                IM_START_HP = cpp_dec_float_50(argv[4]);
             }
             else {
                 IM_START = stod(argv[4]);
@@ -270,7 +273,7 @@ int main(int argc, char* argv[]) {
         }
         try {
             if (USE_HIGH_PRECISSION) {
-                IM_END_HP = cpp_dec_float_100(argv[5]);
+                IM_END_HP = cpp_dec_float_50(argv[5]);
             }
             else {
                 IM_END = stod(argv[5]);

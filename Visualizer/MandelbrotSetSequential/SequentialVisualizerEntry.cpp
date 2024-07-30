@@ -5,14 +5,14 @@
 #include <iomanip>
 
 using namespace std;
-const double RE_START = -2.0;
-const double RE_END = 2.0;
-const double IM_START = -2;
-const double IM_END = 2;
-//const double RE_START = -0.153004885037500013708;
-//const double RE_END = -0.152809695287500013708;
-//const double IM_START = 1.039611370300000000002;
-//const double IM_END = 1.039757762612500000002;
+//const double RE_START = -2.0;
+//const double RE_END = 2.0;
+//const double IM_START = -2;
+//const double IM_END = 2;
+double RE_START = -0.153004885037500013708;
+double RE_END = -0.152809695287500013708;
+double IM_START = 1.039611370300000000002;
+double IM_END = 1.039757762612500000002;
 
 const int MAX_ITER = 500;
 
@@ -164,17 +164,20 @@ void createMandelbrotSet() {
 
     chrono::steady_clock::time_point start;
     chrono::steady_clock::time_point end;
-    long long int totalTime = 0;
+    chrono::steady_clock::time_point startX;
+    chrono::steady_clock::time_point endX;
+    
+    start = chrono::high_resolution_clock::now();
+    unsigned long long totalTime = 0;
     for (int i = 0; i < IMAGE_HEIGHT; i++) {
         for (int j = 0; j < IMAGE_WIDTH; j++) {
             double realPart = mapVal(j, 0, IMAGE_WIDTH, RE_START, RE_END);
             double imaginaryPart = mapVal(i, 0, IMAGE_HEIGHT, IM_START, IM_END);
             complex<double> point(realPart, imaginaryPart);
-
-            start = chrono::high_resolution_clock::now();
+            startX = chrono::high_resolution_clock::now();
             int totalIters = complexPointIterOptimized(point);
-            end = chrono::high_resolution_clock::now();
-            totalTime += chrono::duration_cast<chrono::nanoseconds>(end - start).count();
+            endX = chrono::high_resolution_clock::now();
+            totalTime += chrono::duration_cast<chrono::nanoseconds>(endX - startX).count();
             int idx = j + (i * IMAGE_WIDTH);
             if (totalIters == -1) {
                 Color black{};
@@ -188,8 +191,9 @@ void createMandelbrotSet() {
             }     
         }
     }
-    std::cout << setprecision(16) << "Pixel mapping: " << totalTime * 1.0 / 1000000000.0 << " s\n\n";
     createColorImage(pixels);
+    end = chrono::high_resolution_clock::now();
+    std::cout << setprecision(16) << "Pixel mapping: " << totalTime << " ns\n\n";
     delete[] pixels;
 }
 
