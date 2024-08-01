@@ -34,6 +34,7 @@ Color getColorFromPalette(int val, vector<Color>& colors, double length) {
 }
 
 void CyclicColorPalette::paint(int* iters, Color pixels[]) {
+    #pragma omp parallel for
     for (int i = 0; i < this->imageSize; i++) {
         if (iters[i] == -1) {
             Color black{};
@@ -63,11 +64,13 @@ Color HistogramColorPalette::interpolateColor(Color& lCol, Color& rCol, double v
 
 void HistogramColorPalette::paint(int* iters, Color pixels[]) {
     vector<int> numItersPerPixel(this->maxIter + 1, 0);
+    #pragma omp parallel for
     for (int i = 0; i < this->imageSize; i++) {
         int val = iters[i] == -1 ? this->maxIter : iters[i];
         numItersPerPixel[val]++;
     }
     vector<double> hues(this->imageSize, 0);
+    #pragma omp parallel for
     for (int i = 0; i < this->imageSize; i++) {
         double hue = 0;
         for (int j = 0; j < iters[i]; j++) {
@@ -95,6 +98,7 @@ ExponentialColorPalette::ExponentialColorPalette(int imageSize, int maxIter, vec
 
 void ExponentialColorPalette::paint(int* iters, Color pixels[]) {
     const double S = 2.0;      // exponent
+    #pragma omp parallel for
     for (int i = 0; i < this->imageSize; i++) {
         if (iters[i] == -1) {
             pixels[i] = Color{ 0,0,0 };
