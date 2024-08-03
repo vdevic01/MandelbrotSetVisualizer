@@ -3,6 +3,7 @@
 #include <utility>
 #include <vector>
 #include <iomanip>
+#include <iostream>
 
 using namespace std;
 //const double RE_START = -2.0;
@@ -173,7 +174,7 @@ void createMandelbrotSet() {
             double imaginaryPart = mapVal(i, 0, IMAGE_HEIGHT, IM_START, IM_END);
             complex<double> point(realPart, imaginaryPart);
             startX = chrono::high_resolution_clock::now();
-            int totalIters = complexPointIterOptimized(point);
+            int totalIters = calculateEscapeIterOptimized(point);
             endX = chrono::high_resolution_clock::now();
             totalTime += chrono::duration_cast<chrono::nanoseconds>(endX - startX).count();
             int idx = j + (i * IMAGE_WIDTH);

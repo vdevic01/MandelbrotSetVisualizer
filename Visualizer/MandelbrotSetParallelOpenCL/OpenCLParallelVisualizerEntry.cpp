@@ -27,14 +27,14 @@ cpp_dec_float_50 RE_START_HP = RE_START;
 cpp_dec_float_50 RE_END_HP = RE_END;
 cpp_dec_float_50 IM_START_HP = IM_START;
 cpp_dec_float_50 IM_END_HP = IM_END;
-bool USE_HIGH_PRECISSION = true;
+bool USE_HIGH_PRECISSION = false;
 
-int MAX_ITER = 500;
+int MAX_ITER = 400;
 
 //int IMAGE_WIDTH = 6144;
 //int IMAGE_HEIGHT = 4096;
-int IMAGE_WIDTH = 1000;
-int IMAGE_HEIGHT = 1000;
+int IMAGE_WIDTH = 900;
+int IMAGE_HEIGHT = 600;
 int IMAGE_SIZE = IMAGE_WIDTH * IMAGE_HEIGHT;
 
 int PALETTE_LENGTH = 256;

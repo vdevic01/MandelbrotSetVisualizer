@@ -2,6 +2,8 @@
 
 #include <stdexcept>
 
+#define PI 3.14159265358979323846
+
 CyclicColorPalette::CyclicColorPalette(int imageSize, vector<Color> colors, int length) : ColorManager(imageSize) {
     this->colors = move(colors);
     this->length = length;
@@ -96,16 +98,70 @@ ExponentialColorPalette::ExponentialColorPalette(int imageSize, int maxIter, vec
     this->length = length;
 }
 
+void LAB2RGB(int L, int a, int b, unsigned char& R, unsigned char& G, unsigned char& B)
+{
+    float X, Y, Z, fX, fY, fZ;
+    int RR, GG, BB;
+
+    fY = pow((L + 16.0) / 116.0, 3.0);
+    if (fY < 0.008856)
+        fY = L / 903.3;
+    Y = fY;
+
+    if (fY > 0.008856)
+        fY = powf(fY, 1.0 / 3.0);
+    else
+        fY = 7.787 * fY + 16.0 / 116.0;
+
+    fX = a / 500.0 + fY;
+    if (fX > 0.206893)
+        X = powf(fX, 3.0);
+    else
+        X = (fX - 16.0 / 116.0) / 7.787;
+
+    fZ = fY - b / 200.0;
+    if (fZ > 0.206893)
+        Z = powf(fZ, 3.0);
+    else
+        Z = (fZ - 16.0 / 116.0) / 7.787;
+
+    X *= (0.950456 * 255);
+    Y *= 255;
+    Z *= (1.088754 * 255);
+
+    RR = (int)(3.240479 * X - 1.537150 * Y - 0.498535 * Z + 0.5);
+    GG = (int)(-0.969256 * X + 1.875992 * Y + 0.041556 * Z + 0.5);
+    BB = (int)(0.055648 * X - 0.204043 * Y + 1.057311 * Z + 0.5);
+
+    R = (unsigned char)(RR < 0 ? 0 : RR > 255 ? 255 : RR);
+    G = (unsigned char)(GG < 0 ? 0 : GG > 255 ? 255 : GG);
+    B = (unsigned char)(BB < 0 ? 0 : BB > 255 ? 255 : BB);
+
+    //printf("Lab=(%f,%f,%f) ==> RGB(%f,%f,%f)\n",L,a,b,*R,*G,*B);
+}
+
 void ExponentialColorPalette::paint(int* iters, Color pixels[]) {
     const double S = 2.0;      // exponent
-    #pragma omp parallel for
-    for (int i = 0; i < this->imageSize; i++) {
-        if (iters[i] == -1) {
-            pixels[i] = Color{ 0,0,0 };
-            continue;
-        }
-        double scaledIter = pow(iters[i] * 1.0 / this->maxIter, S);
-        int v = (int)(scaledIter * (this->length - 1));
-        pixels[i] = getColorFromPalette(v, this->colors, this->length);
-    }
+    //#pragma omp parallel for
+    //for (int i = 0; i < this->imageSize; i++) {
+    //    if (iters[i] == -1) {
+    //        pixels[i] = Color{ 0,0,0 };
+    //        continue;
+    //    }
+    //    double s = iters[i]*1.0 / this->maxIter;
+    //    double v = 1.0 - pow(cos(PI * s), 2.0);
+    //    
+    //    double L_LCH = 75 - (75 * v);
+    //    double C_LCH = 103 - (75 * v);
+    //    double H_LCH = (int)pow(360 * s, 1.5) % 360;
+
+    //    int L_LAB = (int)L_LCH;
+    //    int A_LAB = (int)(cos(H_LCH * 0.01745329251) * C_LCH);
+    //    int B_LAB = (int)(sin(H_LCH * 0.01745329251) * C_LCH);
+    //    unsigned char R, G, B;
+
+    //    LAB2RGB(L_LAB, A_LAB, B_LAB, R, G, B);
+
+    //    pixels[i] = Color{ R, G, B };
+    //}
 }
