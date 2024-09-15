@@ -16,7 +16,7 @@
         <input value="700" class="form-field" type="number" id="input-max-iter">
         <div class="button-row">
           <button style="margin-right: 5px;" id="button-max-iter">Apply</button>
-          <button style="margin-left: 5px;" disabled>Cancel</button>
+          <button style="margin-left: 5px;" id="button-max-iter-cancel" disabled>Cancel</button>
         </div>      
       </div>
       <hr>
@@ -25,15 +25,21 @@
         <input value="250" class="form-field" type="number" id="input-palette-length">
         <div class="button-row">
           <button style="margin-right: 5px;" id="button-palette-length">Apply</button>
-          <button style="margin-left: 5px;" disabled>Cancel</button>
+          <button style="margin-left: 5px;" id="button-palette-length-cancel" disabled>Cancel</button>
         </div>      
       </div>
       <hr>
       <div class="section">
-        <label for="select-max-iter">Palette:</label>
-        <select class="form-field" id="select-max-iter">
-          <option value="navy">Navy</option>
-          <option value="grayscale">Grayscale</option>
+        <label for="select-color-palette">Palette:</label>
+        <select class="form-field" id="select-color-palette">
+          <option value="0">Navy</option>
+          <option value="1">Sunset</option>
+          <option value="2">Ocean</option>
+          <option value="3">Fire and Ashe</option>
+          <option value="4">Twilight</option>
+          <option value="5">Garden</option>
+          <option value="6">Pomegranate</option>
+          <option value="7">Greyscale</option>
         </select>
       </div>
       <div class="sidebar-footer">

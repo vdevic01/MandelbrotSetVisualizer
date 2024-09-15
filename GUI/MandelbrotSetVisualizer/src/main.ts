@@ -30,6 +30,7 @@ class BoundaryManager{
   private img?: P5.Image;
   private paletteLength: number = 250;
   private maxIter: number = 700;
+  private paletteId: number = 0;
   private static imgUrl: string = "https://asset.localhost/D%3A%2FFakultet%2F8.%20semestar%2FDiplomski%20rad%2FMandelbrotSetVisualizer%2FGUI%2FMandelbrotSetVisualizer%2Fgenerated-files%2Fmandelbrot_set.png";
 
   public constructor(boundary: Boundary, boxSidesRatio: number[], p5: P5){
@@ -44,17 +45,32 @@ class BoundaryManager{
     if(this.highPrecission){
       this.generateMandelbrotHighPrecission();
     }else{
-      this.generateMandelbrot()
+      this.generateMandelbrot();
     }
+  }
+  public getPaletteLength(): number{
+    return this.paletteLength;
+  }
+  public getMaxIter(): number{
+    return this.maxIter;
   }
   public setMaxIter(maxIter: number){
     this.maxIter = maxIter;
     if(this.highPrecission){
       this.generateMandelbrotHighPrecission();
     }else{
-      this.generateMandelbrot()
+      this.generateMandelbrot();
     }
   }
+  public setPaletteId(id: number){
+    this.paletteId = id;
+    if(this.highPrecission){
+      this.generateMandelbrotHighPrecission();
+    }else{
+      this.generateMandelbrot();
+    }
+  }
+
   public getImage(): P5.Image | undefined{
     return this.img;
   }
@@ -237,11 +253,11 @@ class BoundaryManager{
     const args = {
       ...this.lowPrecissionBoundary,
       maxIter: this.maxIter,
-      paletteLength: this.paletteLength
-    }
+      paletteLength: this.paletteLength,
+      paletteId: this.paletteId
+    };
     const status = await invoke("generate_mandelbrot", args);
     this.img = this.p5Client.loadImage(BoundaryManager.imgUrl);
-    console.log("All good");
     console.log("status:" + status);
   }
   private async generateMandelbrotHighPrecission(){
@@ -251,15 +267,17 @@ class BoundaryManager{
       imStart: this.highPrecissionBoundary?.imStart.toString(),
       imEnd: this.highPrecissionBoundary?.imEnd.toString(),
       maxIter: this.maxIter,
-      paletteLength: this.paletteLength
+      paletteLength: this.paletteLength,
+      paletteId: this.paletteId
     };
     const status = await invoke("generate_mandelbrot_hp", args);
     this.img = this.p5Client.loadImage(BoundaryManager.imgUrl);
-    console.log("All good");
     console.log("status:" + status);
   }
 
   public reset(){
+    this.maxIter = 700;
+    this.paletteLength = 250;
     this.highPrecission = false;
     this.lowPrecissionBoundary = {...this.startingBoundary};
     this.generateMandelbrot();
@@ -337,17 +355,42 @@ window.addEventListener("DOMContentLoaded", () => {
   }
   
   new P5(sketch);
-
+  const inputPaletteLength: HTMLInputElement = document.getElementById("input-palette-length") as HTMLInputElement;
+  const inputMaxIter: HTMLInputElement = document.getElementById("input-max-iter") as HTMLInputElement;
+  const buttonPaletteLengthCancel: HTMLButtonElement = document.getElementById("button-palette-length-cancel") as HTMLButtonElement;
+  const buttonMaxIterCancel: HTMLButtonElement = document.getElementById("button-max-iter-cancel") as HTMLButtonElement;
   document.getElementById("button-reset")?.addEventListener("click", () => {
     boundaryManager.reset();
+    inputMaxIter.value = "700";
+    inputPaletteLength.value = "250";
   });
   document.getElementById("button-palette-length")?.addEventListener("click", () => {
-    const paletteLength: number = parseInt((document.getElementById("input-palette-length") as HTMLInputElement)?.value);
+    const paletteLength: number = parseInt(inputPaletteLength.value);
+    buttonPaletteLengthCancel.disabled = true;
     boundaryManager.setPaletteLength(paletteLength);
   });
   document.getElementById("button-max-iter")?.addEventListener("click", () => {
-    const maxIter: number = parseInt((document.getElementById("input-max-iter") as HTMLInputElement)?.value);
+    const maxIter: number = parseInt(inputMaxIter.value);
+    buttonMaxIterCancel.disabled = true;
     boundaryManager.setMaxIter(maxIter);
+  });
+  buttonMaxIterCancel.addEventListener("click", () => {
+    inputMaxIter.value = boundaryManager.getMaxIter().toString();
+    buttonMaxIterCancel.disabled = true;
+  });
+  buttonPaletteLengthCancel.addEventListener("click", () => {
+    inputPaletteLength.value = boundaryManager.getPaletteLength().toString();
+    buttonPaletteLengthCancel.disabled = true;
+  });
+  document.getElementById("select-color-palette")?.addEventListener("change", () => {
+    const paletteId: number = parseInt((document.getElementById("select-color-palette") as HTMLInputElement)?.value);
+    boundaryManager.setPaletteId(paletteId);
+  });
+  inputPaletteLength.addEventListener("input", () => {
+    buttonPaletteLengthCancel.disabled = false;
+  });
+  inputMaxIter.addEventListener("input", () => {
+    buttonMaxIterCancel.disabled = false;
   });
 });
 

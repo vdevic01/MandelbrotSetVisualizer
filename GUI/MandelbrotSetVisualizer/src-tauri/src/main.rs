@@ -4,12 +4,13 @@
 use tokio::process::Command;
 
 #[tauri::command]
-async fn generate_mandelbrot(re_start: f64, re_end: f64, im_start: f64, im_end: f64, max_iter: i32, palette_length: i32) -> String{
+async fn generate_mandelbrot(re_start: f64, re_end: f64, im_start: f64, im_end: f64, max_iter: i32, palette_length: i32, palette_id: i32) -> String{
     let output = Command::new("./MandelbrotSetParallelOpenCL.exe")
         .arg("0")
         .arg(re_start.to_string()).arg(re_end.to_string()).arg(im_start.to_string()).arg(im_end.to_string())
         .arg("./../generated-files/mandelbrot_set.png")
         .arg(max_iter.to_string()).arg(palette_length.to_string())
+        .arg(palette_id.to_string())
         .output()
         .await
         .expect("Failed to execute process");
@@ -19,12 +20,13 @@ async fn generate_mandelbrot(re_start: f64, re_end: f64, im_start: f64, im_end: 
 
 
 #[tauri::command]
-async fn generate_mandelbrot_hp(re_start: String, re_end: String, im_start: String, im_end: String, max_iter: i32, palette_length: i32) -> String{
+async fn generate_mandelbrot_hp(re_start: String, re_end: String, im_start: String, im_end: String, max_iter: i32, palette_length: i32, palette_id: i32) -> String{
     let output = Command::new("./MandelbrotSetParallelOpenCL.exe")
         .arg("1")
         .arg(&re_start).arg(&re_end).arg(&im_start).arg(&im_end)
         .arg("./../generated-files/mandelbrot_set.png")
         .arg(max_iter.to_string()).arg(palette_length.to_string())
+        .arg(palette_id.to_string())
         .output()
         .await
         .expect("Failed to execute process");
