@@ -1,6 +1,8 @@
 import { invoke } from "@tauri-apps/api/tauri";
 import P5 from "p5";
 import Decimal from "decimal.js";
+import { join } from '@tauri-apps/api/path';
+import { convertFileSrc } from '@tauri-apps/api/tauri';
 
 type Boundary = {
   reStart: number,
@@ -31,15 +33,24 @@ class BoundaryManager{
   private paletteLength: number = 250;
   private maxIter: number = 700;
   private paletteId: number = 0;
-  private static imgUrl: string = "https://asset.localhost/D%3A%2FFakultet%2F8.%20semestar%2FDiplomski%20rad%2FMandelbrotSetVisualizer%2FGUI%2FMandelbrotSetVisualizer%2Fgenerated-files%2Fmandelbrot_set.png";
+  private static imgUrl: string;
+
 
   public constructor(boundary: Boundary, boxSidesRatio: number[], p5: P5){
     this.lowPrecissionBoundary = boundary;
     this.boxSidesRatio = boxSidesRatio;
     this.p5Client = p5;
     this.startingBoundary = {... boundary};
+    this.loadImagePath()
     this.generateMandelbrot();
   }
+
+  public async loadImagePath() {
+    const projectDir: string = await invoke("get_project_dir");
+    const path = await join(projectDir, "generated-files", "mandelbrot_set.png");
+    BoundaryManager.imgUrl = convertFileSrc(path);
+  }
+
   public setPaletteLength(paletteLength: number){
     this.paletteLength = paletteLength;
     if(this.highPrecission){
