@@ -10,7 +10,9 @@
   -webkit-text-size-adjust: 100%;
   color: white;
 }
-
+html, body {
+  overflow: hidden;
+}
 body{
   display: flex;
   flex-direction: row;
@@ -20,14 +22,11 @@ body{
 .canvas-wrapper{
   flex-grow: 1;
 }
-#main-canvas{
-  margin: 25px;
-}
 .sidebar{
   width: 300px;
   min-width: 300px;
   background-color: #0f0f0f;
-  height: 657px;
+  height: 600px;
   display: flex;
   flex-direction: column;
 }
