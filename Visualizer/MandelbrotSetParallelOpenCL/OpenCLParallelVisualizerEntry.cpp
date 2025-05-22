@@ -93,13 +93,14 @@ vector<Complex> samplePointsFromComplexPlane(const int imageHeight, const int im
     for (int i = 0; i < imageHeight; i++) {
         double imaginaryPart = mapVal(i, 0, imageHeight, imStart, imEnd);
         for (int j = 0; j < imageWidth; j++) {
-            double realPart = mapVal(j, 0, imageWidth, reEnd, reStart);
+            double realPart = mapVal(j, 0, imageWidth, reStart, reEnd);
             int idx = j + (i * imageWidth);
             points[idx] = { realPart, imaginaryPart };
         }
     }
     return points;
 }
+
 vector<ComplexHP> samplePointsFromComplexPlane(const int imageHeight, const int imageWidth, const cpp_dec_float_50 imStart, const cpp_dec_float_50 imEnd, const cpp_dec_float_50 reStart, const cpp_dec_float_50 reEnd) {
     vector<ComplexHP> points(imageWidth * imageHeight);
     cpp_dec_float_50 zeroHP = 0;
@@ -242,7 +243,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
     const MandelbrotConfig config = configOpt.value();
-    const CyclicColorPalette colorManager(config.imageHeight * config.imageWidth, palettes[0], config.paletteLength);
+    const CyclicColorPalette colorManager(config.imageHeight * config.imageWidth, palettes[config.paletteId], config.paletteLength);
 
     if (config.useHighPrecision) {
         createMandelbrotSet<cpp_dec_float_50, ComplexHP>(config, colorManager);

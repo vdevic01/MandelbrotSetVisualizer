@@ -141,7 +141,7 @@ __kernel void calculateIters(__global ComplexHP* IN, __global int* OUT, const un
 		addFixed(temp, x0, x);
 		//x = x2 - y2 + x0;
 
-		mulCmplFixed(x, x, x2); // THIS PART DOES NOT WORK, X is right but product X*X is wrong
+		mulCmplFixed(x, x, x2);
 		//x2 = x * x;
 
 		mulCmplFixed(y, y, y2);
@@ -152,10 +152,6 @@ __kernel void calculateIters(__global ComplexHP* IN, __global int* OUT, const un
 			result = i;
 			break;
 		}
-		//if (x2 + y2 > 4) {
-		//	result = i;
-		//	break;
-		//}
 	}
 
 	OUT[idx] = result;

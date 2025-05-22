@@ -26,6 +26,10 @@ async fn generate_mandelbrot(re_start: f64, re_end: f64, im_start: f64, im_end: 
         .await
         .expect("Failed to execute process");
 
+    println!("\n{}", String::from_utf8_lossy(&output.stdout));
+    println!("{}", String::from_utf8_lossy(&output.stderr));
+    println!("{}\n", output.status);
+
     output.status.to_string()
 }
 
