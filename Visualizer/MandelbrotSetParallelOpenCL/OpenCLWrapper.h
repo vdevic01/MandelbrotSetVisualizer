@@ -13,14 +13,12 @@
 #ifndef CALCULATE_ITERS_H
 #define CALCULATE_ITERS_H
 
-// Forward declarations for structures used in OpenCL setup
 typedef struct _opencl_dev_info {
     cl_device_type type;
     const char* name;
     cl_uint count;
 } T_opencl_dev_info;
 
-// Moved to header as it's used by the templated function
 typedef struct {
     cl_context context;
     cl_int err;
@@ -28,7 +26,6 @@ typedef struct {
     cl_device_id* devices;
 } OpenclDeviceSetupInfo;
 
-// Your Complex and ComplexHP structs
 struct Complex {
     double real;
     double imag;
