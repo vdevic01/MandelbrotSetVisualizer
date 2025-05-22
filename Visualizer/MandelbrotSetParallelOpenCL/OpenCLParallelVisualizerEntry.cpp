@@ -150,10 +150,10 @@ void createMandelbrotSet(const MandelbrotConfig& config, const ColorManager& col
     {
         ScopedTimer timer("\nCalculating escape iterations");
         if constexpr (is_same_v<T_ComplexPointType, Complex>) {
-            calculateIters(points, iters, imageSize, config.maxIter);
+            calculateIters<Complex>(points, iters, imageSize, config.maxIter, "kernel.cl");
         }
         else {            
-            calculateItersHighPrecision(points, iters, imageSize, config.maxIter);
+            calculateIters<ComplexHP>(points, iters, imageSize, config.maxIter, "kernelHP.cl");
         }
     }
 
