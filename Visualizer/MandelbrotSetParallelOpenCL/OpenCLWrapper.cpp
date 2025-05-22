@@ -3,6 +3,7 @@
 #include <iostream>
 #include <string>
 #include <fstream>
+#include <vector>
 
 #include <CL/cl.h>
 
@@ -259,7 +260,7 @@ void printError(const cl_program& program, const cl_device_id& device) {
 	printf("%s\n", log);
 }
 
-int calculateIters(Complex* points, int* iters, unsigned int size, unsigned int max_iter)
+int calculateIters(const vector<Complex>& points, vector<int>& iters, const unsigned int size, const unsigned int max_iter)
 {
 	OpenclDeviceSetupInfo deviceInfo = setupOpenclDevices();
 	cl_int err = deviceInfo.err;
@@ -300,7 +301,7 @@ int calculateIters(Complex* points, int* iters, unsigned int size, unsigned int 
 		CL_TRUE,					/* blocking_write */
 		0,							/* offset */
 		sizeof(Complex) * size,		/* size */
-		points,						/* ptr */
+		points.data(),				/* ptr */
 		NULL,						/* num_events_in_wait_list */
 		NULL,						/* event_wait_list */
 		NULL						/* event */
@@ -411,7 +412,7 @@ int calculateIters(Complex* points, int* iters, unsigned int size, unsigned int 
 		CL_TRUE,				/* blocking_read */
 		0,						/* offset */
 		sizeof(int) * size,		/* size */
-		iters,					/* ptr */
+		iters.data(),			/* ptr */
 		NULL,					/* num_events_in_wait_list */
 		NULL,					/* event_wait_list */
 		NULL					/* event */
@@ -425,7 +426,7 @@ int calculateIters(Complex* points, int* iters, unsigned int size, unsigned int 
 	return CL_SUCCESS;
 }
 
-int calculateItersHighPrecision(ComplexHP* points, int* iters, unsigned int size, unsigned int max_iter) {
+int calculateItersHighPrecision(const vector<ComplexHP>& points, vector<int>& iters, const unsigned int size, const unsigned int max_iter) {
 	OpenclDeviceSetupInfo deviceInfo = setupOpenclDevices();
 	cl_int err = deviceInfo.err;
 
@@ -465,7 +466,7 @@ int calculateItersHighPrecision(ComplexHP* points, int* iters, unsigned int size
 		CL_TRUE,					/* blocking_write */
 		0,							/* offset */
 		sizeof(ComplexHP) * size,	/* size */
-		points,						/* ptr */
+		points.data(),				/* ptr */
 		NULL,						/* num_events_in_wait_list */
 		NULL,						/* event_wait_list */
 		NULL						/* event */
@@ -577,7 +578,7 @@ int calculateItersHighPrecision(ComplexHP* points, int* iters, unsigned int size
 		CL_TRUE,				/* blocking_read */
 		0,						/* offset */
 		sizeof(int) * size,		/* size */
-		iters,					/* ptr */
+		iters.data(),			/* ptr */
 		NULL,					/* num_events_in_wait_list */
 		NULL,					/* event_wait_list */
 		NULL					/* event */

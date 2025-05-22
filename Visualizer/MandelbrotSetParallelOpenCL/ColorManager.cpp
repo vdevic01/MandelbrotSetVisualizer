@@ -9,12 +9,12 @@ CyclicColorPalette::CyclicColorPalette(int imageSize, vector<Color> colors, int 
     this->length = length;
 }
 
-Color getColorFromPalette(int val, vector<Color>& colors, double length) {
+Color getColorFromPalette(int val, const vector<Color>& colors, double length) {
     double valAdj = (double)(val % (int)length);
     const int N = colors.size();
     const double STEP = length / (N - 1);
-    Color* left = nullptr;
-    Color* right = nullptr;
+    const Color* left = nullptr;
+    const Color* right = nullptr;
     double ratio;
     for (int i = 0; i < N; i++) {
         if (STEP * i > valAdj) {
@@ -35,20 +35,18 @@ Color getColorFromPalette(int val, vector<Color>& colors, double length) {
     return output;
 }
 
-void CyclicColorPalette::paint(int* iters, Color pixels[]) {
+vector<Color> CyclicColorPalette::paint(vector<int>& iters) const {
+    vector<Color> pixels(this->imageSize);
     #pragma omp parallel for
     for (int i = 0; i < this->imageSize; i++) {
-        if (iters[i] == -1) {
-            Color black{};
-            black.red = 0;
-            black.green = 0;
-            black.blue = 0;
-            pixels[i] = black;
+        if (iters[i] == -1) {            
+            pixels[i] = { 0,0,0 };
         }
         else {
             pixels[i] = getColorFromPalette(iters[i], this->colors, this->length);
         }
     }
+    return pixels;
 }
 
 HistogramColorPalette::HistogramColorPalette(int imageSize, int maxIter, vector<Color> colors) : ColorManager(imageSize) {
@@ -64,7 +62,8 @@ Color HistogramColorPalette::interpolateColor(Color& lCol, Color& rCol, double v
     return Color{ r,g,b };
 }
 
-void HistogramColorPalette::paint(int* iters, Color pixels[]) {
+vector<Color> HistogramColorPalette::paint(vector<int>& iters) const {
+    vector<Color> pixels(this->imageSize);
     vector<int> numItersPerPixel(this->maxIter + 1, 0);
     #pragma omp parallel for
     for (int i = 0; i < this->imageSize; i++) {
@@ -89,6 +88,7 @@ void HistogramColorPalette::paint(int* iters, Color pixels[]) {
             pixels[i] = getColorFromPalette(hue * length, this->colors, length);
         }
     }
+    return pixels;
 }
 
 
@@ -140,7 +140,9 @@ void LAB2RGB(int L, int a, int b, unsigned char& R, unsigned char& G, unsigned c
     //printf("Lab=(%f,%f,%f) ==> RGB(%f,%f,%f)\n",L,a,b,*R,*G,*B);
 }
 
-void ExponentialColorPalette::paint(int* iters, Color pixels[]) {
+vector<Color> ExponentialColorPalette::paint(vector<int>& iters) const {
+    vector<Color> pixels(this->imageSize);
+    return pixels;
     const double S = 2.0;      // exponent
     //#pragma omp parallel for
     //for (int i = 0; i < this->imageSize; i++) {

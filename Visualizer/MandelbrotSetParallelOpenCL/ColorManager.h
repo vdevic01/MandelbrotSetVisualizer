@@ -15,7 +15,7 @@ struct Color {
 
 class ColorManager {
 public:
-    virtual void paint(int* iters, Color pixels[]) = 0;
+    virtual vector<Color> paint(vector<int>& iters) const = 0;
 protected:
     ColorManager(int imageSize) {
         this->imageSize = imageSize;
@@ -26,7 +26,7 @@ protected:
 class CyclicColorPalette : public ColorManager {
 public:
     CyclicColorPalette(int imageSize, vector<Color> colors, int length);
-    void paint(int* iters, Color pixels[]) override;
+    vector<Color> paint(vector<int>& iters) const override;
 
 private:
     vector<Color> colors;
@@ -36,7 +36,7 @@ private:
 class HistogramColorPalette : public ColorManager {
 public:
     HistogramColorPalette(int imageSize, int maxIter, vector<Color> colors);
-    void paint(int* iters, Color pixels[]) override;
+    vector<Color> paint(vector<int>& iters) const override;
 private:
     Color interpolateColor(Color& l, Color& r, double val);
     int maxIter;
@@ -46,7 +46,7 @@ private:
 class ExponentialColorPalette : public ColorManager {
 public:
     ExponentialColorPalette(int imageSize, int maxIter, vector<Color> colors, int length);
-    void paint(int* iters, Color pixels[]) override;
+    vector<Color> paint(vector<int>& iters) const override;
 private:
     int maxIter;
     vector<Color> colors;

@@ -1,6 +1,9 @@
 #include "FixedPointArithmetics.h"
+#include <boost/multiprecision/cpp_dec_float.hpp>
+#include <boost/multiprecision/cpp_int.hpp>
 
 using namespace std;
+using namespace boost::multiprecision;
 
 namespace fpa {
 	void addFixed(const uint* a, const uint* b, uint c[FP_SIZE]) {
@@ -57,7 +60,7 @@ namespace fpa {
 		return sign == 0;
 	}
 
-	void mulCmplFixed(const uint* a, const uint* b, uint c[4]) {
+	void mulCmplFixed(const uint* a, const uint* b, uint c[FP_SIZE]) {
 		ulong result[FP_BUFFER_SIZE];
 		for (int i = 0; i < FP_BUFFER_SIZE; i++) {
 			result[i] = 0;
@@ -113,5 +116,24 @@ namespace fpa {
 		}
 		if (negate)
 			cmplFixed(c, c);
+	}
+
+	void convertToFixedPoint(const cpp_dec_float_50& num, unsigned int res[4]) {
+		cpp_dec_float_50 temp = num < 0 ? -num : num;
+		cpp_int whole_int = floor(temp).convert_to<cpp_int>();
+		cpp_dec_float_50 fractional_part = temp - cpp_dec_float_50(whole_int);
+		res[0] = whole_int.convert_to<unsigned int>();
+
+		cpp_dec_float_50 scale("79228162514264337593543950336");
+		cpp_int fractional_int = (fractional_part * scale).convert_to<cpp_int>();
+
+		for (int i = 3; i >= 1; --i) {
+			res[i] = static_cast<unsigned int>(fractional_int & 0xFFFFFFFF);
+			fractional_int >>= 32;
+		}
+
+		if (num < 0) {
+			fpa::cmplFixed(res, res);
+		}
 	}
 }

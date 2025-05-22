@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector>
+
 #ifndef CALCULATE_ITERS_H
 #define CALCULATE_ITERS_H
 
@@ -13,6 +15,6 @@ struct ComplexHP {
     unsigned int imag[4];
 };
 
-int calculateIters(Complex* points, int* iters, unsigned int size, unsigned int max_iter);
-int calculateItersHighPrecision(ComplexHP* points, int* iters, unsigned int size, unsigned int max_iter);
+int calculateIters(const std::vector<Complex>& points, std::vector<int>& iters, const unsigned int size, const unsigned int max_iter);
+int calculateItersHighPrecision(const std::vector<ComplexHP>& points, std::vector<int>& iters, const unsigned int size, const unsigned int max_iter);
 #endif
