@@ -12,6 +12,7 @@
 #include "OpenCLWrapper.h"
 #include "FixedPointArithmetics.h"
 #include "ColorManager.h"
+#include "Palettes.h"
 
 using namespace std;
 using namespace boost::multiprecision;
@@ -34,25 +35,6 @@ struct MandelbrotConfig {
     int paletteId = 0;
 };
 
-const std::vector<std::vector<Color>> palettes = {
-    // Navy
-    {{10, 11, 48}, {29, 73, 173}, {34, 175, 245}, {112, 241, 255}, {86, 165, 214}, {6, 6, 33}, {71, 119, 173}, {166, 240, 255}, {47, 235, 235}, {0, 82, 122}, {10, 11, 48}},
-    // Sunset
-    {{255, 94, 77}, {255, 165, 0}, {255, 223, 0}, {255, 136, 77}, {255, 78, 80}, {255, 132, 89}, {255, 241, 208}, {255, 183, 197}, {255, 94, 77}},
-    // Ocean
-    {{0, 34, 102}, {0, 51, 102}, {25, 100, 126}, {54, 151, 197}, {122, 197, 205}, {198, 224, 221}, {0, 34, 102}},
-    // Fire and Ash
-    {{255, 69, 0}, {255, 140, 0}, {255, 215, 0}, {169, 169, 169}, {105, 105, 105}, {47, 79, 79}, {0, 0, 0}, {255, 69, 0}},
-    // Twilight
-    {{25, 25, 112}, {72, 61, 139}, {123, 104, 238}, {238, 130, 238}, {147, 112, 219}, {199, 21, 133}, {255, 182, 193}, {25, 25, 112}},
-    // Garden
-    {{0, 128, 0}, {46, 139, 87}, {60, 179, 113}, {173, 255, 47}, {240, 255, 240}, {165, 42, 42}, {0, 128, 0}},
-    // Pomegranate
-    {{165, 42, 42}, {188, 143, 143}, {205, 92, 92}, {139, 0, 0}, {128, 0, 0}, {244, 164, 96}, {165, 42, 42}},
-    // Greyscale
-    {{255, 255, 255}, {0, 0, 0}, {255, 255, 255}}
-};
-
 class ScopedTimer {
 public:
     ScopedTimer(const string& name) :
@@ -65,15 +47,14 @@ public:
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - m_start);
 
-        const int NAME_COLUMN_WIDTH = 35;
+        const int NAME_COLUMN_WIDTH = 36;
 
         std::cout << std::left
             << std::setw(NAME_COLUMN_WIDTH)
             << m_name + ":"
             << duration.count() << " ms\n";
 
-        // Optional: Remove the separator line if you only want timing output.
-         std::cout << "==========================================\n";
+         std::cout << "===========================================\n";
     }
 
 private:
@@ -142,50 +123,37 @@ vector<ComplexHP> samplePointsFromComplexPlane(const int imageHeight, const int 
             }
         }
     }
+
+    return points;
 }
 
+template<typename T_RealType, typename T_ComplexPointType>
 void createMandelbrotSet(const MandelbrotConfig& config, const ColorManager& colorManager) {
+    cout << "===========================================\n";
+    ScopedTimer total_timer("Total generation time");
+
     const int imageSize = config.imageHeight * config.imageWidth;
 
-    vector<Complex> points;
+    vector<T_ComplexPointType> points;
     {
         ScopedTimer timer("Pixel mapping");
-        points = samplePointsFromComplexPlane(config.imageHeight, config.imageWidth, config.imStart, config.imEnd, config.reStart, config.reEnd);
-
+        if constexpr (is_same_v<T_RealType, double>) {
+            points = samplePointsFromComplexPlane(config.imageHeight, config.imageWidth, config.imStart, config.imEnd, config.reStart, config.reEnd);
+        }
+        else {
+            points = samplePointsFromComplexPlane(config.imageHeight, config.imageWidth, config.imStartHP, config.imEndHP, config.reStartHP, config.reEndHP);
+        }
     }
 
     vector<int> iters(imageSize);
     {
         ScopedTimer timer("\nCalculating escape iterations");
-        calculateIters(points, iters, imageSize, config.maxIter);
-    }
-
-    vector<Color> pixels;
-    {
-        ScopedTimer timer("Coloring");
-        pixels = colorManager.paint(iters);
-    }
-
-    {
-        ScopedTimer timer("Image generation");
-        cv::Mat image = createColorImage(pixels, config.imageWidth, config.imageHeight);
-        cv::imwrite(config.outputFilename, image);
-    }
-}
-
-void createMandelbrotSetHP(const MandelbrotConfig& config, const ColorManager& colorManager) {
-    const int imageSize = config.imageHeight * config.imageWidth;
-
-    vector<ComplexHP> points;
-    {
-        ScopedTimer timer("Pixel mapping");
-        points = samplePointsFromComplexPlane(config.imageHeight, config.imageWidth, config.imStartHP, config.imEndHP, config.reStartHP, config.reEndHP);
-    }
-
-    vector<int> iters(imageSize);
-    {
-        ScopedTimer timer("\nCalculating escape iteration");       
-        calculateItersHighPrecision(points, iters, imageSize, config.maxIter);
+        if constexpr (is_same_v<T_ComplexPointType, Complex>) {
+            calculateIters(points, iters, imageSize, config.maxIter);
+        }
+        else {            
+            calculateItersHighPrecision(points, iters, imageSize, config.maxIter);
+        }
     }
 
     vector<Color> pixels;
@@ -237,13 +205,37 @@ optional<MandelbrotConfig> parseCommandLine(int argc, char* argv[]) {
     return config;
 }
 
-
-// Command line arguments:
-// HIGHG_PRECISION
-// RE_START, RE_END, IM_START, IM_END,
-// OUTPUT_FILENAME
-// MAX_ITER
-// PALETTE_LENGTH
+/**
+ * @brief Main entry point of the Mandelbrot set visualizer.
+ *
+ * This program generates a Mandelbrot set image based on user-provided parameters
+ * from the command line, and saves the output to a PNG file. It supports both
+ * standard double-precision and high-precision floating-point calculations.
+ *
+ * Command-line arguments are parsed in the following order:
+ *
+ * @param argc The number of command-line arguments.
+ * @param argv An array of C-style strings representing the command-line arguments.
+ *
+ * Expected arguments (order is strict):
+ * [1] <USE_HIGH_PRECISION> (int): 0 for standard double-precision, 1 for high-precision
+ * (boost::multiprecision::cpp_dec_float_50).
+ * [2] <RE_START>         (double or high-precision float): Real component start of the complex plane.
+ * [3] <RE_END>           (double or high-precision float): Real component end of the complex plane.
+ * [4] <IM_START>         (double or high-precision float): Imaginary component start of the complex plane.
+ * [5] <IM_END>           (double or high-precision float): Imaginary component end of the complex plane.
+ * NOTE: The type of RE_START/END and IM_START/END depends on <USE_HIGH_PRECISION>.
+ * [6] <OUTPUT_FILENAME>  (string): Path and name for the output PNG image file (e.g., "output.png").
+ * [7] <MAX_ITER>         (int): Maximum number of iterations for the Mandelbrot calculation.
+ * [8] <PALETTE_LENGTH>   (int): The desired length of the color palette to be used.
+ * [9] <PALETTE_ID>       (int): An index (0-based) to select a predefined color palette.
+ *
+ * Example Usage:
+ * ./mandelbrot 0 -2.0 1.0 -1.0 1.0 mandelbrot_double.png 400 256 0
+ * ./mandelbrot 1 -0.153004885037500013708 -0.152809695287500013708 1.039611370300000000002 1.039757762612500000002 mandelbrot_hp.png 1000 512 1
+ *
+ * @return int Returns 0 on successful execution, 1 if argument parsing fails or an invalid palette ID is provided.
+ */
 int main(int argc, char* argv[]) {
     auto configOpt = parseCommandLine(argc, argv);
     if (!configOpt) {
@@ -252,14 +244,10 @@ int main(int argc, char* argv[]) {
     const MandelbrotConfig config = configOpt.value();
     const CyclicColorPalette colorManager(config.imageHeight * config.imageWidth, palettes[0], config.paletteLength);
 
-    cout << "==========================================\n";
-    {
-        ScopedTimer timer("Total time");
-        if (config.useHighPrecision) {
-            createMandelbrotSetHP(config, colorManager);
-        }
-        else {
-            createMandelbrotSet(config, colorManager);
-        }
+    if (config.useHighPrecision) {
+        createMandelbrotSet<cpp_dec_float_50, ComplexHP>(config, colorManager);
+    }
+    else {
+        createMandelbrotSet<double, Complex>(config, colorManager);
     }
 }
