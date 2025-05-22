@@ -188,9 +188,9 @@ optional<MandelbrotConfig> parseCommandLine(int argc, char* argv[]) {
                 config.imEnd = stod(argv[5]);
             }
             config.outputFilename = argv[6];
-            config.maxIter = stod(argv[7]);
-            config.paletteLength = stod(argv[8]);
-            int paletteId = stod(argv[9]);
+            config.maxIter = stoi(argv[7]);
+            config.paletteLength = stoi(argv[8]);
+            int paletteId = stoi(argv[9]);
             if (paletteId < 0 || paletteId >= palettes.size()) {
                 cerr << "Error: Invalid palette ID. Must be between 0 and " << palettes.size() - 1 << ".\n";
                 return nullopt;
