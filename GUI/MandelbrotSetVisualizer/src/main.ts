@@ -33,6 +33,7 @@ class BoundaryManager{
   private paletteLength: number = 250;
   private maxIter: number = 700;
   private paletteId: number = 0;
+  private samples: number = 1;
   private static imgUrl: string;
 
 
@@ -61,6 +62,17 @@ class BoundaryManager{
   }
   public getPaletteLength(): number{
     return this.paletteLength;
+  }
+  public setSamples(samples: number){
+    this.samples = samples;
+    if(this.highPrecission){
+      this.generateMandelbrotHighPrecission();
+    }else{
+      this.generateMandelbrot();
+    }
+  }
+  public getSamples(): number{
+    return this.samples;
   }
   public getMaxIter(): number{
     return this.maxIter;
@@ -265,7 +277,8 @@ class BoundaryManager{
       ...this.lowPrecissionBoundary,
       maxIter: this.maxIter,
       paletteLength: this.paletteLength,
-      paletteId: this.paletteId
+      paletteId: this.paletteId,
+      samples: this.samples
     };
     const status = await invoke("generate_mandelbrot", args);
     this.img = this.p5Client.loadImage(BoundaryManager.imgUrl);
@@ -279,7 +292,8 @@ class BoundaryManager{
       imEnd: this.highPrecissionBoundary?.imEnd.toString(),
       maxIter: this.maxIter,
       paletteLength: this.paletteLength,
-      paletteId: this.paletteId
+      paletteId: this.paletteId,
+      samples: this.samples
     };
     const status = await invoke("generate_mandelbrot_hp", args);
     this.img = this.p5Client.loadImage(BoundaryManager.imgUrl);
@@ -368,7 +382,9 @@ window.addEventListener("DOMContentLoaded", () => {
   new P5(sketch);
   const inputPaletteLength: HTMLInputElement = document.getElementById("input-palette-length") as HTMLInputElement;
   const inputMaxIter: HTMLInputElement = document.getElementById("input-max-iter") as HTMLInputElement;
+  const inputSamples: HTMLInputElement = document.getElementById("input-samples") as HTMLInputElement;
   const buttonPaletteLengthCancel: HTMLButtonElement = document.getElementById("button-palette-length-cancel") as HTMLButtonElement;
+  const buttonSamplesCancel: HTMLButtonElement = document.getElementById("button-samples-cancel") as HTMLButtonElement;
   const buttonMaxIterCancel: HTMLButtonElement = document.getElementById("button-max-iter-cancel") as HTMLButtonElement;
   document.getElementById("button-reset")?.addEventListener("click", () => {
     boundaryManager.reset();
@@ -379,6 +395,11 @@ window.addEventListener("DOMContentLoaded", () => {
     const paletteLength: number = parseInt(inputPaletteLength.value);
     buttonPaletteLengthCancel.disabled = true;
     boundaryManager.setPaletteLength(paletteLength);
+  });
+  document.getElementById("button-samples")?.addEventListener("click", () => {
+    const samples: number = parseInt(inputSamples.value);
+    buttonSamplesCancel.disabled = true;
+    boundaryManager.setSamples(samples);
   });
   document.getElementById("button-max-iter")?.addEventListener("click", () => {
     const maxIter: number = parseInt(inputMaxIter.value);
