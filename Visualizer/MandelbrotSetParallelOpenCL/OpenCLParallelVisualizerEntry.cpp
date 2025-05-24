@@ -120,7 +120,7 @@ vector<Complex> samplePointsFromComplexPlane(const int imageHeight, const int im
 }
 
 vector<ComplexHP> samplePointsFromComplexPlane(const int imageHeight, const int imageWidth, const cpp_dec_float_50 imStart, const cpp_dec_float_50 imEnd, const cpp_dec_float_50 reStart, const cpp_dec_float_50 reEnd, const int samples) {
-    vector<ComplexHP> points(imageWidth * imageHeight);
+    vector<ComplexHP> points(imageWidth * imageHeight * samples);
     const cpp_dec_float_50 zeroHP = 0;
     const cpp_dec_float_50 scaleImaginary = (imEnd - imStart) / cpp_dec_float_50(imageHeight);
     const cpp_dec_float_50 scaleReal = (reEnd - reStart) / cpp_dec_float_50(imageWidth);
@@ -201,36 +201,58 @@ optional<MandelbrotConfig> parseCommandLine(int argc, char* argv[]) {
     if (argc > 1) {
         try {
             config.useHighPrecision = (std::stod(argv[1]) != 0.0);
+            cout << "Using high precision: " << boolalpha << config.useHighPrecision << "\n";
+
             if (config.useHighPrecision) {
                 config.reStartHP = cpp_dec_float_50(argv[2]);
                 config.reEndHP = cpp_dec_float_50(argv[3]);
                 config.imStartHP = cpp_dec_float_50(argv[4]);
                 config.imEndHP = cpp_dec_float_50(argv[5]);
+
+                cout << "reStartHP: " << config.reStartHP << "\n";
+                cout << "reEndHP:   " << config.reEndHP << "\n";
+                cout << "imStartHP: " << config.imStartHP << "\n";
+                cout << "imEndHP:   " << config.imEndHP << "\n";
             }
             else {
                 config.reStart = stod(argv[2]);
                 config.reEnd = stod(argv[3]);
                 config.imStart = stod(argv[4]);
                 config.imEnd = stod(argv[5]);
+
+                cout << "reStart: " << config.reStart << "\n";
+                cout << "reEnd:   " << config.reEnd << "\n";
+                cout << "imStart: " << config.imStart << "\n";
+                cout << "imEnd:   " << config.imEnd << "\n";
             }
+
             config.outputFilename = argv[6];
             config.maxIter = stoi(argv[7]);
             config.paletteLength = stoi(argv[8]);
+
+            cout << "Output file:     " << config.outputFilename << "\n";
+            cout << "Max iterations:  " << config.maxIter << "\n";
+            cout << "Palette length:  " << config.paletteLength << "\n";
+
             int paletteId = stoi(argv[9]);
             if (paletteId < 0 || paletteId >= palettes.size()) {
                 cerr << "Error: Invalid palette ID. Must be between 0 and " << palettes.size() - 1 << ".\n";
                 return nullopt;
             }
             config.paletteId = paletteId;
+            cout << "Palette ID:      " << paletteId << "\n";
+
             int samples = stoi(argv[10]);
             if (samples < 1) {
                 cerr << "Error: Invalid samples number. Must be greater than 0.\n";
                 return nullopt;
             }
+            config.samples = samples;
+            cout << "Samples:         " << samples << "\n";
         }
         catch (const exception& e) {
             cerr << "Error parsing arguments: " << e.what() << "\n";
-            cerr << "Usage: " << argv[0] << " <USE_HIGH_PRECISION(0/1)> <RE_START> <RE_END> <IM_START> <IM_END> <OUTPUT_FILENAME> <MAX_ITER> <PALETTE_LENGTH> <PALETTE_ID>\n";
+            cerr << "Usage: " << argv[0] << " <USE_HIGH_PRECISION(0/1)> <RE_START> <RE_END> <IM_START> <IM_END> <OUTPUT_FILENAME> <MAX_ITER> <PALETTE_LENGTH> <PALETTE_ID> <SAMPLES>\n";
             return nullopt;
         }
     }
