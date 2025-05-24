@@ -27,6 +27,7 @@ struct MandelbrotConfig {
     cpp_dec_float_50 reEndHP = reEnd;
     cpp_dec_float_50 imStartHP = imStart;
     cpp_dec_float_50 imEndHP = imEnd;
+    int samples = 1;
     int maxIter = 400;
     int imageWidth = 900;
     int imageHeight = 600;
@@ -83,46 +84,69 @@ cv::Mat createColorImage(vector<Color>& pixels, const int width, const int heigh
     return image;
 }
 
+template<typename T>
+T fastRandomFromRange(const T& min, const T& max) {
+    const double r = rand() / (RAND_MAX + 1.0);
 
-double mapVal(double value, double inMin, double inMax, double outMin, double outMax) {
-    return (value - inMin) * (outMax - outMin) / (inMax - inMin) + outMin;
+    if constexpr (is_same_v<T, cpp_dec_float_50>) {
+        return min + cpp_dec_float_50(r) * (max - min);
+    }
+    else {
+        return min + static_cast<T>(r) * (max - min);
+    }
 }
 
-vector<Complex> samplePointsFromComplexPlane(const int imageHeight, const int imageWidth, const double imStart, const double imEnd, const double reStart, const double reEnd) {
-    vector<Complex> points(imageWidth * imageHeight);
+vector<Complex> samplePointsFromComplexPlane(const int imageHeight, const int imageWidth, const double imStart, const double imEnd, const double reStart, const double reEnd, const int samples) {
+    vector<Complex> points(imageWidth * imageHeight * samples);
+
+    const double scaleImaginary = (imEnd - imStart) / imageHeight;
+    const double scaleReal = (reEnd - reStart) / imageWidth;
+
+    #pragma omp parallel for
     for (int i = 0; i < imageHeight; i++) {
-        double imaginaryPart = mapVal(i, 0, imageHeight, imStart, imEnd);
+        double imaginaryPartBoundary = imStart + i * scaleImaginary;
+        double realPartBoundary = reStart;
         for (int j = 0; j < imageWidth; j++) {
-            double realPart = mapVal(j, 0, imageWidth, reStart, reEnd);
-            int idx = j + (i * imageWidth);
-            points[idx] = { realPart, imaginaryPart };
+            for (int k = 0; k < samples; k++) {
+                double realPart = fastRandomFromRange<double>(realPartBoundary, realPartBoundary + scaleReal);
+                double imaginaryPart = fastRandomFromRange<double>(imaginaryPartBoundary, imaginaryPartBoundary + scaleImaginary);
+                const int idx = (j + i * imageWidth) * samples + k;
+                points[idx] = { realPart, imaginaryPart };
+            }
+            realPartBoundary += scaleReal;
         }
     }
     return points;
 }
 
-vector<ComplexHP> samplePointsFromComplexPlane(const int imageHeight, const int imageWidth, const cpp_dec_float_50 imStart, const cpp_dec_float_50 imEnd, const cpp_dec_float_50 reStart, const cpp_dec_float_50 reEnd) {
+vector<ComplexHP> samplePointsFromComplexPlane(const int imageHeight, const int imageWidth, const cpp_dec_float_50 imStart, const cpp_dec_float_50 imEnd, const cpp_dec_float_50 reStart, const cpp_dec_float_50 reEnd, const int samples) {
     vector<ComplexHP> points(imageWidth * imageHeight);
-    cpp_dec_float_50 zeroHP = 0;
-    cpp_dec_float_50 scaleImaginary = (imEnd - imStart) / cpp_dec_float_50(imageHeight);
-    cpp_dec_float_50 scaleReal = (reEnd - reStart) / cpp_dec_float_50(imageWidth);
+    const cpp_dec_float_50 zeroHP = 0;
+    const cpp_dec_float_50 scaleImaginary = (imEnd - imStart) / cpp_dec_float_50(imageHeight);
+    const cpp_dec_float_50 scaleReal = (reEnd - reStart) / cpp_dec_float_50(imageWidth);
 
     unsigned int realPartFP[4];
     unsigned int imagPartFP[4];
 
     #pragma omp parallel for private(realPartFP, imagPartFP)
     for (int i = 0; i < imageHeight; i++) {
-        cpp_dec_float_50 imaginaryPart = imStart + cpp_dec_float_50(i) * scaleImaginary;
-        cpp_dec_float_50 realPart = reStart;
+        cpp_dec_float_50 imaginaryPartBoundary = imStart + cpp_dec_float_50(i) * scaleImaginary;
+        cpp_dec_float_50 realPartBoundary = reStart;
         for (int j = 0; j < imageWidth; j++) {
-            int idx = j + (i * imageWidth);
-            fpa::convertToFixedPoint(realPart, realPartFP);
-            fpa::convertToFixedPoint(imaginaryPart, imagPartFP);
-            for (int k = 0; k < 4; k++) {
-                points[idx].real[k] = realPartFP[k];
-                points[idx].imag[k] = imagPartFP[k];
+
+            for (int k = 0; k < samples; k++) {
+                cpp_dec_float_50 realPart = fastRandomFromRange<cpp_dec_float_50>(realPartBoundary, realPartBoundary + scaleReal);
+                cpp_dec_float_50 imaginaryPart = fastRandomFromRange<cpp_dec_float_50>(imaginaryPartBoundary, imaginaryPartBoundary + scaleImaginary);
+                const int idx = (j + i * imageWidth) * samples + k;
+                fpa::convertToFixedPoint(realPart, realPartFP);
+                fpa::convertToFixedPoint(imaginaryPart, imagPartFP);
+
+                for (int m = 0; m < 4; m++) {
+                    points[idx].real[m] = realPartFP[m];
+                    points[idx].imag[m] = imagPartFP[m];
+                }
             }
-            realPart += scaleReal;
+            realPartBoundary += scaleReal;
         }
     }
 
@@ -140,21 +164,22 @@ void createMandelbrotSet(const MandelbrotConfig& config, const ColorManager& col
     {
         ScopedTimer timer("Pixel mapping");
         if constexpr (is_same_v<T_RealType, double>) {
-            points = samplePointsFromComplexPlane(config.imageHeight, config.imageWidth, config.imStart, config.imEnd, config.reStart, config.reEnd);
+            points = samplePointsFromComplexPlane(config.imageHeight, config.imageWidth, config.imStart, config.imEnd, config.reStart, config.reEnd, config.samples);
         }
         else {
-            points = samplePointsFromComplexPlane(config.imageHeight, config.imageWidth, config.imStartHP, config.imEndHP, config.reStartHP, config.reEndHP);
+            points = samplePointsFromComplexPlane(config.imageHeight, config.imageWidth, config.imStartHP, config.imEndHP, config.reStartHP, config.reEndHP, config.samples);
         }
     }
 
-    vector<int> iters(imageSize);
+    const int totalPoints = imageSize * config.samples;
+    vector<int> iters(totalPoints);
     {
         ScopedTimer timer("\nCalculating escape iterations");
         if constexpr (is_same_v<T_ComplexPointType, Complex>) {
-            calculateIters<Complex>(points, iters, imageSize, config.maxIter, "kernel.cl");
+            calculateIters<Complex>(points, iters, totalPoints, config.maxIter, "kernel.cl");
         }
         else {            
-            calculateIters<ComplexHP>(points, iters, imageSize, config.maxIter, "kernelHP.cl");
+            calculateIters<ComplexHP>(points, iters, totalPoints, config.maxIter, "kernelHP.cl");
         }
     }
 
@@ -197,6 +222,11 @@ optional<MandelbrotConfig> parseCommandLine(int argc, char* argv[]) {
                 return nullopt;
             }
             config.paletteId = paletteId;
+            int samples = stoi(argv[10]);
+            if (samples < 1) {
+                cerr << "Error: Invalid samples number. Must be greater than 0.\n";
+                return nullopt;
+            }
         }
         catch (const exception& e) {
             cerr << "Error parsing arguments: " << e.what() << "\n";
@@ -231,6 +261,7 @@ optional<MandelbrotConfig> parseCommandLine(int argc, char* argv[]) {
  * [7] <MAX_ITER>         (int): Maximum number of iterations for the Mandelbrot calculation.
  * [8] <PALETTE_LENGTH>   (int): The desired length of the color palette to be used.
  * [9] <PALETTE_ID>       (int): An index (0-based) to select a predefined color palette.
+ * [10]<SAMPLES>          (int): Number of samples used for each image pixel.
  *
  * Example Usage:
  * ./mandelbrot 0 -2.0 1.0 -1.0 1.0 mandelbrot_double.png 400 256 0
@@ -244,7 +275,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
     const MandelbrotConfig config = configOpt.value();
-    const CyclicColorPalette colorManager(config.imageHeight * config.imageWidth, palettes[config.paletteId], config.paletteLength);
+    const CyclicColorPalette colorManager(config.imageHeight * config.imageWidth, palettes[config.paletteId], config.paletteLength, config.samples);
 
     if (config.useHighPrecision) {
         createMandelbrotSet<cpp_dec_float_50, ComplexHP>(config, colorManager);

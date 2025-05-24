@@ -4,7 +4,7 @@
 
 #define PI 3.14159265358979323846
 
-CyclicColorPalette::CyclicColorPalette(int imageSize, vector<Color> colors, int length) : ColorManager(imageSize) {
+CyclicColorPalette::CyclicColorPalette(int imageSize, vector<Color> colors, int length, int samples) : ColorManager(imageSize, samples) {
     this->colors = move(colors);
     this->length = length;
 }
@@ -39,17 +39,29 @@ vector<Color> CyclicColorPalette::paint(vector<int>& iters) const {
     vector<Color> pixels(this->imageSize);
     #pragma omp parallel for
     for (int i = 0; i < this->imageSize; i++) {
-        if (iters[i] == -1) {            
-            pixels[i] = { 0,0,0 };
+        int idx = i * this->samples;
+        double averageColor[3] = { 0, 0, 0 };
+        for (int k = 0; k < this->samples; k++) {
+            if (iters[idx + k] != -1) {
+                Color c = getColorFromPalette(iters[idx + k], this->colors, this->length);
+                averageColor[0] += c.red;
+                averageColor[1] += c.green;
+                averageColor[2] += c.blue;
+            }
         }
-        else {
-            pixels[i] = getColorFromPalette(iters[i], this->colors, this->length);
-        }
+        averageColor[0] /= this->samples;
+        averageColor[1] /= this->samples;
+        averageColor[2] /= this->samples;
+
+        pixels[i] = {
+            static_cast<unsigned char>(averageColor[0]),
+            static_cast<unsigned char>(averageColor[1]),
+            static_cast<unsigned char>(averageColor[2]) };
     }
     return pixels;
 }
 
-HistogramColorPalette::HistogramColorPalette(int imageSize, int maxIter, vector<Color> colors) : ColorManager(imageSize) {
+HistogramColorPalette::HistogramColorPalette(int imageSize, int maxIter, vector<Color> colors, int samples) : ColorManager(imageSize, samples) {
     this->maxIter = maxIter;
     this->colors = colors;
 }
@@ -92,7 +104,7 @@ vector<Color> HistogramColorPalette::paint(vector<int>& iters) const {
 }
 
 
-ExponentialColorPalette::ExponentialColorPalette(int imageSize, int maxIter, vector<Color> colors, int length) : ColorManager(imageSize) {
+ExponentialColorPalette::ExponentialColorPalette(int imageSize, int maxIter, vector<Color> colors, int length, int samples) : ColorManager(imageSize, samples) {
     this->maxIter = maxIter;
     this->colors = colors;
     this->length = length;

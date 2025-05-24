@@ -17,15 +17,17 @@ class ColorManager {
 public:
     virtual vector<Color> paint(vector<int>& iters) const = 0;
 protected:
-    ColorManager(int imageSize) {
+    ColorManager(int imageSize, int samples) {
         this->imageSize = imageSize;
+        this->samples = samples;
     }
 	int imageSize;
+    int samples;
 };
 
 class CyclicColorPalette : public ColorManager {
 public:
-    CyclicColorPalette(int imageSize, vector<Color> colors, int length);
+    CyclicColorPalette(int imageSize, vector<Color> colors, int length, int samples);
     vector<Color> paint(vector<int>& iters) const override;
 
 private:
@@ -35,7 +37,7 @@ private:
 
 class HistogramColorPalette : public ColorManager {
 public:
-    HistogramColorPalette(int imageSize, int maxIter, vector<Color> colors);
+    HistogramColorPalette(int imageSize, int maxIter, vector<Color> colors, int samples);
     vector<Color> paint(vector<int>& iters) const override;
 private:
     Color interpolateColor(Color& l, Color& r, double val);
@@ -45,7 +47,7 @@ private:
 
 class ExponentialColorPalette : public ColorManager {
 public:
-    ExponentialColorPalette(int imageSize, int maxIter, vector<Color> colors, int length);
+    ExponentialColorPalette(int imageSize, int maxIter, vector<Color> colors, int length, int samples);
     vector<Color> paint(vector<int>& iters) const override;
 private:
     int maxIter;
