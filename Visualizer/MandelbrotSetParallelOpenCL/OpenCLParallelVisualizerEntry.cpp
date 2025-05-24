@@ -113,8 +113,8 @@ vector<ComplexHP> samplePointsFromComplexPlane(const int imageHeight, const int 
     #pragma omp parallel for private(realPartFP, imagPartFP)
     for (int i = 0; i < imageHeight; i++) {
         cpp_dec_float_50 imaginaryPart = imStart + cpp_dec_float_50(i) * scaleImaginary;
+        cpp_dec_float_50 realPart = reStart;
         for (int j = 0; j < imageWidth; j++) {
-            cpp_dec_float_50 realPart = reStart + cpp_dec_float_50(j) * scaleReal;
             int idx = j + (i * imageWidth);
             fpa::convertToFixedPoint(realPart, realPartFP);
             fpa::convertToFixedPoint(imaginaryPart, imagPartFP);
@@ -122,6 +122,7 @@ vector<ComplexHP> samplePointsFromComplexPlane(const int imageHeight, const int 
                 points[idx].real[k] = realPartFP[k];
                 points[idx].imag[k] = imagPartFP[k];
             }
+            realPart += scaleReal;
         }
     }
 
