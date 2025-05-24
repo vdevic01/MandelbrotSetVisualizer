@@ -47,10 +47,9 @@ body{
 }
 .form-field {
   appearance: none;
-  border: 2px solid #ccc;
   padding: 0.5rem 1rem;
   font-size: 1rem;
-  border-radius: 4px;
+  border-radius: 2px;
   outline: none;
   min-width: 70px;
 }
@@ -61,10 +60,9 @@ body{
 
 button{
   margin-top: 10px;
-  border: 0px solid white;
   padding: 0.5rem 1rem;
   font-size: 1rem;
-  border-radius: 4px;
+  border-radius: 2px;
   outline: none;
 }
 
