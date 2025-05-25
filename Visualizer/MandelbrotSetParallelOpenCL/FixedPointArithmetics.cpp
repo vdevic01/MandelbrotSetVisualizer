@@ -71,22 +71,20 @@ namespace fpa {
 		char aSign = a[0] >> 31;
 		char bSign = b[0] >> 31;
 		bool negate = false;
+		uint tempA[4];
+		uint tempB[4];
 		if (aSign != bSign) {
 			if (aSign == 1) {
-				uint temp[4];
-				cmplFixed(a, temp);
-				aAbs = temp;
+				cmplFixed(a, tempA);
+				aAbs = tempA;
 			}
 			else {
-				uint temp[4];
-				cmplFixed(b, temp);
-				bAbs = temp;
+				cmplFixed(b, tempB);
+				bAbs = tempB;
 			}
 			negate = true;
 		}
 		else if (aSign == 1 && bSign == 1) {
-			uint tempA[4];
-			uint tempB[4];
 			cmplFixed(a, tempA);
 			cmplFixed(b, tempB);
 			aAbs = tempA;
