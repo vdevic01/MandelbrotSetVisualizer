@@ -3,8 +3,6 @@
 #include <utility>
 #include <vector>
 #include <chrono>
-#include <boost/multiprecision/cpp_dec_float.hpp>
-#include <boost/multiprecision/cpp_int.hpp>
 #include <iomanip>
 #include <omp.h>
 #include <iomanip>
@@ -15,7 +13,6 @@
 #include "Palettes.h"
 
 using namespace std;
-using namespace boost::multiprecision;
 
 struct MandelbrotConfig {
     bool useHighPrecision = false;
@@ -23,10 +20,10 @@ struct MandelbrotConfig {
     double reEnd = -0.152809695287500013708;
     double imStart = 1.039611370300000000002;
     double imEnd = 1.039757762612500000002;
-    cpp_dec_float_50 reStartHP = reStart;
-    cpp_dec_float_50 reEndHP = reEnd;
-    cpp_dec_float_50 imStartHP = imStart;
-    cpp_dec_float_50 imEndHP = imEnd;
+    fpa::uint reStartHP[fpa::FP_SIZE];
+    fpa::uint reEndHP[fpa::FP_SIZE];
+    fpa::uint imStartHP[fpa::FP_SIZE];
+    fpa::uint imEndHP[fpa::FP_SIZE];
     int samples = 1;
     int maxIter = 400;
     int imageWidth = 900;
@@ -84,16 +81,10 @@ cv::Mat createColorImage(vector<Color>& pixels, const int width, const int heigh
     return image;
 }
 
-template<typename T>
-T fastRandomFromRange(const T& min, const T& max) {
-    const double r = rand() / (RAND_MAX + 1.0);
 
-    if constexpr (is_same_v<T, cpp_dec_float_50>) {
-        return min + cpp_dec_float_50(r) * (max - min);
-    }
-    else {
-        return min + static_cast<T>(r) * (max - min);
-    }
+double fastRandomFromRange(const double& min, const double& max) {
+    const double r = rand() / (RAND_MAX + 1.0);
+    return min + r * (max - min);
 }
 
 vector<Complex> samplePointsFromComplexPlane(const int imageHeight, const int imageWidth, const double imStart, const double imEnd, const double reStart, const double reEnd, const int samples) {
@@ -108,8 +99,8 @@ vector<Complex> samplePointsFromComplexPlane(const int imageHeight, const int im
         double realPartBoundary = reStart;
         for (int j = 0; j < imageWidth; j++) {
             for (int k = 0; k < samples; k++) {
-                double realPart = fastRandomFromRange<double>(realPartBoundary, realPartBoundary + scaleReal);
-                double imaginaryPart = fastRandomFromRange<double>(imaginaryPartBoundary, imaginaryPartBoundary + scaleImaginary);
+                double realPart = fastRandomFromRange(realPartBoundary, realPartBoundary + scaleReal);
+                double imaginaryPart = fastRandomFromRange(imaginaryPartBoundary, imaginaryPartBoundary + scaleImaginary);
                 const int idx = (j + i * imageWidth) * samples + k;
                 points[idx] = { realPart, imaginaryPart };
             }
@@ -119,34 +110,56 @@ vector<Complex> samplePointsFromComplexPlane(const int imageHeight, const int im
     return points;
 }
 
-vector<ComplexHP> samplePointsFromComplexPlane(const int imageHeight, const int imageWidth, const cpp_dec_float_50 imStart, const cpp_dec_float_50 imEnd, const cpp_dec_float_50 reStart, const cpp_dec_float_50 reEnd, const int samples) {
-    vector<ComplexHP> points(imageWidth * imageHeight * samples);
-    const cpp_dec_float_50 zeroHP = 0;
-    const cpp_dec_float_50 scaleImaginary = (imEnd - imStart) / cpp_dec_float_50(imageHeight);
-    const cpp_dec_float_50 scaleReal = (reEnd - reStart) / cpp_dec_float_50(imageWidth);
+vector<ComplexHP> samplePointsFromComplexPlane(
+    const int imageHeight, const int imageWidth,
+    const fpa::uint imStart[fpa::FP_SIZE], const fpa::uint imEnd[fpa::FP_SIZE],
+    const fpa::uint reStart[fpa::FP_SIZE], const fpa::uint reEnd[fpa::FP_SIZE],
+    const int samples) {
 
-    unsigned int realPartFP[4];
-    unsigned int imagPartFP[4];
+    vector<ComplexHP> points(imageWidth * imageHeight * samples);
+
+    fpa::uint imageHeightHP[fpa::FP_SIZE] = {imageHeight, 0, 0, 0};
+    fpa::uint imageWidthHP[fpa::FP_SIZE] = {imageWidth, 0, 0, 0};
+
+    fpa::uint temp[fpa::FP_SIZE] = {};
+    fpa::subFixed(imEnd, imStart, temp);
+    fpa::uint scaleImaginary[fpa::FP_SIZE] = {};
+    fpa::divFixed(temp, imageHeightHP, scaleImaginary);
+
+    fpa::subFixed(reEnd, reStart, temp);
+    fpa::uint scaleReal[fpa::FP_SIZE] = {};
+    fpa::divFixed(temp, imageWidthHP, scaleReal);
+
+    fpa::uint realPartFP[fpa::FP_SIZE];
+    fpa::uint imagPartFP[fpa::FP_SIZE];
 
     #pragma omp parallel for private(realPartFP, imagPartFP)
     for (int i = 0; i < imageHeight; i++) {
-        cpp_dec_float_50 imaginaryPartBoundary = imStart + cpp_dec_float_50(i) * scaleImaginary;
-        cpp_dec_float_50 realPartBoundary = reStart;
+        fpa::uint imaginaryPartBoundary[fpa::FP_SIZE] = {};
+        fpa::uint iHP[fpa::FP_SIZE] = {};
+        fpa::floatingToFixedPoint(static_cast<double>(i), iHP);
+        fpa::mulCmplFixed(iHP, scaleImaginary, imaginaryPartBoundary);
+        fpa::addFixed(imStart, imaginaryPartBoundary, imaginaryPartBoundary);
+
+        fpa::uint realPartBoundary[fpa::FP_SIZE] = {};
+        copy(reStart, reStart + fpa::FP_SIZE, realPartBoundary);
+
         for (int j = 0; j < imageWidth; j++) {
-
             for (int k = 0; k < samples; k++) {
-                cpp_dec_float_50 realPart = fastRandomFromRange<cpp_dec_float_50>(realPartBoundary, realPartBoundary + scaleReal);
-                cpp_dec_float_50 imaginaryPart = fastRandomFromRange<cpp_dec_float_50>(imaginaryPartBoundary, imaginaryPartBoundary + scaleImaginary);
-                const int idx = (j + i * imageWidth) * samples + k;
-                fpa::convertToFixedPoint(realPart, realPartFP);
-                fpa::convertToFixedPoint(imaginaryPart, imagPartFP);
+                fpa::addFixed(realPartBoundary, scaleReal, realPartFP);
+                fpa::randomFromRange(realPartBoundary, realPartFP, realPartFP);
 
-                for (int m = 0; m < 4; m++) {
+                fpa::addFixed(imaginaryPartBoundary, scaleImaginary, imagPartFP);
+                fpa::randomFromRange(imaginaryPartBoundary, imagPartFP, imagPartFP);
+
+                const int idx = (j + i * imageWidth) * samples + k;
+
+                for (int m = 0; m < fpa::FP_SIZE; m++) {
                     points[idx].real[m] = realPartFP[m];
                     points[idx].imag[m] = imagPartFP[m];
                 }
             }
-            realPartBoundary += scaleReal;
+            fpa::addFixed(realPartBoundary, scaleReal, realPartBoundary);
         }
     }
 
@@ -164,10 +177,18 @@ void createMandelbrotSet(const MandelbrotConfig& config, const ColorManager& col
     {
         ScopedTimer timer("Pixel mapping");
         if constexpr (is_same_v<T_RealType, double>) {
-            points = samplePointsFromComplexPlane(config.imageHeight, config.imageWidth, config.imStart, config.imEnd, config.reStart, config.reEnd, config.samples);
+            points = samplePointsFromComplexPlane(
+                config.imageHeight, config.imageWidth,
+                config.imStart, config.imEnd,
+                config.reStart, config.reEnd,
+                config.samples);
         }
         else {
-            points = samplePointsFromComplexPlane(config.imageHeight, config.imageWidth, config.imStartHP, config.imEndHP, config.reStartHP, config.reEndHP, config.samples);
+            points = samplePointsFromComplexPlane(
+                config.imageHeight, config.imageWidth,
+                config.imStartHP, config.imEndHP,
+                config.reStartHP, config.reEndHP,
+                config.samples);
         }
     }
 
@@ -200,41 +221,15 @@ optional<MandelbrotConfig> parseCommandLine(int argc, char* argv[]) {
     MandelbrotConfig config;
     if (argc > 1) {
         try {
-            config.useHighPrecision = (std::stod(argv[1]) != 0.0);
-            cout << "Using high precision: " << boolalpha << config.useHighPrecision << "\n";
-
-            if (config.useHighPrecision) {
-                config.reStartHP = cpp_dec_float_50(argv[2]);
-                config.reEndHP = cpp_dec_float_50(argv[3]);
-                config.imStartHP = cpp_dec_float_50(argv[4]);
-                config.imEndHP = cpp_dec_float_50(argv[5]);
-
-                cout << "reStartHP: " << config.reStartHP << "\n";
-                cout << "reEndHP:   " << config.reEndHP << "\n";
-                cout << "imStartHP: " << config.imStartHP << "\n";
-                cout << "imEndHP:   " << config.imEndHP << "\n";
-            }
-            else {
-                config.reStart = stod(argv[2]);
-                config.reEnd = stod(argv[3]);
-                config.imStart = stod(argv[4]);
-                config.imEnd = stod(argv[5]);
-
-                cout << "reStart: " << config.reStart << "\n";
-                cout << "reEnd:   " << config.reEnd << "\n";
-                cout << "imStart: " << config.imStart << "\n";
-                cout << "imEnd:   " << config.imEnd << "\n";
-            }
-
-            config.outputFilename = argv[6];
-            config.maxIter = stoi(argv[7]);
-            config.paletteLength = stoi(argv[8]);
+            config.outputFilename = argv[1];
+            config.maxIter = stoi(argv[2]);
+            config.paletteLength = stoi(argv[3]);
 
             cout << "Output file:     " << config.outputFilename << "\n";
             cout << "Max iterations:  " << config.maxIter << "\n";
             cout << "Palette length:  " << config.paletteLength << "\n";
 
-            int paletteId = stoi(argv[9]);
+            int paletteId = stoi(argv[4]);
             if (paletteId < 0 || paletteId >= palettes.size()) {
                 cerr << "Error: Invalid palette ID. Must be between 0 and " << palettes.size() - 1 << ".\n";
                 return nullopt;
@@ -242,13 +237,55 @@ optional<MandelbrotConfig> parseCommandLine(int argc, char* argv[]) {
             config.paletteId = paletteId;
             cout << "Palette ID:      " << paletteId << "\n";
 
-            int samples = stoi(argv[10]);
+            int samples = stoi(argv[5]);
             if (samples < 1) {
                 cerr << "Error: Invalid samples number. Must be greater than 0.\n";
                 return nullopt;
             }
             config.samples = samples;
             cout << "Samples:         " << samples << "\n";
+
+            config.useHighPrecision = (std::stod(argv[6]) != 0.0);
+            cout << "Using high precision: " << boolalpha << config.useHighPrecision << "\n";
+
+            if (config.useHighPrecision) {
+                config.reStartHP[0] = stoul(argv[7]);
+                config.reStartHP[1] = stoul(argv[8]);
+                config.reStartHP[2] = stoul(argv[9]);
+                config.reStartHP[3] = stoul(argv[10]);
+
+                config.reEndHP[0] = stoul(argv[11]);
+                config.reEndHP[1] = stoul(argv[12]);
+                config.reEndHP[2] = stoul(argv[13]);
+                config.reEndHP[3] = stoul(argv[14]);
+
+                config.imStartHP[0] = stoul(argv[15]);
+                config.imStartHP[1] = stoul(argv[16]);
+                config.imStartHP[2] = stoul(argv[17]);
+                config.imStartHP[3] = stoul(argv[18]);
+
+                config.imEndHP[0] = stoul(argv[19]);
+                config.imEndHP[1] = stoul(argv[20]);
+                config.imEndHP[2] = stoul(argv[21]);
+                config.imEndHP[3] = stoul(argv[22]);
+
+                cout << "reStartHP: {" << config.reStartHP[0] << ", "<< config.reStartHP[1] << ", " << config.reStartHP[2] << ", " << config.reStartHP[3] << "}\n";
+                cout << "reEndHP:   {" << config.reEndHP[0] << ", " << config.reEndHP[1] << ", " << config.reEndHP[2] << ", " << config.reEndHP[3] << "}\n";
+                cout << "imStartHP: {" << config.imStartHP[0] << ", " << config.imStartHP[1] << ", " << config.imStartHP[2] << ", " << config.imStartHP[3] << "}\n";
+                cout << "imEndHP:   {" << config.imEndHP[0] << ", " << config.imEndHP[1] << ", " << config.imEndHP[2] << ", " << config.imEndHP[3] << "}\n";
+
+            }
+            else {
+                config.reStart = stod(argv[7]);
+                config.reEnd = stod(argv[8]);
+                config.imStart = stod(argv[9]);
+                config.imEnd = stod(argv[10]);
+
+                cout << "reStart: " << config.reStart << "\n";
+                cout << "reEnd:   " << config.reEnd << "\n";
+                cout << "imStart: " << config.imStart << "\n";
+                cout << "imEnd:   " << config.imEnd << "\n";
+            }
         }
         catch (const exception& e) {
             cerr << "Error parsing arguments: " << e.what() << "\n";
@@ -300,7 +337,7 @@ int main(int argc, char* argv[]) {
     const CyclicColorPalette colorManager(config.imageHeight * config.imageWidth, palettes[config.paletteId], config.paletteLength, config.samples);
 
     if (config.useHighPrecision) {
-        createMandelbrotSet<cpp_dec_float_50, ComplexHP>(config, colorManager);
+        createMandelbrotSet<fpa::uint*, ComplexHP>(config, colorManager);
     }
     else {
         createMandelbrotSet<double, Complex>(config, colorManager);
