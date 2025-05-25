@@ -398,4 +398,16 @@ namespace fpa {
 			fpa::cmplFixed(res, res);
 		}
 	}
+
+	void randomFromRange(const uint min[FP_SIZE], const uint max[FP_SIZE], uint result[FP_SIZE]) {
+		const double r = rand() / (RAND_MAX + 1.0);
+
+		uint randHP[FP_SIZE] = { 0 };
+		floatingToFixedPoint(r, randHP);
+
+		uint temp[FP_SIZE] = { 0 };
+		subFixed(max, min, temp);
+		mulCmplFixed(randHP, temp, temp);
+		addFixed(min, temp, result);		
+	}
 }
