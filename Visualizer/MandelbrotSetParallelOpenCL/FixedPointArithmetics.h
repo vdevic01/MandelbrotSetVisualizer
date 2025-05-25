@@ -16,7 +16,8 @@ namespace fpa {
 	constexpr int WHOLE_BITS = WHOLE_PART * 32;
 	constexpr int FRACTION_BITS = FRACTION_PART * 32;
 	constexpr int FP_SIZE = WHOLE_PART + FRACTION_PART;
-	constexpr int FP_BUFFER_SIZE = FP_SIZE * 2;
+	constexpr int FP_MUL_BUFFER_SIZE = FP_SIZE * 2;
+	constexpr int FP_DIV_BUFFER_SIZE = FP_SIZE + FRACTION_PART;
 
 	// Function declarations
 	void addFixed(const uint* a, const uint* b, uint c[FP_SIZE]);
@@ -27,7 +28,10 @@ namespace fpa {
 	bool gteFixed(const uint* a, const uint* b);
 	void mulCmplFixed(const uint* a, const uint* b, uint c[FP_SIZE]);
 	void convertToFixedPoint(const boost::multiprecision::cpp_dec_float_50& num, unsigned int res[4]);
+	void divFixed(const uint* a, const uint* b, uint c[FP_SIZE]);
 
+	void floatingToFixedPoint(double decimal, uint out[4]);
+	double fixedToFloatingPoint(const uint fpNum[4]);
 } // namespace FixedPoint
 
 #endif // FIXED_POINT_H
