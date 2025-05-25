@@ -32,6 +32,8 @@ namespace fpa {
 
 	void floatingToFixedPoint(double decimal, uint out[4]);
 	double fixedToFloatingPoint(const uint fpNum[4]);
+
+	void randomFromRange(const uint min[FP_SIZE], const uint max[FP_SIZE], uint result[FP_SIZE]);
 } // namespace FixedPoint
 
 #endif // FIXED_POINT_H
