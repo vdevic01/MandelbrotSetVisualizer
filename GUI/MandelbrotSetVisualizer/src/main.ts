@@ -146,7 +146,7 @@ class BoundaryManager{
     return result;
   }
 
-  public decimalToFixedPoint(decimal: Decimal): any {
+  public decimalToFixedPoint(decimal: Decimal): number[] {
     let isNegative = false;
     if(decimal.isNegative()){
       decimal = decimal.negated();
@@ -182,14 +182,12 @@ class BoundaryManager{
 
     let width = this.releaseX - this.pressX;
     let height = this.releaseY - this.pressY;
-    console.log("mouseX, mouseY:" + [this.releaseX, this.releaseY]);
     if(Math.abs(width) * this.boxSidesRatio[0] > Math.abs(height) * this.boxSidesRatio[1]){
       relX = this.releaseX;
       relY = this.pressY + Math.sign(height) * Math.abs(width) * 1.0 / this.boxSidesRatio[1] * this.boxSidesRatio[0];
     }else{
       relX = this.pressX + Math.sign(width) * Math.abs(height) * 1.0 / this.boxSidesRatio[0] * this.boxSidesRatio[1];
       relY = this.releaseY;
-      console.log([relX, relY]);
     }
 
     let reStart = Math.min(this.pressX, relX);
@@ -280,24 +278,22 @@ class BoundaryManager{
       paletteId: this.paletteId,
       samples: this.samples
     };
-    const status = await invoke("generate_mandelbrot", args);
+    await invoke("generate_mandelbrot", args);
     this.img = this.p5Client.loadImage(BoundaryManager.imgUrl);
-    console.log("status:" + status);
   }
   private async generateMandelbrotHighPrecission(){
     const args = {
-      reStart: this.highPrecissionBoundary?.reStart.toString(),
-      reEnd: this.highPrecissionBoundary?.reEnd.toString(),
-      imStart: this.highPrecissionBoundary?.imStart.toString(),
-      imEnd: this.highPrecissionBoundary?.imEnd.toString(),
+      reStart: this.decimalToFixedPoint(this.highPrecissionBoundary!.reStart),
+      reEnd: this.decimalToFixedPoint(this.highPrecissionBoundary!.reEnd),
+      imStart: this.decimalToFixedPoint(this.highPrecissionBoundary!.imStart),
+      imEnd: this.decimalToFixedPoint(this.highPrecissionBoundary!.imEnd),
       maxIter: this.maxIter,
       paletteLength: this.paletteLength,
       paletteId: this.paletteId,
       samples: this.samples
     };
-    const status = await invoke("generate_mandelbrot_hp", args);
+    await invoke("generate_mandelbrot_hp", args);
     this.img = this.p5Client.loadImage(BoundaryManager.imgUrl);
-    console.log("status:" + status);
   }
 
   public reset(){
