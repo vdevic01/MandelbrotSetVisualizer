@@ -3,8 +3,6 @@
 #ifndef FIXED_POINT_H
 #define FIXED_POINT_H
 
-#include <boost/multiprecision/cpp_dec_float.hpp>
-
 namespace fpa {
 
 	typedef unsigned int uint;
@@ -27,7 +25,6 @@ namespace fpa {
 	bool gtFixed(const uint* a, const uint* b);
 	bool gteFixed(const uint* a, const uint* b);
 	void mulCmplFixed(const uint* a, const uint* b, uint c[FP_SIZE]);
-	void convertToFixedPoint(const boost::multiprecision::cpp_dec_float_50& num, unsigned int res[4]);
 	void divFixed(const uint* a, const uint* b, uint c[FP_SIZE]);
 
 	void floatingToFixedPoint(double decimal, uint out[4]);
