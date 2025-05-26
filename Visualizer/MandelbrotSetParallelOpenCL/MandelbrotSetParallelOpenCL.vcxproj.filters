@@ -21,7 +21,7 @@
     <ClCompile Include="ParallelVisualizerEntry.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="ParallelIterationCalculator.cpp">
+    <ClCompile Include="OpenCLIterationCalculator.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="FixedPointArithmetics.cpp">
@@ -29,6 +29,9 @@
     </ClCompile>
     <ClCompile Include="ColorManager.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="OpenCLIterationCalculator.h">
+      <Filter>Header Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -43,9 +46,6 @@
     <ClInclude Include="errors.h">
       <Filter>Resource Files</Filter>
     </ClInclude>
-    <ClInclude Include="ParallelIterationCalculator.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="FixedPointArithmetics.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -53,6 +53,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Palettes.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="IterationCalculator.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

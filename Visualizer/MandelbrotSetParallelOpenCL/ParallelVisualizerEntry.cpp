@@ -7,10 +7,12 @@
 #include <omp.h>
 #include <iomanip>
 
-#include "ParallelIterationCalculator.h"
+#include "IterationCalculator.h"
+#include "OpenCLIterationCalculator.h"
 #include "FixedPointArithmetics.h"
 #include "ColorManager.h"
 #include "Palettes.h"
+
 
 using namespace std;
 
@@ -167,7 +169,7 @@ vector<ComplexHP> samplePointsFromComplexPlane(
 }
 
 template<typename T_ComplexPointType>
-void createMandelbrotSet(const MandelbrotConfig& config, const ColorManager& colorManager) {
+void createMandelbrotSet(const MandelbrotConfig& config, const ColorManager& colorManager, const IterationCalculator& iterCalculator) {
     cout << "===========================================\n";
     ScopedTimer total_timer("Total generation time");
 
@@ -197,10 +199,10 @@ void createMandelbrotSet(const MandelbrotConfig& config, const ColorManager& col
     {
         ScopedTimer timer("\nCalculating escape iterations");
         if constexpr (is_same_v<T_ComplexPointType, Complex>) {
-            calculateIters<Complex>(points, iters, totalPoints, config.maxIter, "kernel.cl");
+            iterCalculator.calculate(points, iters, totalPoints, config.maxIter, "kernel.cl");
         }
         else {            
-            calculateIters<ComplexHP>(points, iters, totalPoints, config.maxIter, "kernelHP.cl");
+            iterCalculator.calculate(points, iters, totalPoints, config.maxIter, "kernelHP.cl");
         }
     }
 
@@ -335,11 +337,12 @@ int main(int argc, char* argv[]) {
     }
     const MandelbrotConfig config = configOpt.value();
     const CyclicColorPalette colorManager(config.imageHeight * config.imageWidth, palettes[config.paletteId], config.paletteLength, config.samples);
+    const OpenCLIterationCalculator iterCalculator;
 
     if (config.useHighPrecision) {
-        createMandelbrotSet<ComplexHP>(config, colorManager);
+        createMandelbrotSet<ComplexHP>(config, colorManager, iterCalculator);
     }
     else {
-        createMandelbrotSet<Complex>(config, colorManager);
+        createMandelbrotSet<Complex>(config, colorManager, iterCalculator);
     }
 }
