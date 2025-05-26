@@ -2,13 +2,13 @@
 
 #include "IterationCalculator.h"
 
-#ifndef OPENCL_ITERATION_CALCULATOR_H
-#define OPENCL_ITERATION_CALCULATOR_H
+#ifndef CUDA_ITERATION_CALCULATOR_H
+#define CUDA_ITERATION_CALCULATOR_H
 
-class OpenCLIterationCalculator : public IterationCalculator {
+class CUDAIterationCalculator : public IterationCalculator {
 public:
     int calculate(const std::vector<Complex>& points, std::vector<int>& iters, const unsigned int size, const unsigned int max_iter) const override;
     int calculate(const std::vector<ComplexHP>& points, std::vector<int>& iters, const unsigned int size, const unsigned int max_iter) const override;
 };
 
-#endif // OPENCL_ITERATION_CALCULATOR_H
+#endif // CUDA_ITERATION_CALCULATOR_H

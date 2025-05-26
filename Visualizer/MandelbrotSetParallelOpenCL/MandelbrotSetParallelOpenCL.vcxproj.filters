@@ -58,5 +58,13 @@
     <ClInclude Include="IterationCalculator.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="CUDAIterationCalculator.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="CUDAUnifiedKernel.cu">
+      <Filter>Kernel Files</Filter>
+    </CudaCompile>
   </ItemGroup>
 </Project>

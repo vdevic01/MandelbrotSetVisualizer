@@ -198,12 +198,7 @@ void createMandelbrotSet(const MandelbrotConfig& config, const ColorManager& col
     vector<int> iters(totalPoints);
     {
         ScopedTimer timer("\nCalculating escape iterations");
-        if constexpr (is_same_v<T_ComplexPointType, Complex>) {
-            iterCalculator.calculate(points, iters, totalPoints, config.maxIter, "kernel.cl");
-        }
-        else {            
-            iterCalculator.calculate(points, iters, totalPoints, config.maxIter, "kernelHP.cl");
-        }
+        iterCalculator.calculate(points, iters, totalPoints, config.maxIter);
     }
 
     vector<Color> pixels;
