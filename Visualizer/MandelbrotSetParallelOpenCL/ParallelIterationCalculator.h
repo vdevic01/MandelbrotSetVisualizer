@@ -8,7 +8,7 @@
 #include <CL/cl.h> // OpenCL headers
 
 #include "errors.h"
-#include "OpenCLWrapper.h" 
+#include "ParallelIterationCalculator.h" 
 
 #ifndef CALCULATE_ITERS_H
 #define CALCULATE_ITERS_H

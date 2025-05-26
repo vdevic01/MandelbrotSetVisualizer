@@ -8,7 +8,7 @@
 #include <CL/cl.h>
 
 #include "errors.h"
-#include "OpenCLWrapper.h"
+#include "ParallelIterationCalculator.h"
 
 using namespace std;
 

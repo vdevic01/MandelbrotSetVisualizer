@@ -7,7 +7,7 @@
 #include <omp.h>
 #include <iomanip>
 
-#include "OpenCLWrapper.h"
+#include "ParallelIterationCalculator.h"
 #include "FixedPointArithmetics.h"
 #include "ColorManager.h"
 #include "Palettes.h"
