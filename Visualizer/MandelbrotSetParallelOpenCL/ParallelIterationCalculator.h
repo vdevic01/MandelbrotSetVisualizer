@@ -1,11 +1,11 @@
 #pragma once
 
 #include <vector>
-#include <string> // For std::string
-#include <fstream> // For std::ifstream, std::istreambuf_iterator
-#include <iostream> // For std::cerr, std::cout
-#include <stdlib.h> // For exit
-#include <CL/cl.h> // OpenCL headers
+#include <string>
+#include <fstream>
+#include <iostream>
+#include <stdlib.h>
+#include <CL/cl.h>
 
 #include "errors.h"
 #include "ParallelIterationCalculator.h" 
