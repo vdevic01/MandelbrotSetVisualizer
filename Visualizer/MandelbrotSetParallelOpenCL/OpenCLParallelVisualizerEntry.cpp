@@ -309,18 +309,18 @@ optional<MandelbrotConfig> parseCommandLine(int argc, char* argv[]) {
  * @param argv An array of C-style strings representing the command-line arguments.
  *
  * Expected arguments (order is strict):
- * [1] <USE_HIGH_PRECISION> (int): 0 for standard double-precision, 1 for high-precision
+ * [1] <OUTPUT_FILENAME>  (string): Path and name for the output PNG image file (e.g., "output.png").
+ * [2] <MAX_ITER>         (int): Maximum number of iterations for the Mandelbrot calculation.
+ * [3] <PALETTE_LENGTH>   (int): The desired length of the color palette to be used.
+ * [4] <PALETTE_ID>       (int): An index (0-based) to select a predefined color palette.
+ * [5]<SAMPLES>          (int): Number of samples used for each image pixel.
+ * [6] <USE_HIGH_PRECISION> (int): 0 for standard double-precision, 1 for high-precision
  * (boost::multiprecision::cpp_dec_float_50).
- * [2] <RE_START>         (double or high-precision float): Real component start of the complex plane.
- * [3] <RE_END>           (double or high-precision float): Real component end of the complex plane.
- * [4] <IM_START>         (double or high-precision float): Imaginary component start of the complex plane.
- * [5] <IM_END>           (double or high-precision float): Imaginary component end of the complex plane.
+ * [7] <RE_START>         (double or high-precision fixed point number): Real component start of the complex plane.
+ * [8] <RE_END>           (double or high-precision fixed point number): Real component end of the complex plane.
+ * [9] <IM_START>         (double or high-precision fixed point number): Imaginary component start of the complex plane.
+ * [10] <IM_END>          (double or high-precision fixed point number): Imaginary component end of the complex plane.
  * NOTE: The type of RE_START/END and IM_START/END depends on <USE_HIGH_PRECISION>.
- * [6] <OUTPUT_FILENAME>  (string): Path and name for the output PNG image file (e.g., "output.png").
- * [7] <MAX_ITER>         (int): Maximum number of iterations for the Mandelbrot calculation.
- * [8] <PALETTE_LENGTH>   (int): The desired length of the color palette to be used.
- * [9] <PALETTE_ID>       (int): An index (0-based) to select a predefined color palette.
- * [10]<SAMPLES>          (int): Number of samples used for each image pixel.
  *
  * Example Usage:
  * ./mandelbrot 0 -2.0 1.0 -1.0 1.0 mandelbrot_double.png 400 256 0
