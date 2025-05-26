@@ -166,7 +166,7 @@ vector<ComplexHP> samplePointsFromComplexPlane(
     return points;
 }
 
-template<typename T_RealType, typename T_ComplexPointType>
+template<typename T_ComplexPointType>
 void createMandelbrotSet(const MandelbrotConfig& config, const ColorManager& colorManager) {
     cout << "===========================================\n";
     ScopedTimer total_timer("Total generation time");
@@ -176,7 +176,7 @@ void createMandelbrotSet(const MandelbrotConfig& config, const ColorManager& col
     vector<T_ComplexPointType> points;
     {
         ScopedTimer timer("Pixel mapping");
-        if constexpr (is_same_v<T_RealType, double>) {
+        if constexpr (is_same_v<T_ComplexPointType, Complex>) {
             points = samplePointsFromComplexPlane(
                 config.imageHeight, config.imageWidth,
                 config.imStart, config.imEnd,
@@ -337,9 +337,9 @@ int main(int argc, char* argv[]) {
     const CyclicColorPalette colorManager(config.imageHeight * config.imageWidth, palettes[config.paletteId], config.paletteLength, config.samples);
 
     if (config.useHighPrecision) {
-        createMandelbrotSet<fpa::uint*, ComplexHP>(config, colorManager);
+        createMandelbrotSet<ComplexHP>(config, colorManager);
     }
     else {
-        createMandelbrotSet<double, Complex>(config, colorManager);
+        createMandelbrotSet<Complex>(config, colorManager);
     }
 }
