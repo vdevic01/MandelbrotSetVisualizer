@@ -35,10 +35,10 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="kernel.cl">
+    <None Include="OpenCLKernelHP.cl">
       <Filter>Kernel Files</Filter>
     </None>
-    <None Include="kernelHP.cl">
+    <None Include="OpenCLKernel.cl">
       <Filter>Kernel Files</Filter>
     </None>
   </ItemGroup>

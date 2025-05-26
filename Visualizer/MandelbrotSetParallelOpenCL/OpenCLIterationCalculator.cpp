@@ -428,9 +428,9 @@ int calculateItersInternal(const std::vector<T_ComplexType>& points, std::vector
 
 
 int OpenCLIterationCalculator::calculate(const std::vector<Complex>& points, std::vector<int>& iters, const unsigned int size, const unsigned int max_iter) const {
-	return calculateItersInternal<Complex>(points, iters, size, max_iter, "kernel.cl");
+	return calculateItersInternal<Complex>(points, iters, size, max_iter, "OpenCLKernel.cl");
 }
 
 int OpenCLIterationCalculator::calculate(const std::vector<ComplexHP>& points, std::vector<int>& iters, const unsigned int size, const unsigned int max_iter) const {
-	return calculateItersInternal<ComplexHP>(points, iters, size, max_iter, "kernelHP.cl");
+	return calculateItersInternal<ComplexHP>(points, iters, size, max_iter, "OpenCLKernelHP.cl");
 }
