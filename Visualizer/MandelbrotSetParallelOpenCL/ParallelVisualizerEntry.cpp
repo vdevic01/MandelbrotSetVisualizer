@@ -9,6 +9,7 @@
 
 #include "IterationCalculator.h"
 #include "OpenCLIterationCalculator.h"
+#include "CUDAIterationCalculator.h"
 #include "FixedPointArithmetics.h"
 #include "ColorManager.h"
 #include "Palettes.h"
@@ -26,8 +27,8 @@ struct MandelbrotConfig {
     fpa::uint reEndHP[fpa::FP_SIZE];
     fpa::uint imStartHP[fpa::FP_SIZE];
     fpa::uint imEndHP[fpa::FP_SIZE];
-    int samples = 1;
-    int maxIter = 400;
+    int samples = 10;
+    int maxIter = 1000;
     int imageWidth = 900;
     int imageHeight = 600;
     string outputFilename = "./mandelbrot_set.png";
@@ -197,8 +198,8 @@ void createMandelbrotSet(const MandelbrotConfig& config, const ColorManager& col
     const int totalPoints = imageSize * config.samples;
     vector<int> iters(totalPoints);
     {
-        ScopedTimer timer("\nCalculating escape iterations");
-        iterCalculator.calculate(points, iters, totalPoints, config.maxIter);
+        ScopedTimer timer("Calculating escape iterations");
+        iterCalculator.calculate(points, iters, config.maxIter);
     }
 
     vector<Color> pixels;
@@ -332,7 +333,8 @@ int main(int argc, char* argv[]) {
     }
     const MandelbrotConfig config = configOpt.value();
     const CyclicColorPalette colorManager(config.imageHeight * config.imageWidth, palettes[config.paletteId], config.paletteLength, config.samples);
-    const OpenCLIterationCalculator iterCalculator;
+    const CUDAIterationCalculator iterCalculator;
+    //const OpenCLIterationCalculator iterCalculator;
 
     if (config.useHighPrecision) {
         createMandelbrotSet<ComplexHP>(config, colorManager, iterCalculator);

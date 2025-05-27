@@ -257,7 +257,8 @@ void printError(const cl_program& program, const cl_device_id& device) { // Memb
 
 
 template<typename T_ComplexType>
-int calculateItersInternal(const std::vector<T_ComplexType>& points, std::vector<int>& iters, const unsigned int size, const unsigned int max_iter, const char* kernelFilename) {
+int calculateItersInternal(const std::vector<T_ComplexType>& points, std::vector<int>& iters, const unsigned int maxIter, const char* kernelFilename) {
+	const unsigned int size = points.size();
 	OpenclDeviceSetupInfo deviceInfo = setupOpenclDevices();
 	cl_int err = deviceInfo.err;
 
@@ -365,7 +366,7 @@ int calculateItersInternal(const std::vector<T_ComplexType>& points, std::vector
 	);
 	SIMPLE_CHECK_ERRORS(err);
 
-	cl_int max_iter_kernel = max_iter;
+	cl_int max_iter_kernel = maxIter;
 	err = clSetKernelArg(
 		kernel,
 		2,
@@ -379,7 +380,7 @@ int calculateItersInternal(const std::vector<T_ComplexType>& points, std::vector
 
 	size_t n_dim = 1;
 	size_t global_work_size[1] = { size };
-	size_t local_work_size[1] = { 100 };    // Maximum work size is 1024
+	size_t local_work_size[1] = { 1000 };    // Maximum work size is 1024
 
 	// -----------------------------------------------------------------------
 	// 14. Enqueue (run) the kernel(s)
@@ -427,10 +428,10 @@ int calculateItersInternal(const std::vector<T_ComplexType>& points, std::vector
 }
 
 
-int OpenCLIterationCalculator::calculate(const std::vector<Complex>& points, std::vector<int>& iters, const unsigned int size, const unsigned int max_iter) const {
-	return calculateItersInternal<Complex>(points, iters, size, max_iter, "OpenCLKernel.cl");
+int OpenCLIterationCalculator::calculate(const std::vector<Complex>& points, std::vector<int>& iters, const unsigned int maxIter) const {
+	return calculateItersInternal<Complex>(points, iters, maxIter, "OpenCLKernel.cl");
 }
 
-int OpenCLIterationCalculator::calculate(const std::vector<ComplexHP>& points, std::vector<int>& iters, const unsigned int size, const unsigned int max_iter) const {
-	return calculateItersInternal<ComplexHP>(points, iters, size, max_iter, "OpenCLKernelHP.cl");
+int OpenCLIterationCalculator::calculate(const std::vector<ComplexHP>& points, std::vector<int>& iters, const unsigned int maxIter) const {
+	return calculateItersInternal<ComplexHP>(points, iters, maxIter, "OpenCLKernelHP.cl");
 }
