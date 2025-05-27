@@ -6,12 +6,12 @@
 
 #pragma region Fixed Point Arithmetics
 
-#define WHOLE_PART        1
-#define FRACTION_PART     3
-#define WHOLE_BITS        (WHOLE_PART * 32)
-#define FRACTION_BITS     (FRACTION_PART * 32)
-#define FP_SIZE           (WHOLE_PART + FRACTION_PART)
-#define FP_BUFFER_SIZE    (FP_SIZE * 2)
+constexpr uint32_t WHOLE_PART = 1;
+constexpr uint32_t FRACTION_PART = 3;
+constexpr uint32_t WHOLE_BITS = WHOLE_PART * 32;
+constexpr uint32_t FRACTION_BITS = FRACTION_PART * 32;
+constexpr uint32_t FP_SIZE = WHOLE_PART + FRACTION_PART;
+constexpr uint32_t FP_BUFFER_SIZE = FP_SIZE * 2;
 
 __device__ void addFixed(const uint32_t* a, const uint32_t* b, uint32_t c[FP_SIZE]) {
 	uint32_t carry = 0;
