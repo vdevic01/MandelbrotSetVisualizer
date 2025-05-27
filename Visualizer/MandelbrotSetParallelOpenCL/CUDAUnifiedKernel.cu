@@ -49,13 +49,13 @@ __device__ bool gtFixed(const uint32_t* a, const uint32_t* b) {
 	if (signA != signB) {
 		return signA == 0;
 	}
-	uint32_t diff[4];
+	uint32_t diff[FP_SIZE];
 	subFixed(b, a, diff);
 	uint32_t sign = diff[0] >> 31;
 	return sign == 1;
 }
 
-__device__ void mulCmplFixed(const uint32_t* a, const uint32_t* b, uint32_t c[4]) {
+__device__ void mulCmplFixed(const uint32_t* a, const uint32_t* b, uint32_t c[FP_SIZE]) {
 	uint64_t result[FP_BUFFER_SIZE];
 	for (int i = 0; i < FP_BUFFER_SIZE; i++) {
 		result[i] = 0;
@@ -66,8 +66,8 @@ __device__ void mulCmplFixed(const uint32_t* a, const uint32_t* b, uint32_t c[4]
 	char aSign = a[0] >> 31;
 	char bSign = b[0] >> 31;
 	bool negate = false;
-	uint32_t tempA[4];
-	uint32_t tempB[4];
+	uint32_t tempA[FP_SIZE];
+	uint32_t tempB[FP_SIZE];
 	if (aSign != bSign) {
 		if (aSign == 1) {
 			cmplFixed(a, tempA);
