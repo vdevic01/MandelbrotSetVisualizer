@@ -333,8 +333,11 @@ int main(int argc, char* argv[]) {
     }
     const MandelbrotConfig config = configOpt.value();
     const CyclicColorPalette colorManager(config.imageHeight * config.imageWidth, palettes[config.paletteId], config.paletteLength, config.samples);
+    #if 1      
     const CUDAIterationCalculator iterCalculator;
-    //const OpenCLIterationCalculator iterCalculator;
+    #else       
+    const OpenCLIterationCalculator iterCalculator;
+    #endif
 
     if (config.useHighPrecision) {
         createMandelbrotSet<ComplexHP>(config, colorManager, iterCalculator);

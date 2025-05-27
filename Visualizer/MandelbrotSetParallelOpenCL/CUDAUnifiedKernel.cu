@@ -214,7 +214,7 @@ int calculateItersInternal(const std::vector<T_ComplexType>& points, std::vector
 	cudaMemcpyToSymbol(deviceMaxIter, &maxIter, sizeof(unsigned int));
 	cudaMemcpyToSymbol(deviceN, &N, sizeof(size_t));
 
-	const int blockSize = 1024;
+	const int blockSize = 128;
 	int numBlocks = (N + blockSize - 1) / blockSize;
 
 	calculateIters << <numBlocks, blockSize >> > (devicePointsBuffer, deviceItersBuffer);
