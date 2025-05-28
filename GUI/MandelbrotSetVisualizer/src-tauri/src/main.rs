@@ -16,7 +16,7 @@ fn get_project_dir() -> String {
 
 #[tauri::command]
 async fn generate_mandelbrot(re_start: f64, re_end: f64, im_start: f64, im_end: f64, max_iter: i32, palette_length: i32, palette_id: i32, samples: i32) -> String{
-    let output = Command::new("./MandelbrotSetParallelOpenCL.exe")
+    let output = Command::new("./MandelbrotSetParallel.exe")
         .arg("./../generated-files/mandelbrot_set.png")
         .arg(max_iter.to_string()).arg(palette_length.to_string())
         .arg(palette_id.to_string())
@@ -40,7 +40,7 @@ async fn generate_mandelbrot_hp(
     im_start: [u32; 4], im_end: [u32; 4],
     max_iter: i32, palette_length: i32,
     palette_id: i32, samples: i32) -> String{
-    let output = Command::new("./MandelbrotSetParallelOpenCL.exe")
+    let output = Command::new("./MandelbrotSetParallel.exe")
         .arg("./../generated-files/mandelbrot_set.png")
         .arg(max_iter.to_string()).arg(palette_length.to_string())
         .arg(palette_id.to_string())
