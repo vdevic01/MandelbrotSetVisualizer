@@ -40,18 +40,18 @@ class ScopedTimer {
 public:
     ScopedTimer(const string& name) :
         m_name(name),
-        m_start(std::chrono::high_resolution_clock::now())
+        m_start(chrono::high_resolution_clock::now())
     {
     }
 
     ~ScopedTimer() {
-        auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - m_start);
+        auto end = chrono::high_resolution_clock::now();
+        auto duration = chrono::duration_cast<chrono::milliseconds>(end - m_start);
 
         const int NAME_COLUMN_WIDTH = 36;
 
-        cout << std::left
-            << std::setw(NAME_COLUMN_WIDTH)
+        cout << left
+            << setw(NAME_COLUMN_WIDTH)
             << m_name + ":"
             << duration.count() << " ms\n";
 
@@ -244,7 +244,7 @@ optional<MandelbrotConfig> parseCommandLine(int argc, char* argv[]) {
             config.samples = samples;
             cout << "Samples:         " << samples << "\n";
 
-            config.useHighPrecision = (std::stod(argv[6]) != 0.0);
+            config.useHighPrecision = (stod(argv[6]) != 0.0);
             cout << "Using high precision: " << boolalpha << config.useHighPrecision << "\n";
 
             if (config.useHighPrecision) {
