@@ -1,11 +1,11 @@
 #include <complex>
-#include <opencv2/opencv.hpp>
 #include <utility>
 #include <vector>
 #include <chrono>
 #include <iomanip>
 #include <omp.h>
 #include <iomanip>
+#include <iostream>
 
 #include "IterationCalculator.h"
 #include "OpenCLIterationCalculator.h"
@@ -13,7 +13,7 @@
 #include "FixedPointArithmetics.h"
 #include "ColorManager.h"
 #include "Palettes.h"
-
+#include "fpng.h"
 
 using namespace std;
 
@@ -50,12 +50,12 @@ public:
 
         const int NAME_COLUMN_WIDTH = 36;
 
-        std::cout << std::left
+        cout << std::left
             << std::setw(NAME_COLUMN_WIDTH)
             << m_name + ":"
             << duration.count() << " ms\n";
 
-         std::cout << "===========================================\n";
+         cout << "===========================================\n";
     }
 
 private:
@@ -63,25 +63,27 @@ private:
     chrono::high_resolution_clock::time_point m_start;
 };
 
-cv::Mat createColorImage(vector<Color>& pixels, const int width, const int height) {
-    cv::Mat image(height, width, CV_8UC3);
-    uchar* imageData = image.data;
+void saveColorImageToPng(const vector<Color>& pixels, int width, int height, const string& filename) {
+    vector<unsigned char> rgb_data(width * height * 3);
 
     for (int y = 0; y < height; ++y) {
-        uchar* rowPtr = imageData + (height - y - 1) * image.step;
+        int target_y = height - 1 - y;
 
         for (int x = 0; x < width; ++x) {
             int pixelIndex = y * width + x;
-            Color pixelValue = pixels[pixelIndex];
+            const Color& pixelValue = pixels[pixelIndex];
 
-            uchar* pixelPtr = rowPtr + x * 3;
+            int dataIndex = (target_y * width + x) * 3;
 
-            pixelPtr[0] = pixelValue.blue;
-            pixelPtr[1] = pixelValue.green;
-            pixelPtr[2] = pixelValue.red;
+            rgb_data[dataIndex + 0] = pixelValue.red;
+            rgb_data[dataIndex + 1] = pixelValue.green;
+            rgb_data[dataIndex + 2] = pixelValue.blue;
         }
     }
-    return image;
+
+    if (!fpng::fpng_encode_image_to_file(filename.c_str(), rgb_data.data(), width, height, 3)) {
+        throw runtime_error("Failed to write PNG file: " + filename);
+    }
 }
 
 
@@ -210,8 +212,7 @@ void createMandelbrotSet(const MandelbrotConfig& config, const ColorManager& col
 
     {
         ScopedTimer timer("Image generation");
-        cv::Mat image = createColorImage(pixels, config.imageWidth, config.imageHeight);
-        cv::imwrite(config.outputFilename, image);
+        saveColorImageToPng(pixels, config.imageWidth, config.imageHeight, config.outputFilename);
     }
 }
 
