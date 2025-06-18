@@ -19,10 +19,10 @@ using namespace std;
 
 struct MandelbrotConfig {
     bool useHighPrecision = false;
-    double reStart = -0.153004885037500013708;
-    double reEnd = -0.152809695287500013708;
-    double imStart = 1.039611370300000000002;
-    double imEnd = 1.039757762612500000002;
+    float reStart = -0.153004885037500013708;
+    float reEnd = -0.152809695287500013708;
+    float imStart = 1.039611370300000000002;
+    float imEnd = 1.039757762612500000002;
     fpa::uint reStartHP[fpa::FP_SIZE];
     fpa::uint reEndHP[fpa::FP_SIZE];
     fpa::uint imStartHP[fpa::FP_SIZE];
@@ -92,20 +92,20 @@ double fastRandomFromRange(const double& min, const double& max) {
     return min + r * (max - min);
 }
 
-vector<Complex> samplePointsFromComplexPlane(const int imageHeight, const int imageWidth, const double imStart, const double imEnd, const double reStart, const double reEnd, const int samples) {
+vector<Complex> samplePointsFromComplexPlane(const int imageHeight, const int imageWidth, const float imStart, const float imEnd, const float reStart, const float reEnd, const int samples) {
     vector<Complex> points(imageWidth * imageHeight * samples);
 
-    const double scaleImaginary = (imEnd - imStart) / imageHeight;
-    const double scaleReal = (reEnd - reStart) / imageWidth;
+    const float scaleImaginary = (imEnd - imStart) / imageHeight;
+    const float scaleReal = (reEnd - reStart) / imageWidth;
 
     #pragma omp parallel for
     for (int i = 0; i < imageHeight; i++) {
-        double imaginaryPartBoundary = imStart + i * scaleImaginary;
-        double realPartBoundary = reStart;
+        float imaginaryPartBoundary = imStart + i * scaleImaginary;
+        float realPartBoundary = reStart;
         for (int j = 0; j < imageWidth; j++) {
             for (int k = 0; k < samples; k++) {
-                double realPart = fastRandomFromRange(realPartBoundary, realPartBoundary + scaleReal);
-                double imaginaryPart = fastRandomFromRange(imaginaryPartBoundary, imaginaryPartBoundary + scaleImaginary);
+                float realPart = fastRandomFromRange(realPartBoundary, realPartBoundary + scaleReal);
+                float imaginaryPart = fastRandomFromRange(imaginaryPartBoundary, imaginaryPartBoundary + scaleImaginary);
                 const int idx = (j + i * imageWidth) * samples + k;
                 points[idx] = { realPart, imaginaryPart };
             }
@@ -244,7 +244,7 @@ optional<MandelbrotConfig> parseCommandLine(int argc, char* argv[]) {
             config.samples = samples;
             cout << "Samples:         " << samples << "\n";
 
-            config.useHighPrecision = (stod(argv[6]) != 0.0);
+            config.useHighPrecision = (stoi(argv[6]) != 0);
             cout << "Using high precision: " << boolalpha << config.useHighPrecision << "\n";
 
             if (config.useHighPrecision) {
@@ -275,10 +275,10 @@ optional<MandelbrotConfig> parseCommandLine(int argc, char* argv[]) {
 
             }
             else {
-                config.reStart = stod(argv[7]);
-                config.reEnd = stod(argv[8]);
-                config.imStart = stod(argv[9]);
-                config.imEnd = stod(argv[10]);
+                config.reStart = stof(argv[7]);
+                config.reEnd = stof(argv[8]);
+                config.imStart = stof(argv[9]);
+                config.imEnd = stof(argv[10]);
 
                 cout << "reStart: " << config.reStart << "\n";
                 cout << "reEnd:   " << config.reEnd << "\n";
@@ -308,11 +308,11 @@ optional<MandelbrotConfig> parseCommandLine(int argc, char* argv[]) {
  * @param argv An array of C-style strings representing the command-line arguments.
  *
  * Expected arguments (order is strict):
- * [1] <OUTPUT_FILENAME>  (string): Path and name for the output PNG image file (e.g., "output.png").
- * [2] <MAX_ITER>         (int): Maximum number of iterations for the Mandelbrot calculation.
- * [3] <PALETTE_LENGTH>   (int): The desired length of the color palette to be used.
- * [4] <PALETTE_ID>       (int): An index (0-based) to select a predefined color palette.
- * [5]<SAMPLES>          (int): Number of samples used for each image pixel.
+ * [1] <OUTPUT_FILENAME>    (string): Path and name for the output PNG image file (e.g., "output.png").
+ * [2] <MAX_ITER>           (int): Maximum number of iterations for the Mandelbrot calculation.
+ * [3] <PALETTE_LENGTH>     (int): The desired length of the color palette to be used.
+ * [4] <PALETTE_ID>         (int): An index (0-based) to select a predefined color palette.
+ * [5] <SAMPLES>            (int): Number of samples used for each image pixel.
  * [6] <USE_HIGH_PRECISION> (int): 0 for standard double-precision, 1 for high-precision
  * (boost::multiprecision::cpp_dec_float_50).
  * [7] <RE_START>         (double or high-precision fixed point number): Real component start of the complex plane.

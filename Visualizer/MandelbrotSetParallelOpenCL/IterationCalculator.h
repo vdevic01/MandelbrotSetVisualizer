@@ -7,8 +7,8 @@
 #define ITERATION_CALCULATOR_H
 
 struct Complex {
-    double real;
-    double imag;
+    float real;
+    float imag;
 };
 
 struct ComplexHP {

@@ -121,14 +121,14 @@ __global__ void calculateIters(const Complex* points, int32_t* iterations) {
 	if (idx >= deviceN)
 		return;
 
-	const double x0 = points[idx].real;
-	const double y0 = points[idx].imag;
+	const float x0 = points[idx].real;
+	const float y0 = points[idx].imag;
 
-	double x2 = 0;
-	double y2 = 0;
+	float x2 = 0;
+	float y2 = 0;
 
-	double x = 0;
-	double y = 0;
+	float x = 0;
+	float y = 0;
 
 	int32_t result = -1;
 	for (uint32_t i = 0; i < deviceMaxIter; i++) {
