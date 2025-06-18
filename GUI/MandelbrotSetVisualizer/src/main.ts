@@ -247,8 +247,7 @@ class BoundaryManager{
       imStart: imStart,
       imEnd: imEnd
     };
-    this.generateMandelbrot();
-    if(this.lowPrecissionBoundary.reEnd - this.lowPrecissionBoundary.reStart < 0.0000000000006){
+    if(this.lowPrecissionBoundary.reEnd - this.lowPrecissionBoundary.reStart < 0.00005){
       console.log("!!!Precission limit reached!!!")
       this.highPrecission = true;
       this.highPrecissionBoundary = {
@@ -257,6 +256,9 @@ class BoundaryManager{
         imStart: new Decimal(this.lowPrecissionBoundary.imStart),
         imEnd: new Decimal(this.lowPrecissionBoundary.imEnd)
       }
+      this.updateBoundaryHighPrecission();
+    }else{
+      this.generateMandelbrot();
     }
   }
 
