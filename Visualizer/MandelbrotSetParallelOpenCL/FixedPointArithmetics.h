@@ -27,8 +27,8 @@ namespace fpa {
 	void mulCmplFixed(const uint* a, const uint* b, uint c[FP_SIZE]);
 	void divFixed(const uint* a, const uint* b, uint c[FP_SIZE]);
 
-	void floatingToFixedPoint(double decimal, uint out[4]);
-	double fixedToFloatingPoint(const uint fpNum[4]);
+	void floatingToFixedPoint(float decimal, uint out[4]);
+	float fixedToFloatingPoint(const uint fpNum[4]);
 
 	void randomFromRange(const uint min[FP_SIZE], const uint max[FP_SIZE], uint result[FP_SIZE]);
 } // namespace FixedPoint

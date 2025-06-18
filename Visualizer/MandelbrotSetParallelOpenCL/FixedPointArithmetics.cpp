@@ -229,23 +229,23 @@ namespace fpa {
 			cmplFixed(c, c);
 	}
 
-	void floatingToFixedPoint(double decimal, uint out[4]) {
+	void floatingToFixedPoint(float decimal, uint out[4]) {
 		bool isNegative = false;
 		if (decimal < 0) {
 			decimal = -decimal;
 			isNegative = true;
 		}
 
-		double scaleFactor = pow(2.0, 32);
+		float scaleFactor = pow(2.0, 32);
 
 		uint integerPart = static_cast<uint>(trunc(decimal));
-		double fractionalPart = decimal - static_cast<double>(integerPart);
+		float fractionalPart = decimal - static_cast<float>(integerPart);
 
 		uint fractionHigh = static_cast<uint>(trunc(fractionalPart * scaleFactor));
-		double remainingFraction = fractionalPart * scaleFactor - static_cast<double>(fractionHigh);
+		float remainingFraction = fractionalPart * scaleFactor - static_cast<float>(fractionHigh);
 
 		uint fractionLow1 = static_cast<uint>(trunc(remainingFraction * scaleFactor));
-		double remainingFraction2 = remainingFraction * scaleFactor - static_cast<double>(fractionLow1);
+		float remainingFraction2 = remainingFraction * scaleFactor - static_cast<float>(fractionLow1);
 
 		uint fractionLow2 = static_cast<uint>(trunc(remainingFraction2 * scaleFactor));
 
@@ -274,7 +274,7 @@ namespace fpa {
 		}
 	}
 
-	double fixedToFloatingPoint(const uint fpNum[4]) {
+	float fixedToFloatingPoint(const uint fpNum[4]) {
 		uint temp[4];
 		for (int i = 0; i < 4; ++i)
 			temp[i] = fpNum[i];
@@ -302,8 +302,8 @@ namespace fpa {
 			}
 		}
 
-		double result = static_cast<double>(temp[0]);
-		double divisor = 1.0;
+		float result = static_cast<float>(temp[0]);
+		float divisor = 1.0;
 
 		for (int i = 1; i < 4; ++i) {
 			uint part = temp[i];
@@ -382,7 +382,7 @@ namespace fpa {
 	}
 
 	void randomFromRange(const uint min[FP_SIZE], const uint max[FP_SIZE], uint result[FP_SIZE]) {
-		const double r = rand() / (RAND_MAX + 1.0);
+		const float r = rand() / (RAND_MAX + 1.0);
 
 		uint randHP[FP_SIZE] = { 0 };
 		floatingToFixedPoint(r, randHP);

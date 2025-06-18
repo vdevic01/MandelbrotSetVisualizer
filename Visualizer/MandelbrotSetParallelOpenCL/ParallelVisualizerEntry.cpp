@@ -87,8 +87,8 @@ void saveColorImageToPng(const vector<Color>& pixels, int width, int height, con
 }
 
 
-double fastRandomFromRange(const double& min, const double& max) {
-    const double r = rand() / (RAND_MAX + 1.0);
+float fastRandomFromRange(const float& min, const float& max) {
+    const float r = rand() / (RAND_MAX + 1.0);
     return min + r * (max - min);
 }
 
@@ -142,7 +142,7 @@ vector<ComplexHP> samplePointsFromComplexPlane(
     for (int i = 0; i < imageHeight; i++) {
         fpa::uint imaginaryPartBoundary[fpa::FP_SIZE] = {};
         fpa::uint iHP[fpa::FP_SIZE] = {};
-        fpa::floatingToFixedPoint(static_cast<double>(i), iHP);
+        fpa::floatingToFixedPoint(static_cast<float>(i), iHP);
         fpa::mulCmplFixed(iHP, scaleImaginary, imaginaryPartBoundary);
         fpa::addFixed(imStart, imaginaryPartBoundary, imaginaryPartBoundary);
 
