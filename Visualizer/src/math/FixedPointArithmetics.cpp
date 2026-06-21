@@ -14,7 +14,7 @@ namespace fpa {
 			carry = temp >> 32;
 			c[i] = temp;
 		}
-	};
+	}
 
 	void incFixed(const uint* a, uint c[FP_SIZE]) {
 		uint carry = 1;
@@ -74,7 +74,7 @@ namespace fpa {
 			carry = temp >> 32;
 			c[i] = temp;
 		}
-	};
+	}
 
 	void incFixedLong(const uint* a, uint c[FP_DIV_BUFFER_SIZE]) {
 		uint carry = 1;
@@ -110,7 +110,7 @@ namespace fpa {
 	}
 
 	void rightShiftLong(const uint a[FP_DIV_BUFFER_SIZE], const int n, uint result[FP_DIV_BUFFER_SIZE]) {
-		if (n == 0 || FP_DIV_BUFFER_SIZE <= 0) {
+		if (n == 0) {
 			for (int i = 0; i < FP_DIV_BUFFER_SIZE; i++) result[i] = a[i];
 			return;
 		}
@@ -141,7 +141,7 @@ namespace fpa {
 	}
 
 	void leftShiftLong(const uint a[FP_DIV_BUFFER_SIZE], const int n, uint result[FP_DIV_BUFFER_SIZE]) {
-		if (n == 0 || FP_DIV_BUFFER_SIZE <= 0) {
+		if (n == 0) {
 			for (int i = 0; i < FP_DIV_BUFFER_SIZE; i++) result[i] = a[i];
 			return;
 		}
@@ -172,32 +172,27 @@ namespace fpa {
 	}
 
 	void mulCmplFixed(const uint* a, const uint* b, uint c[FP_SIZE]) {
-		ulong result[FP_MUL_BUFFER_SIZE];
-		for (int i = 0; i < FP_MUL_BUFFER_SIZE; i++) {
-			result[i] = 0;
-		}
+		ulong result[FP_MUL_BUFFER_SIZE] = {};
 
+		uint tempA[4];
+		uint tempB[4];
 		const uint* aAbs = a;
 		const uint* bAbs = b;
-		char aSign = a[0] >> 31;
-		char bSign = b[0] >> 31;
+		uint aSign = a[0] >> 31;
+		uint bSign = b[0] >> 31;
 		bool negate = false;
 		if (aSign != bSign) {
 			if (aSign == 1) {
-				uint temp[4];
-				cmplFixed(a, temp);
-				aAbs = temp;
+				cmplFixed(a, tempA);
+				aAbs = tempA;
 			}
 			else {
-				uint temp[4];
-				cmplFixed(b, temp);
-				bAbs = temp;
+				cmplFixed(b, tempB);
+				bAbs = tempB;
 			}
 			negate = true;
 		}
 		else if (aSign == 1 && bSign == 1) {
-			uint tempA[4];
-			uint tempB[4];
 			cmplFixed(a, tempA);
 			cmplFixed(b, tempB);
 			aAbs = tempA;
@@ -302,7 +297,7 @@ namespace fpa {
 			}
 		}
 
-		double result = static_cast<double>(temp[0]);
+		auto result = static_cast<double>(temp[0]);
 		double divisor = 1.0;
 
 		for (int i = 1; i < 4; ++i) {
