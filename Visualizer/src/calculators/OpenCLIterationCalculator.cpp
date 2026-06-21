@@ -257,7 +257,7 @@ void printError(const cl_program& program, const cl_device_id& device) { // Memb
 
 
 template<typename T_ComplexType>
-int calculateItersInternal(const std::vector<T_ComplexType>& points, std::vector<int>& iters, const unsigned int maxIter, const char* kernelFilename) {
+void calculateItersInternal(const std::vector<T_ComplexType>& points, std::vector<int>& iters, const unsigned int maxIter, const char* kernelFilename) {
 	const unsigned int size = points.size();
 	OpenclDeviceSetupInfo deviceInfo = setupOpenclDevices();
 	cl_int err = deviceInfo.err;
@@ -424,14 +424,13 @@ int calculateItersInternal(const std::vector<T_ComplexType>& points, std::vector
 	err = clReleaseContext(deviceInfo.context); SIMPLE_CHECK_ERRORS(err);
 	free(deviceInfo.devices);
 
-	return CL_SUCCESS;
 }
 
 
-int OpenCLIterationCalculator::calculate(const std::vector<Complex>& points, std::vector<int>& iters, const unsigned int maxIter) const {
-	return calculateItersInternal<Complex>(points, iters, maxIter, "OpenCLKernel.cl");
+void OpenCLIterationCalculator::calculate(const std::vector<Complex>& points, std::vector<int>& iters, const unsigned int maxIter) const {
+	calculateItersInternal<Complex>(points, iters, maxIter, "OpenCLKernel.cl");
 }
 
-int OpenCLIterationCalculator::calculate(const std::vector<ComplexHP>& points, std::vector<int>& iters, const unsigned int maxIter) const {
-	return calculateItersInternal<ComplexHP>(points, iters, maxIter, "OpenCLKernelHP.cl");
+void OpenCLIterationCalculator::calculate(const std::vector<ComplexHP>& points, std::vector<int>& iters, const unsigned int maxIter) const {
+	calculateItersInternal<ComplexHP>(points, iters, maxIter, "OpenCLKernelHP.cl");
 }

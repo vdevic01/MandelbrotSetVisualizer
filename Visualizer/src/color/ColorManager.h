@@ -1,11 +1,6 @@
 #pragma once
 
-#ifndef COLOR_MANAGER
-#define COLOR_MANAGER
-
 #include <vector>
-
-using namespace std;
 
 struct Color {
     unsigned char red;
@@ -15,43 +10,29 @@ struct Color {
 
 class ColorManager {
 public:
-    virtual vector<Color> paint(vector<int>& iters) const = 0;
+    virtual std::vector<Color> paint(const std::vector<int>& iters) const = 0;
+    virtual ~ColorManager() = default;
 protected:
-    ColorManager(int imageSize, int samples) {
-        this->imageSize = imageSize;
-        this->samples = samples;
-    }
-	int imageSize;
+    ColorManager(int imageSize, int samples) : imageSize(imageSize), samples(samples) {}
+    int imageSize;
     int samples;
 };
 
 class CyclicColorPalette : public ColorManager {
 public:
-    CyclicColorPalette(int imageSize, vector<Color> colors, int length, int samples);
-    vector<Color> paint(vector<int>& iters) const override;
-
+    CyclicColorPalette(int imageSize, std::vector<Color> colors, int length, int samples);
+    std::vector<Color> paint(const std::vector<int>& iters) const override;
 private:
-    vector<Color> colors;
+    std::vector<Color> colors;
     double length;
 };
 
 class HistogramColorPalette : public ColorManager {
 public:
-    HistogramColorPalette(int imageSize, int maxIter, vector<Color> colors, int samples);
-    vector<Color> paint(vector<int>& iters) const override;
+    HistogramColorPalette(int imageSize, int maxIter, std::vector<Color> colors, int samples);
+    std::vector<Color> paint(const std::vector<int>& iters) const override;
 private:
-    Color interpolateColor(Color& l, Color& r, double val);
+    static Color interpolateColor(Color& l, Color& r, double val);
     int maxIter;
-    vector<Color> colors;
+    std::vector<Color> colors;
 };
-
-class ExponentialColorPalette : public ColorManager {
-public:
-    ExponentialColorPalette(int imageSize, int maxIter, vector<Color> colors, int length, int samples);
-    vector<Color> paint(vector<int>& iters) const override;
-private:
-    int maxIter;
-    vector<Color> colors;
-    double length;
-};
-#endif

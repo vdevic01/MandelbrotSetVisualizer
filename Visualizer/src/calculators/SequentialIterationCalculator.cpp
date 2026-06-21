@@ -2,7 +2,7 @@
 #include "FixedPointArithmetics.h"
 
 
-int SequentialIterationCalculator::calculate(const std::vector<Complex>& points, std::vector<int>& iters, const unsigned int maxIter) const {
+void SequentialIterationCalculator::calculate(const std::vector<Complex>& points, std::vector<int>& iters, const unsigned int maxIter) const {
     const int N = static_cast<int>(points.size());
 
     #pragma omp parallel for schedule(dynamic) default(none) shared(points, iters, maxIter, N)
@@ -24,10 +24,9 @@ int SequentialIterationCalculator::calculate(const std::vector<Complex>& points,
             }
         }
     }
-    return 0;
 }
 
-int SequentialIterationCalculator::calculate(const std::vector<ComplexHP>& points, std::vector<int>& iters, const unsigned int maxIter) const {
+void SequentialIterationCalculator::calculate(const std::vector<ComplexHP>& points, std::vector<int>& iters, const unsigned int maxIter) const {
     using namespace fpa;
     const int N = static_cast<int>(points.size());
 
@@ -69,5 +68,4 @@ int SequentialIterationCalculator::calculate(const std::vector<ComplexHP>& point
             }
         }
     }
-    return 0;
 }

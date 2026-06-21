@@ -20,8 +20,8 @@ class IterationCalculator {
 public:
     virtual ~IterationCalculator() = default;
 
-    virtual int calculate(const std::vector<Complex>& points, std::vector<int>& iters, unsigned int maxIter) const = 0;
-    virtual int calculate(const std::vector<ComplexHP>& points, std::vector<int>& iters, unsigned int maxIter) const = 0;
+    virtual void calculate(const std::vector<Complex>& points, std::vector<int>& iters, unsigned int maxIter) const = 0;
+    virtual void calculate(const std::vector<ComplexHP>& points, std::vector<int>& iters, unsigned int maxIter) const = 0;
 };
 
 #endif // ITERATION_CALCULATOR_H
