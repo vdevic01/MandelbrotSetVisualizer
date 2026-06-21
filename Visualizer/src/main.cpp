@@ -1,10 +1,10 @@
-#include <complex>
 #include <utility>
 #include <vector>
 #include <memory>
 #include <chrono>
 #include <iomanip>
 #include <iostream>
+#include <optional>
 
 #include "Mode.h"
 #include "IterationCalculator.h"
@@ -29,10 +29,10 @@ struct MandelbrotConfig {
     double reEnd   = -0.152809695287500013708;
     double imStart =  1.039611370300000000002;
     double imEnd   =  1.039757762612500000002;
-    fpa::uint reStartHP[fpa::FP_SIZE];
-    fpa::uint reEndHP[fpa::FP_SIZE];
-    fpa::uint imStartHP[fpa::FP_SIZE];
-    fpa::uint imEndHP[fpa::FP_SIZE];
+    fpa::uint reStartHP[fpa::FP_SIZE] = {};
+    fpa::uint reEndHP[fpa::FP_SIZE]   = {};
+    fpa::uint imStartHP[fpa::FP_SIZE] = {};
+    fpa::uint imEndHP[fpa::FP_SIZE]   = {};
     int samples = 10;
     int maxIter = 1000;
     int imageWidth = 900;
@@ -44,8 +44,8 @@ struct MandelbrotConfig {
 
 class ScopedTimer {
 public:
-    ScopedTimer(const string& name) :
-        m_name(name),
+    explicit ScopedTimer(string name) :
+        m_name(std::move(name)),
         m_start(chrono::high_resolution_clock::now())
     {}
 
@@ -79,7 +79,7 @@ void saveColorImageToPng(const vector<Color>& pixels, int width, int height, con
         throw runtime_error("Failed to write PNG file: " + filename);
 }
 
-double fastRandomFromRange(const double& min, const double& max) {
+double fastRandomFromRange(double min, double max) {
     return min + (rand() / (RAND_MAX + 1.0)) * (max - min);
 }
 
@@ -94,7 +94,7 @@ vector<Complex> samplePointsFromComplexPlane(
     const double scaleImaginary = (imEnd - imStart) / imageHeight;
     const double scaleReal      = (reEnd - reStart) / imageWidth;
 
-    #pragma omp parallel for
+    #pragma omp parallel for default(none) shared(points, imageHeight, imageWidth, imStart, scaleImaginary, reStart, scaleReal, samples)
     for (int i = 0; i < imageHeight; i++) {
         double imaginaryPartBoundary = imStart + i * scaleImaginary;
         double realPartBoundary = reStart;
@@ -133,7 +133,7 @@ vector<ComplexHP> samplePointsFromComplexPlane(
     fpa::uint realPartFP[fpa::FP_SIZE];
     fpa::uint imagPartFP[fpa::FP_SIZE];
 
-    #pragma omp parallel for private(realPartFP, imagPartFP)
+    #pragma omp parallel for default(none) shared(points, imageHeight, imageWidth, imStart, reStart, scaleImaginary, scaleReal, samples) private(realPartFP, imagPartFP)
     for (int i = 0; i < imageHeight; i++) {
         fpa::uint imaginaryPartBoundary[fpa::FP_SIZE] = {};
         fpa::uint iHP[fpa::FP_SIZE] = {};
@@ -264,6 +264,7 @@ optional<MandelbrotConfig> parseCommandLine(int argc, char* argv[]) {
             config.useHighPrecision = (stod(argv[7]) != 0.0);
             cout << "High precision:  " << boolalpha << config.useHighPrecision << "\n";
 
+            int nextArg;
             if (config.useHighPrecision) {
                 config.reStartHP[0] = stoul(argv[8]);  config.reStartHP[1] = stoul(argv[9]);
                 config.reStartHP[2] = stoul(argv[10]); config.reStartHP[3] = stoul(argv[11]);
@@ -281,6 +282,7 @@ optional<MandelbrotConfig> parseCommandLine(int argc, char* argv[]) {
                 cout << "reEndHP:   {" << config.reEndHP[0]   << "," << config.reEndHP[1]   << "," << config.reEndHP[2]   << "," << config.reEndHP[3]   << "}\n";
                 cout << "imStartHP: {" << config.imStartHP[0] << "," << config.imStartHP[1] << "," << config.imStartHP[2] << "," << config.imStartHP[3] << "}\n";
                 cout << "imEndHP:   {" << config.imEndHP[0]   << "," << config.imEndHP[1]   << "," << config.imEndHP[2]   << "," << config.imEndHP[3]   << "}\n";
+                nextArg = 24;
             } else {
                 config.reStart = stod(argv[8]);
                 config.reEnd   = stod(argv[9]);
@@ -291,13 +293,21 @@ optional<MandelbrotConfig> parseCommandLine(int argc, char* argv[]) {
                 cout << "reEnd:   " << config.reEnd   << "\n";
                 cout << "imStart: " << config.imStart << "\n";
                 cout << "imEnd:   " << config.imEnd   << "\n";
+                nextArg = 12;
             }
+
+            if (argc > nextArg + 1) {
+                config.imageWidth  = stoi(argv[nextArg]);
+                config.imageHeight = stoi(argv[nextArg + 1]);
+            }
+            cout << "Image size:      " << config.imageWidth << "x" << config.imageHeight << "\n";
         }
         catch (const exception& e) {
             cerr << "Error parsing arguments: " << e.what() << "\n";
             cerr << "Usage: " << argv[0]
                  << " <MODE> <OUTPUT_FILE> <MAX_ITER> <PALETTE_LENGTH> <PALETTE_ID>"
-                    " <SAMPLES> <USE_HP(0/1)> <RE_START> <RE_END> <IM_START> <IM_END>\n"
+                    " <SAMPLES> <USE_HP(0/1)> <RE_START> <RE_END> <IM_START> <IM_END>"
+                    " [WIDTH HEIGHT]\n"
                  << "  MODE: SEQUENTIAL | OPENCL_LOCAL | CUDA_LOCAL | CUDA_REMOTE\n";
             return nullopt;
         }
