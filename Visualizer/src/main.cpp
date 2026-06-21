@@ -1,5 +1,6 @@
-#include <memory>
+#include <iomanip>
 #include <iostream>
+#include <memory>
 #include <optional>
 #include <type_traits>
 
@@ -43,7 +44,7 @@ struct MandelbrotConfig {
 
 template<typename T_ComplexType>
 void createMandelbrotSet(const MandelbrotConfig& config, const ColorManager& colorManager, const IterationCalculator& iterCalculator) {
-    cout << "===========================================\n";
+    cout << "=====================================================\n";
     ScopedTimer total_timer("Total generation time");
 
     const int imageSize = config.imageHeight * config.imageWidth;
@@ -111,16 +112,17 @@ optional<MandelbrotConfig> parseCommandLine(int argc, char* argv[]) {
     MandelbrotConfig config;
     if (argc > 1) {
         try {
+            constexpr int W = 36;
             config.mode = modeFromString(argv[1]);
-            cout << "Mode:            " << modeToString(config.mode) << "\n";
+            cout << left << setw(W) << "Mode:"           << modeToString(config.mode) << "\n";
 
             config.outputFilename = argv[2];
             config.maxIter        = stoi(argv[3]);
             config.paletteLength  = stoi(argv[4]);
 
-            cout << "Output file:     " << config.outputFilename << "\n";
-            cout << "Max iterations:  " << config.maxIter << "\n";
-            cout << "Palette length:  " << config.paletteLength << "\n";
+            cout << left << setw(W) << "Output file:"    << config.outputFilename << "\n";
+            cout << left << setw(W) << "Max iterations:" << config.maxIter << "\n";
+            cout << left << setw(W) << "Palette length:" << config.paletteLength << "\n";
 
             int paletteId = stoi(argv[5]);
             if (paletteId < 0 || paletteId >= (int)palettes.size()) {
@@ -128,7 +130,7 @@ optional<MandelbrotConfig> parseCommandLine(int argc, char* argv[]) {
                 return nullopt;
             }
             config.paletteId = paletteId;
-            cout << "Palette ID:      " << paletteId << "\n";
+            cout << left << setw(W) << "Palette ID:"     << paletteId << "\n";
 
             int samples = stoi(argv[6]);
             if (samples < 1) {
@@ -136,10 +138,10 @@ optional<MandelbrotConfig> parseCommandLine(int argc, char* argv[]) {
                 return nullopt;
             }
             config.samples = samples;
-            cout << "Samples:         " << samples << "\n";
+            cout << left << setw(W) << "Samples:"        << samples << "\n";
 
             config.useHighPrecision = (stod(argv[7]) != 0.0);
-            cout << "High precision:  " << boolalpha << config.useHighPrecision << "\n";
+            cout << left << setw(W) << "High precision:" << boolalpha << config.useHighPrecision << noboolalpha << "\n";
 
             int nextArg;
             if (config.useHighPrecision) {
@@ -155,10 +157,10 @@ optional<MandelbrotConfig> parseCommandLine(int argc, char* argv[]) {
                 config.imEndHP[0] = stoul(argv[20]); config.imEndHP[1] = stoul(argv[21]);
                 config.imEndHP[2] = stoul(argv[22]); config.imEndHP[3] = stoul(argv[23]);
 
-                cout << "reStartHP: {" << config.reStartHP[0] << "," << config.reStartHP[1] << "," << config.reStartHP[2] << "," << config.reStartHP[3] << "}\n";
-                cout << "reEndHP:   {" << config.reEndHP[0]   << "," << config.reEndHP[1]   << "," << config.reEndHP[2]   << "," << config.reEndHP[3]   << "}\n";
-                cout << "imStartHP: {" << config.imStartHP[0] << "," << config.imStartHP[1] << "," << config.imStartHP[2] << "," << config.imStartHP[3] << "}\n";
-                cout << "imEndHP:   {" << config.imEndHP[0]   << "," << config.imEndHP[1]   << "," << config.imEndHP[2]   << "," << config.imEndHP[3]   << "}\n";
+                cout << left << setw(W) << "reStartHP:" << "{" << config.reStartHP[0] << "," << config.reStartHP[1] << "," << config.reStartHP[2] << "," << config.reStartHP[3] << "}\n";
+                cout << left << setw(W) << "reEndHP:"   << "{" << config.reEndHP[0]   << "," << config.reEndHP[1]   << "," << config.reEndHP[2]   << "," << config.reEndHP[3]   << "}\n";
+                cout << left << setw(W) << "imStartHP:" << "{" << config.imStartHP[0] << "," << config.imStartHP[1] << "," << config.imStartHP[2] << "," << config.imStartHP[3] << "}\n";
+                cout << left << setw(W) << "imEndHP:"   << "{" << config.imEndHP[0]   << "," << config.imEndHP[1]   << "," << config.imEndHP[2]   << "," << config.imEndHP[3]   << "}\n";
                 nextArg = 24;
             } else {
                 config.reStart = stod(argv[8]);
@@ -166,10 +168,10 @@ optional<MandelbrotConfig> parseCommandLine(int argc, char* argv[]) {
                 config.imStart = stod(argv[10]);
                 config.imEnd   = stod(argv[11]);
 
-                cout << "reStart: " << config.reStart << "\n";
-                cout << "reEnd:   " << config.reEnd   << "\n";
-                cout << "imStart: " << config.imStart << "\n";
-                cout << "imEnd:   " << config.imEnd   << "\n";
+                cout << left << setw(W) << "reStart:" << config.reStart << "\n";
+                cout << left << setw(W) << "reEnd:"   << config.reEnd   << "\n";
+                cout << left << setw(W) << "imStart:" << config.imStart << "\n";
+                cout << left << setw(W) << "imEnd:"   << config.imEnd   << "\n";
                 nextArg = 12;
             }
 
@@ -177,7 +179,7 @@ optional<MandelbrotConfig> parseCommandLine(int argc, char* argv[]) {
                 config.imageWidth  = stoi(argv[nextArg]);
                 config.imageHeight = stoi(argv[nextArg + 1]);
             }
-            cout << "Image size:      " << config.imageWidth << "x" << config.imageHeight << "\n";
+            cout << left << setw(W) << "Image size:" << config.imageWidth << "x" << config.imageHeight << "\n";
         }
         catch (const exception& e) {
             cerr << "Error parsing arguments: " << e.what() << "\n";

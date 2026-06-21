@@ -16,7 +16,7 @@ public:
         auto end      = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - m_start);
         std::cout << std::left << std::setw(36) << m_name + ":" << duration.count() << " ms\n";
-        std::cout << "===========================================\n";
+        std::cout << "=====================================================\n";
     }
 
     ScopedTimer(const ScopedTimer&)            = delete;
