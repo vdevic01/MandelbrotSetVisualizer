@@ -7,8 +7,8 @@ CyclicColorPalette::CyclicColorPalette(int imageSize, std::vector<Color> colors,
     : ColorManager(imageSize, samples), colors(std::move(colors)), length(length) {}
 
 static Color getColorFromPalette(int val, const std::vector<Color>& colors, double length) {
-    double valAdj = static_cast<double>(val % static_cast<int>(length));
-    const int N = static_cast<int>(colors.size());
+    auto valAdj = static_cast<double>(val % static_cast<int>(length));
+    const auto N = static_cast<int>(colors.size());
     const double STEP = length / (N - 1);
     const Color* left = nullptr;
     const Color* right = nullptr;
@@ -35,24 +35,20 @@ std::vector<Color> CyclicColorPalette::paint(const std::vector<int>& iters) cons
     std::vector<Color> pixels(this->imageSize);
     #pragma omp parallel for default(none) shared(iters, pixels)
     for (int i = 0; i < this->imageSize; i++) {
-        int idx = i * this->samples;
-        double averageColor[3] = { 0, 0, 0 };
+        const int idx = i * this->samples;
+        double r = 0, g = 0, b = 0;
         for (int k = 0; k < this->samples; k++) {
             if (iters[idx + k] != -1) {
-                Color c = getColorFromPalette(iters[idx + k], this->colors, this->length);
-                averageColor[0] += c.red;
-                averageColor[1] += c.green;
-                averageColor[2] += c.blue;
+                const Color c = getColorFromPalette(iters[idx + k], this->colors, this->length);
+                r += c.red;
+                g += c.green;
+                b += c.blue;
             }
         }
-        averageColor[0] /= this->samples;
-        averageColor[1] /= this->samples;
-        averageColor[2] /= this->samples;
-
         pixels[i] = {
-            static_cast<unsigned char>(averageColor[0]),
-            static_cast<unsigned char>(averageColor[1]),
-            static_cast<unsigned char>(averageColor[2]) };
+            static_cast<unsigned char>(r / this->samples),
+            static_cast<unsigned char>(g / this->samples),
+            static_cast<unsigned char>(b / this->samples) };
     }
     return pixels;
 }

@@ -10,7 +10,7 @@ struct Color {
 
 class ColorManager {
 public:
-    virtual std::vector<Color> paint(const std::vector<int>& iters) const = 0;
+    [[nodiscard]] virtual std::vector<Color> paint(const std::vector<int>& iters) const = 0;
     virtual ~ColorManager() = default;
 protected:
     ColorManager(int imageSize, int samples) : imageSize(imageSize), samples(samples) {}
@@ -21,7 +21,7 @@ protected:
 class CyclicColorPalette : public ColorManager {
 public:
     CyclicColorPalette(int imageSize, std::vector<Color> colors, int length, int samples);
-    std::vector<Color> paint(const std::vector<int>& iters) const override;
+    [[nodiscard]] std::vector<Color> paint(const std::vector<int>& iters) const override;
 private:
     std::vector<Color> colors;
     double length;
@@ -30,7 +30,7 @@ private:
 class HistogramColorPalette : public ColorManager {
 public:
     HistogramColorPalette(int imageSize, int maxIter, std::vector<Color> colors, int samples);
-    std::vector<Color> paint(const std::vector<int>& iters) const override;
+    [[nodiscard]] std::vector<Color> paint(const std::vector<int>& iters) const override;
 private:
     static Color interpolateColor(Color& l, Color& r, double val);
     int maxIter;
