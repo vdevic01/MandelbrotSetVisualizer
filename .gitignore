@@ -398,6 +398,12 @@ FodyWeavers.xsd
 *.sln.iml
 
 
-*.vcxproj
+# CMake build directories
+build/
+cmake-build-*/
+
+# JetBrains CLion
+.idea/
+
 *.tiff
 **/Visualizer/**/*.png
