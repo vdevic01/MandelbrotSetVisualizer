@@ -1,7 +1,7 @@
 {
   "build": {
     "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build",
+    "beforeBuildCommand": "cmake -S ../../Visualizer -B ../../Visualizer/cmake-build-release -DCMAKE_BUILD_TYPE=Release && cmake --build ../../Visualizer/cmake-build-release && npm run build",
     "devPath": "http://localhost:1420",
     "distDir": "../dist",
     "withGlobalTauri": true
@@ -15,7 +15,8 @@
       "all": true,
       "shell": {
         "all": false,
-        "open": true
+        "open": true,
+        "sidecar": true
       },
       "protocol": {
         "all": true,
@@ -45,6 +46,9 @@
       "active": true,
       "targets": "all",
       "identifier": "com.tauri.dev",
+      "externalBin": [
+        "binaries/mandelbrot_visualizer"
+      ],
       "icon": [
         "icons/32x32.png",
         "icons/128x128.png",

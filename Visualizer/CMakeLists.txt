@@ -78,12 +78,32 @@ if(OpenMP_CXX_FOUND)
     target_link_options(mandelbrot_visualizer PRIVATE -fopenmp)
 endif()
 
+# Detect Rust target triple so the binary is named correctly for Tauri's sidecar convention
+execute_process(
+    COMMAND rustc -vV
+    OUTPUT_VARIABLE RUSTC_OUTPUT
+    ERROR_QUIET
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+string(REGEX MATCH "host: ([^\n\r]+)" _ "${RUSTC_OUTPUT}")
+set(RUST_TARGET_TRIPLE "${CMAKE_MATCH_1}")
+
+set(TAURI_BINARIES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../GUI/MandelbrotSetVisualizer/src-tauri/binaries")
+
+# Deploy the binary to the Tauri sidecar directory after every build
+add_custom_command(TARGET mandelbrot_visualizer POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${TAURI_BINARIES_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E copy
+        "$<TARGET_FILE:mandelbrot_visualizer>"
+        "${TAURI_BINARIES_DIR}/mandelbrot_visualizer-${RUST_TARGET_TRIPLE}.exe"
+    COMMENT "Deploying binary to Tauri sidecar directory (${RUST_TARGET_TRIPLE})"
+)
+
 if(ENABLE_OPENCL)
     find_package(OpenCL REQUIRED)
     target_link_libraries(mandelbrot_visualizer OpenCL::OpenCL)
     target_compile_definitions(mandelbrot_visualizer PRIVATE ENABLE_OPENCL)
 
-    # Copy OpenCL kernel files next to the executable at build time
     add_custom_command(TARGET mandelbrot_visualizer POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy
             "${CMAKE_CURRENT_SOURCE_DIR}/src/kernels/OpenCLKernel.cl"
@@ -91,7 +111,13 @@ if(ENABLE_OPENCL)
         COMMAND ${CMAKE_COMMAND} -E copy
             "${CMAKE_CURRENT_SOURCE_DIR}/src/kernels/OpenCLKernelHP.cl"
             "$<TARGET_FILE_DIR:mandelbrot_visualizer>/OpenCLKernelHP.cl"
-        COMMENT "Copying OpenCL kernels to output directory"
+        COMMAND ${CMAKE_COMMAND} -E copy
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/kernels/OpenCLKernel.cl"
+            "${TAURI_BINARIES_DIR}/OpenCLKernel.cl"
+        COMMAND ${CMAKE_COMMAND} -E copy
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/kernels/OpenCLKernelHP.cl"
+            "${TAURI_BINARIES_DIR}/OpenCLKernelHP.cl"
+        COMMENT "Copying OpenCL kernels to output and Tauri directories"
     )
 endif()
 
