@@ -86,6 +86,33 @@ void createMandelbrotSet(const MandelbrotConfig& config, const ColorManager& col
     }
 }
 
+#ifdef ENABLE_OPENCL
+static bool isOpenCLAvailable() {
+    cl_uint numPlatforms = 0;
+    return clGetPlatformIDs(0, nullptr, &numPlatforms) == CL_SUCCESS && numPlatforms > 0;
+}
+#endif
+
+#ifdef ENABLE_CUDA
+static bool isCUDAAvailable() {
+    int deviceCount = 0;
+    return cudaGetDeviceCount(&deviceCount) == cudaSuccess && deviceCount > 0;
+}
+#endif
+
+static void listAvailableModes() {
+    cout << "SEQUENTIAL\n";
+#ifdef ENABLE_OPENCL
+    if (isOpenCLAvailable()) cout << "OPENCL_LOCAL\n";
+#endif
+#ifdef ENABLE_CUDA
+    if (isCUDAAvailable()) {
+        cout << "CUDA_LOCAL\n";
+        cout << "CUDA_REMOTE\n";
+    }
+#endif
+}
+
 unique_ptr<IterationCalculator> makeCalculator(Mode mode) {
     switch (mode) {
         case Mode::SEQUENTIAL:
@@ -232,6 +259,11 @@ optional<MandelbrotConfig> parseCommandLine(int argc, char* argv[]) {
  *     1 170758290 785201715  2000138050 1800 1200
  */
 int main(int argc, char* argv[]) {
+    if (argc == 2 && string(argv[1]) == "--list-modes") {
+        listAvailableModes();
+        return 0;
+    }
+
     auto configOpt = parseCommandLine(argc, argv);
     if (!configOpt) return 1;
 

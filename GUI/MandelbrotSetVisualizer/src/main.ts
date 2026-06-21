@@ -317,7 +317,14 @@ class BoundaryManager{
 }
 
 
-window.addEventListener("DOMContentLoaded", () => {
+const MODE_LABELS: Record<string, string> = {
+  "SEQUENTIAL":  "Sequential",
+  "OPENCL_LOCAL": "OpenCL",
+  "CUDA_LOCAL":  "CUDA Local",
+  "CUDA_REMOTE": "CUDA Remote",
+};
+
+window.addEventListener("DOMContentLoaded", async () => {
   let pressX = -1;
   let pressY = -1;
   const boxRatio = [2, 3];
@@ -387,6 +394,16 @@ window.addEventListener("DOMContentLoaded", () => {
   }
   
   new P5(sketch);
+
+  const availableModes: string[] = await invoke("get_available_modes");
+  const selectMode = document.getElementById("select-mode") as HTMLSelectElement;
+  selectMode.innerHTML = "";
+  availableModes.forEach(mode => {
+    const option = document.createElement("option");
+    option.value = mode;
+    option.textContent = MODE_LABELS[mode] ?? mode;
+    selectMode.appendChild(option);
+  });
   const inputPaletteLength: HTMLInputElement = document.getElementById("input-palette-length") as HTMLInputElement;
   const inputMaxIter: HTMLInputElement = document.getElementById("input-max-iter") as HTMLInputElement;
   const inputSamples: HTMLInputElement = document.getElementById("input-samples") as HTMLInputElement;
