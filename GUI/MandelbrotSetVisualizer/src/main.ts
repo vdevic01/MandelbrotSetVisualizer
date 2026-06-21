@@ -34,7 +34,7 @@ class BoundaryManager{
   private maxIter: number = 700;
   private paletteId: number = 0;
   private samples: number = 1;
-  private mode: string = 'SEQUENTIAL';
+  private mode: string = 'CPU_PARALLEL';
   private static imgUrl: string;
 
 
@@ -318,7 +318,7 @@ class BoundaryManager{
 
 
 const MODE_LABELS: Record<string, string> = {
-  "SEQUENTIAL":  "Sequential",
+  "CPU_PARALLEL": "CPU Parallel",
   "OPENCL_LOCAL": "OpenCL",
   "CUDA_LOCAL":  "CUDA Local",
   "CUDA_REMOTE": "CUDA Remote",

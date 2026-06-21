@@ -23,7 +23,7 @@
 using namespace std;
 
 struct MandelbrotConfig {
-    Mode mode = Mode::SEQUENTIAL;
+    Mode mode = Mode::CPU_PARALLEL;
     bool useHighPrecision = false;
     double reStart = -0.153004885037500013708;
     double reEnd   = -0.152809695287500013708;
@@ -101,7 +101,7 @@ static bool isCUDAAvailable() {
 #endif
 
 static void listAvailableModes() {
-    cout << "SEQUENTIAL\n";
+    cout << "CPU_PARALLEL\n";
 #ifdef ENABLE_OPENCL
     if (isOpenCLAvailable()) cout << "OPENCL_LOCAL\n";
 #endif
@@ -115,7 +115,7 @@ static void listAvailableModes() {
 
 unique_ptr<IterationCalculator> makeCalculator(Mode mode) {
     switch (mode) {
-        case Mode::SEQUENTIAL:
+        case Mode::CPU_PARALLEL:
             return make_unique<SequentialIterationCalculator>();
 #ifdef ENABLE_OPENCL
         case Mode::OPENCL_LOCAL:
@@ -214,7 +214,7 @@ optional<MandelbrotConfig> parseCommandLine(int argc, char* argv[]) {
                  << " <MODE> <OUTPUT_FILE> <MAX_ITER> <PALETTE_LENGTH> <PALETTE_ID>"
                     " <SAMPLES> <USE_HP(0/1)> <RE_START> <RE_END> <IM_START> <IM_END>"
                     " [WIDTH HEIGHT]\n"
-                 << "  MODE: SEQUENTIAL | OPENCL_LOCAL | CUDA_LOCAL | CUDA_REMOTE\n";
+                 << "  MODE: CPU_PARALLEL | OPENCL_LOCAL | CUDA_LOCAL | CUDA_REMOTE\n";
             return nullopt;
         }
     }
@@ -230,7 +230,7 @@ optional<MandelbrotConfig> parseCommandLine(int argc, char* argv[]) {
  *                         <SAMPLES> <USE_HP> <COORDS...> [WIDTH HEIGHT]
  *
  * Arguments:
- *   MODE           SEQUENTIAL | OPENCL_LOCAL | CUDA_LOCAL | CUDA_REMOTE
+ *   MODE           CPU_PARALLEL | OPENCL_LOCAL | CUDA_LOCAL | CUDA_REMOTE
  *   OUTPUT_FILE    Path for the output PNG (e.g. ./out.png)
  *   MAX_ITER       Maximum escape iterations (e.g. 1000)
  *   PALETTE_LENGTH Color palette cycle length (e.g. 256)
@@ -248,11 +248,11 @@ optional<MandelbrotConfig> parseCommandLine(int argc, char* argv[]) {
  *   WIDTH HEIGHT   Optional. Image dimensions in pixels. Default: 900x600.
  *
  * Examples:
- *   mandelbrot_visualizer SEQUENTIAL ./out.png 2000 512 0 4 0 \
+ *   mandelbrot_visualizer CPU_PARALLEL ./out.png 2000 512 0 4 0 \
  *     -0.153004885037500013708 -0.152809695287500013708 \
  *     1.039611370300000000002  1.039757762612500000002  1800 1200
  *
- *   mandelbrot_visualizer SEQUENTIAL ./out.png 2000 512 0 4 1 \
+ *   mandelbrot_visualizer CPU_PARALLEL ./out.png 2000 512 0 4 1 \
  *     4294967295 3637816318 2730300863 4039731417 \
  *     4294967295 3638654652 981237348  3835888558 \
  *     1 170129539 4244482999 3226762018 \
