@@ -5,19 +5,48 @@ option(ENABLE_CUDA   "Enable CUDA backend (CUDA_LOCAL / CUDA_REMOTE modes)" OFF)
 
 set(SOURCES
     src/main.cpp
+    src/Mode.h
+    src/calculators/IterationCalculator.h
     src/calculators/SequentialIterationCalculator.cpp
+    src/calculators/SequentialIterationCalculator.h
+    src/calculators/OpenCLIterationCalculator.h
+    src/calculators/OpenCLIterationCalculator.cpp
+    src/calculators/CUDAIterationCalculator.h
+    src/calculators/CUDAUnifiedKernel.cu
     src/color/ColorManager.cpp
+    src/color/ColorManager.h
+    src/color/Palettes.h
     src/math/FixedPointArithmetics.cpp
+    src/math/FixedPointArithmetics.h
     src/util/fpng.cpp
+    src/util/fpng.h
+    src/util/errors.h
+    src/kernels/OpenCLKernel.cl
+    src/kernels/OpenCLKernelHP.cl
+)
+
+# Exclude GPU implementation files from compilation by default so the project
+# builds without OpenCL/CUDA installed. CLion still indexes them as part of the
+# target, which eliminates the "not in any project target" warning.
+set_source_files_properties(
+    src/calculators/OpenCLIterationCalculator.cpp
+    src/calculators/CUDAUnifiedKernel.cu
+    PROPERTIES HEADER_FILE_ONLY TRUE
 )
 
 if(ENABLE_OPENCL)
-    list(APPEND SOURCES src/calculators/OpenCLIterationCalculator.cpp)
+    set_source_files_properties(
+        src/calculators/OpenCLIterationCalculator.cpp
+        PROPERTIES HEADER_FILE_ONLY FALSE
+    )
 endif()
 
 if(ENABLE_CUDA)
     enable_language(CUDA)
-    list(APPEND SOURCES src/calculators/CUDAUnifiedKernel.cu)
+    set_source_files_properties(
+        src/calculators/CUDAUnifiedKernel.cu
+        PROPERTIES HEADER_FILE_ONLY FALSE
+    )
 endif()
 
 add_executable(mandelbrot_visualizer ${SOURCES})
@@ -33,10 +62,14 @@ target_include_directories(mandelbrot_visualizer PRIVATE
 # C++17 required for if constexpr and std::optional
 target_compile_features(mandelbrot_visualizer PRIVATE cxx_std_17)
 
+# fpng uses SSE4.1 intrinsics; MinGW doesn't enable this by default
+set_source_files_properties(src/util/fpng.cpp PROPERTIES COMPILE_FLAGS "-msse4.1 -mpclmul")
+
 # OpenMP (optional — gracefully skipped if not found)
 find_package(OpenMP)
 if(OpenMP_CXX_FOUND)
-    target_link_libraries(mandelbrot_visualizer OpenMP::OpenMP_CXX)
+    target_compile_options(mandelbrot_visualizer PRIVATE -fopenmp)
+    target_link_options(mandelbrot_visualizer PRIVATE -fopenmp)
 endif()
 
 if(ENABLE_OPENCL)
