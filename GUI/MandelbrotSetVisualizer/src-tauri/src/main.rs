@@ -1,26 +1,29 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use std::path::PathBuf;
 use tauri::api::process::{Command, CommandEvent};
 
-#[tauri::command]
-fn get_project_dir() -> String {
+fn project_dir() -> PathBuf {
     let mut path = std::env::current_exe().unwrap();
-
     for _ in 0..4 {
         path = path.parent().unwrap().to_path_buf();
     }
-
-    return path.display().to_string();
+    path
 }
 
 #[tauri::command]
-async fn get_available_modes() -> Vec<String> {
+fn get_project_dir() -> String {
+    project_dir().display().to_string()
+}
+
+#[tauri::command]
+async fn get_available_modes() -> Result<Vec<String>, String> {
     let (mut rx, _child) = Command::new_sidecar("mandelbrot_visualizer")
-        .expect("failed to find mandelbrot_visualizer sidecar")
+        .map_err(|e| e.to_string())?
         .args(["--list-modes"])
         .spawn()
-        .expect("failed to spawn mandelbrot_visualizer");
+        .map_err(|e| e.to_string())?;
 
     let mut modes = Vec::new();
     while let Some(event) = rx.recv().await {
@@ -33,34 +36,34 @@ async fn get_available_modes() -> Vec<String> {
             _ => {}
         }
     }
-    modes
+    Ok(modes)
 }
 
-async fn run_sidecar(args: Vec<String>) -> String {
+async fn run_sidecar(args: Vec<String>) -> Result<String, String> {
     let (mut rx, _child) = Command::new_sidecar("mandelbrot_visualizer")
-        .expect("failed to find mandelbrot_visualizer sidecar")
+        .map_err(|e| e.to_string())?
         .args(args)
         .spawn()
-        .expect("failed to spawn mandelbrot_visualizer");
+        .map_err(|e| e.to_string())?;
 
     while let Some(event) = rx.recv().await {
         match event {
             CommandEvent::Stdout(line)  => print!("{}", line),
             CommandEvent::Stderr(line)  => eprint!("{}", line),
             CommandEvent::Terminated(p) => {
-                return p.code.map(|c| c.to_string()).unwrap_or_default();
+                return Ok(p.code.map(|c| c.to_string()).unwrap_or_default());
             }
             _ => {}
         }
     }
-    String::new()
+    Ok(String::new())
 }
 
 #[tauri::command]
-async fn generate_mandelbrot(mode: String, re_start: f64, re_end: f64, im_start: f64, im_end: f64, max_iter: i32, palette_length: i32, palette_id: i32, samples: i32) -> String {
+async fn generate_mandelbrot(mode: String, re_start: f64, re_end: f64, im_start: f64, im_end: f64, max_iter: i32, palette_length: i32, palette_id: i32, samples: i32) -> Result<String, String> {
     let args = vec![
         mode,
-        "./../generated-files/mandelbrot_set.png".to_string(),
+        project_dir().join("generated-files").join("mandelbrot_set.png").to_string_lossy().into_owned(),
         max_iter.to_string(), palette_length.to_string(),
         palette_id.to_string(), samples.to_string(),
         "0".to_string(),
@@ -76,10 +79,10 @@ async fn generate_mandelbrot_hp(
     re_start: [u32; 4], re_end: [u32; 4],
     im_start: [u32; 4], im_end: [u32; 4],
     max_iter: i32, palette_length: i32,
-    palette_id: i32, samples: i32) -> String {
+    palette_id: i32, samples: i32) -> Result<String, String> {
     let mut args = vec![
         mode,
-        "./../generated-files/mandelbrot_set.png".to_string(),
+        project_dir().join("generated-files").join("mandelbrot_set.png").to_string_lossy().into_owned(),
         max_iter.to_string(), palette_length.to_string(),
         palette_id.to_string(), samples.to_string(),
         "1".to_string(),

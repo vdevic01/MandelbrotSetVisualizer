@@ -68,6 +68,17 @@ target_include_directories(mandelbrot_visualizer PRIVATE
 # C++17 required for if constexpr and std::optional
 target_compile_features(mandelbrot_visualizer PRIVATE cxx_std_17)
 
+# Statically link the MinGW runtime so the binary is self-contained and can be
+# launched as a Tauri sidecar without libstdc++/libgcc/libwinpthread/libgomp
+# DLLs on PATH.
+if(MINGW)
+    target_link_options(mandelbrot_visualizer PRIVATE
+        -static
+        -static-libgcc
+        -static-libstdc++
+    )
+endif()
+
 # fpng uses SSE4.1 intrinsics; MinGW doesn't enable this by default
 set_source_files_properties(src/util/fpng.cpp PROPERTIES COMPILE_FLAGS "-msse4.1 -mpclmul")
 
