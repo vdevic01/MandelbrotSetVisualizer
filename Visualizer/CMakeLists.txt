@@ -87,16 +87,29 @@ execute_process(
 )
 string(REGEX MATCH "host: ([^\n\r]+)" _ "${RUSTC_OUTPUT}")
 set(RUST_TARGET_TRIPLE "${CMAKE_MATCH_1}")
+if(NOT RUST_TARGET_TRIPLE)
+    message(WARNING "rustc not found in PATH — falling back to TAURI_TARGET_TRIPLE cache variable. "
+                    "Set -DTAURI_TARGET_TRIPLE=<triple> or restart CLion after installing Rust.")
+    set(RUST_TARGET_TRIPLE "${TAURI_TARGET_TRIPLE}" CACHE STRING "Rust target triple for Tauri sidecar naming")
+endif()
 
-set(TAURI_BINARIES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../GUI/MandelbrotSetVisualizer/src-tauri/binaries")
+set(TAURI_DIR         "${CMAKE_CURRENT_SOURCE_DIR}/../GUI/MandelbrotSetVisualizer/src-tauri")
+set(TAURI_BINARIES_DIR "${TAURI_DIR}/binaries")
+set(TAURI_DEBUG_DIR    "${TAURI_DIR}/target/debug")
 
-# Deploy the binary to the Tauri sidecar directory after every build
+# Deploy the binary to both Tauri sidecar locations:
+#   binaries/ — used by tauri build (production bundling)
+#   target/debug/ — used by tauri dev (development)
 add_custom_command(TARGET mandelbrot_visualizer POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory "${TAURI_BINARIES_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${TAURI_DEBUG_DIR}"
     COMMAND ${CMAKE_COMMAND} -E copy
         "$<TARGET_FILE:mandelbrot_visualizer>"
         "${TAURI_BINARIES_DIR}/mandelbrot_visualizer-${RUST_TARGET_TRIPLE}.exe"
-    COMMENT "Deploying binary to Tauri sidecar directory (${RUST_TARGET_TRIPLE})"
+    COMMAND ${CMAKE_COMMAND} -E copy
+        "$<TARGET_FILE:mandelbrot_visualizer>"
+        "${TAURI_DEBUG_DIR}/mandelbrot_visualizer-${RUST_TARGET_TRIPLE}.exe"
+    COMMENT "Deploying binary to Tauri sidecar directories (${RUST_TARGET_TRIPLE})"
 )
 
 if(ENABLE_OPENCL)
@@ -117,6 +130,12 @@ if(ENABLE_OPENCL)
         COMMAND ${CMAKE_COMMAND} -E copy
             "${CMAKE_CURRENT_SOURCE_DIR}/src/kernels/OpenCLKernelHP.cl"
             "${TAURI_BINARIES_DIR}/OpenCLKernelHP.cl"
+        COMMAND ${CMAKE_COMMAND} -E copy
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/kernels/OpenCLKernel.cl"
+            "${TAURI_DEBUG_DIR}/OpenCLKernel.cl"
+        COMMAND ${CMAKE_COMMAND} -E copy
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/kernels/OpenCLKernelHP.cl"
+            "${TAURI_DEBUG_DIR}/OpenCLKernelHP.cl"
         COMMENT "Copying OpenCL kernels to output and Tauri directories"
     )
 endif()

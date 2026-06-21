@@ -395,15 +395,6 @@ window.addEventListener("DOMContentLoaded", async () => {
   
   new P5(sketch);
 
-  const availableModes: string[] = await invoke("get_available_modes");
-  const selectMode = document.getElementById("select-mode") as HTMLSelectElement;
-  selectMode.innerHTML = "";
-  availableModes.forEach(mode => {
-    const option = document.createElement("option");
-    option.value = mode;
-    option.textContent = MODE_LABELS[mode] ?? mode;
-    selectMode.appendChild(option);
-  });
   const inputPaletteLength: HTMLInputElement = document.getElementById("input-palette-length") as HTMLInputElement;
   const inputMaxIter: HTMLInputElement = document.getElementById("input-max-iter") as HTMLInputElement;
   const inputSamples: HTMLInputElement = document.getElementById("input-samples") as HTMLInputElement;
@@ -452,5 +443,19 @@ window.addEventListener("DOMContentLoaded", async () => {
   inputMaxIter.addEventListener("input", () => {
     buttonMaxIterCancel.disabled = false;
   });
+
+  try {
+    const availableModes: string[] = await invoke("get_available_modes");
+    const selectMode = document.getElementById("select-mode") as HTMLSelectElement;
+    selectMode.innerHTML = "";
+    availableModes.forEach(mode => {
+      const option = document.createElement("option");
+      option.value = mode;
+      option.textContent = MODE_LABELS[mode] ?? mode;
+      selectMode.appendChild(option);
+    });
+  } catch (e) {
+    console.error("Failed to detect available modes:", e);
+  }
 });
 
