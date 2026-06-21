@@ -1,12 +1,11 @@
 #include "SequentialIterationCalculator.h"
 #include "FixedPointArithmetics.h"
 
-#include <omp.h>
 
 int SequentialIterationCalculator::calculate(const std::vector<Complex>& points, std::vector<int>& iters, const unsigned int maxIter) const {
     const int N = static_cast<int>(points.size());
 
-    #pragma omp parallel for schedule(dynamic)
+    #pragma omp parallel for schedule(dynamic) default(none) shared(points, iters, maxIter, N)
     for (int idx = 0; idx < N; idx++) {
         const double x0 = points[idx].real;
         const double y0 = points[idx].imag;
@@ -20,7 +19,7 @@ int SequentialIterationCalculator::calculate(const std::vector<Complex>& points,
             x2 = x * x;
             y2 = y * y;
             if (x2 + y2 > 4) {
-                iters[idx] = i;
+                iters[idx] = static_cast<int>(i);
                 break;
             }
         }
@@ -32,7 +31,7 @@ int SequentialIterationCalculator::calculate(const std::vector<ComplexHP>& point
     using namespace fpa;
     const int N = static_cast<int>(points.size());
 
-    #pragma omp parallel for schedule(dynamic)
+    #pragma omp parallel for schedule(dynamic) default(none) shared(points, iters, maxIter, N)
     for (int idx = 0; idx < N; idx++) {
         uint x0[FP_SIZE], y0[FP_SIZE];
         for (int k = 0; k < FP_SIZE; k++) {
@@ -65,7 +64,7 @@ int SequentialIterationCalculator::calculate(const std::vector<ComplexHP>& point
             // escape check: x2 + y2 > 4
             addFixed(x2, y2, temp);
             if (gtFixed(temp, fourFixed)) {
-                iters[idx] = i;
+                iters[idx] = static_cast<int>(i);
                 break;
             }
         }

@@ -1,5 +1,6 @@
 #include "ColorManager.h"
 
+#include <cmath>
 #include <stdexcept>
 
 #define PI 3.14159265358979323846
@@ -37,7 +38,7 @@ Color getColorFromPalette(int val, const vector<Color>& colors, double length) {
 
 vector<Color> CyclicColorPalette::paint(vector<int>& iters) const {
     vector<Color> pixels(this->imageSize);
-    #pragma omp parallel for
+    #pragma omp parallel for default(none) shared(iters, pixels)
     for (int i = 0; i < this->imageSize; i++) {
         int idx = i * this->samples;
         double averageColor[3] = { 0, 0, 0 };
@@ -77,13 +78,13 @@ Color HistogramColorPalette::interpolateColor(Color& lCol, Color& rCol, double v
 vector<Color> HistogramColorPalette::paint(vector<int>& iters) const {
     vector<Color> pixels(this->imageSize);
     vector<int> numItersPerPixel(this->maxIter + 1, 0);
-    #pragma omp parallel for
+    #pragma omp parallel for default(none) shared(iters, numItersPerPixel)
     for (int i = 0; i < this->imageSize; i++) {
         int val = iters[i] == -1 ? this->maxIter : iters[i];
         numItersPerPixel[val]++;
     }
     vector<double> hues(this->imageSize, 0);
-    #pragma omp parallel for
+    #pragma omp parallel for default(none) shared(iters, pixels, numItersPerPixel, hues)
     for (int i = 0; i < this->imageSize; i++) {
         double hue = 0;
         for (int j = 0; j < iters[i]; j++) {
