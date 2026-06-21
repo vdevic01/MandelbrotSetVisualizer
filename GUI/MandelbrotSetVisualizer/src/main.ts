@@ -34,6 +34,7 @@ class BoundaryManager{
   private maxIter: number = 700;
   private paletteId: number = 0;
   private samples: number = 1;
+  private mode: string = 'SEQUENTIAL';
   private static imgUrl: string;
 
 
@@ -87,6 +88,14 @@ class BoundaryManager{
   }
   public setPaletteId(id: number){
     this.paletteId = id;
+    if(this.highPrecission){
+      this.generateMandelbrotHighPrecission();
+    }else{
+      this.generateMandelbrot();
+    }
+  }
+  public setMode(mode: string){
+    this.mode = mode;
     if(this.highPrecission){
       this.generateMandelbrotHighPrecission();
     }else{
@@ -272,6 +281,7 @@ class BoundaryManager{
 
   private async generateMandelbrot(){
     const args = {
+      mode: this.mode,
       ...this.lowPrecissionBoundary,
       maxIter: this.maxIter,
       paletteLength: this.paletteLength,
@@ -283,6 +293,7 @@ class BoundaryManager{
   }
   private async generateMandelbrotHighPrecission(){
     const args = {
+      mode: this.mode,
       reStart: this.decimalToFixedPoint(this.highPrecissionBoundary!.reStart),
       reEnd: this.decimalToFixedPoint(this.highPrecissionBoundary!.reEnd),
       imStart: this.decimalToFixedPoint(this.highPrecissionBoundary!.imStart),
@@ -413,6 +424,10 @@ window.addEventListener("DOMContentLoaded", () => {
   document.getElementById("select-color-palette")?.addEventListener("change", () => {
     const paletteId: number = parseInt((document.getElementById("select-color-palette") as HTMLInputElement)?.value);
     boundaryManager.setPaletteId(paletteId);
+  });
+  document.getElementById("select-mode")?.addEventListener("change", () => {
+    const mode: string = (document.getElementById("select-mode") as HTMLSelectElement).value;
+    boundaryManager.setMode(mode);
   });
   inputPaletteLength.addEventListener("input", () => {
     buttonPaletteLengthCancel.disabled = false;

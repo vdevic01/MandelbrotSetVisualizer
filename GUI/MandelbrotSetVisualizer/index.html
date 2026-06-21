@@ -12,6 +12,16 @@
   <body>
     <div class="sidebar">
       <div class="section">
+        <label for="select-mode">Mode:</label>
+        <select class="form-field" id="select-mode">
+          <option value="SEQUENTIAL">Sequential</option>
+          <option value="OPENCL_LOCAL">OpenCL</option>
+          <option value="CUDA_LOCAL">CUDA Local</option>
+          <option value="CUDA_REMOTE">CUDA Remote</option>
+        </select>
+      </div>
+      <hr>
+      <div class="section">
         <label for="input-max-iter">Max Iterations:</label>
         <input value="700" class="form-field" type="number" id="input-max-iter">
         <div class="button-row">
