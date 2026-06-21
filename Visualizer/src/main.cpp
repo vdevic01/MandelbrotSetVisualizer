@@ -315,6 +315,43 @@ optional<MandelbrotConfig> parseCommandLine(int argc, char* argv[]) {
     return config;
 }
 
+/**
+ * Generates a Mandelbrot set PNG from command-line parameters.
+ * Supports standard double-precision and 128-bit fixed-point high-precision modes.
+ *
+ * Usage:
+ *   mandelbrot_visualizer <MODE> <OUTPUT_FILE> <MAX_ITER> <PALETTE_LENGTH> <PALETTE_ID>
+ *                         <SAMPLES> <USE_HP> <COORDS...> [WIDTH HEIGHT]
+ *
+ * Arguments:
+ *   MODE           SEQUENTIAL | OPENCL_LOCAL | CUDA_LOCAL | CUDA_REMOTE
+ *   OUTPUT_FILE    Path for the output PNG (e.g. ./out.png)
+ *   MAX_ITER       Maximum escape iterations (e.g. 1000)
+ *   PALETTE_LENGTH Color palette cycle length (e.g. 256)
+ *   PALETTE_ID     Palette index, 0-based (see Palettes.h)
+ *   SAMPLES        Samples per pixel for anti-aliasing (>= 1)
+ *   USE_HP         0 = double precision, 1 = 128-bit fixed-point
+ *
+ *   Standard precision (USE_HP=0) — 4 doubles:
+ *     RE_START RE_END IM_START IM_END
+ *
+ *   High precision (USE_HP=1) — 16 unsigned ints (4 words per coordinate,
+ *   big-endian 32-bit fixed-point: 1 integer word + 3 fraction words):
+ *     RE_START[0..3] RE_END[0..3] IM_START[0..3] IM_END[0..3]
+ *
+ *   WIDTH HEIGHT   Optional. Image dimensions in pixels. Default: 900x600.
+ *
+ * Examples:
+ *   mandelbrot_visualizer SEQUENTIAL ./out.png 2000 512 0 4 0 \
+ *     -0.153004885037500013708 -0.152809695287500013708 \
+ *     1.039611370300000000002  1.039757762612500000002  1800 1200
+ *
+ *   mandelbrot_visualizer SEQUENTIAL ./out.png 2000 512 0 4 1 \
+ *     4294967295 3637816318 2730300863 4039731417 \
+ *     4294967295 3638654652 981237348  3835888558 \
+ *     1 170129539 4244482999 3226762018 \
+ *     1 170758290 785201715  2000138050 1800 1200
+ */
 int main(int argc, char* argv[]) {
     auto configOpt = parseCommandLine(argc, argv);
     if (!configOpt) return 1;
