@@ -6,6 +6,8 @@ option(ENABLE_CUDA   "Enable CUDA backend (CUDA_LOCAL / CUDA_REMOTE modes)" OFF)
 set(SOURCES
     src/main.cpp
     src/Mode.h
+    src/Sampler.cpp
+    src/Sampler.h
     src/calculators/IterationCalculator.h
     src/calculators/SequentialIterationCalculator.cpp
     src/calculators/SequentialIterationCalculator.h
@@ -21,6 +23,9 @@ set(SOURCES
     src/util/fpng.cpp
     src/util/fpng.h
     src/util/errors.h
+    src/util/ScopedTimer.h
+    src/util/ImageWriter.h
+    src/util/ImageWriter.cpp
     src/kernels/OpenCLKernel.cl
     src/kernels/OpenCLKernelHP.cl
 )
@@ -57,6 +62,7 @@ target_include_directories(mandelbrot_visualizer PRIVATE
     src/color
     src/math
     src/util
+    src/kernels
 )
 
 # C++17 required for if constexpr and std::optional
