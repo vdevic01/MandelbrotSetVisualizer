@@ -65,7 +65,8 @@ MandelbrotSetVisualizer/
 | CMake | 3.20+ | Build system |
 | GCC / MinGW-w64 | Any modern | C++17 required |
 | OpenMP | — | Bundled with GCC; enables multi-core CPU rendering |
-| CUDA Toolkit | 11+ | Optional; enable with `-DENABLE_CUDA=ON` |
+| CUDA Toolkit | 11+ | Optional; enable local GPU rendering with `-DENABLE_CUDA=ON` |
+| libcurl | 7.x+ | Always required (used by `CUDA_REMOTE` mode). Install via your package manager: `apt install libcurl4-openssl-dev`, `brew install curl`, or vcpkg/MSYS2 on Windows. The [cpr](https://github.com/libcpr/cpr) wrapper is fetched automatically by CMake via FetchContent — no manual installation needed. |
 | OpenCL | — | Optional; enable with `-DENABLE_OPENCL=ON` |
 
 ### GUI
@@ -98,7 +99,7 @@ To enable GPU backends pass additional flags at configure time:
 # OpenCL
 cmake -S Visualizer -B Visualizer/cmake-build-release -DCMAKE_BUILD_TYPE=Release -DENABLE_OPENCL=ON
 
-# CUDA
+# CUDA (local GPU)
 cmake -S Visualizer -B Visualizer/cmake-build-release -DCMAKE_BUILD_TYPE=Release -DENABLE_CUDA=ON
 ```
 
@@ -238,6 +239,69 @@ mandelbrot_visualizer --list-modes
 | `CPU_PARALLEL` | Multi-threaded CPU via OpenMP. Always available. |
 | `OPENCL_LOCAL` | GPU via OpenCL. Requires `-DENABLE_OPENCL=ON` at build time and at least one OpenCL platform present at runtime. |
 | `CUDA_LOCAL` | GPU via CUDA. Requires `-DENABLE_CUDA=ON` at build time and an NVIDIA GPU. |
-| `CUDA_REMOTE` | Reserved for future remote CUDA execution. Not yet implemented. |
+| `CUDA_REMOTE` | GPU via CUDA running on a RunPod serverless worker. Always available — no local GPU or CUDA Toolkit needed. Requires valid RunPod credentials configured in the GUI settings. |
 
 The GUI populates the Mode dropdown by running `mandelbrot_visualizer --list-modes` at startup, so only modes available in the current build and on the current hardware are shown.
+
+---
+
+## RunPod remote CUDA deployment
+
+`CUDA_REMOTE` offloads the CUDA iteration kernel to a RunPod serverless worker, allowing GPU-accelerated rendering from machines without a local NVIDIA GPU.
+
+### Architecture
+
+```
+Local machine                           RunPod worker
+─────────────────────────────────────   ──────────────────────────────────
+Tauri GUI → C++ sidecar
+  Sampling (CPU)
+  HTTP POST: base64-encoded points  ──► handler.py → mandelbrot_cuda_worker
+    (~8 MB LP / ~17 MB HP per render)     (CUDA kernel only)
+                                    ◄──  JSON response (base64 iterations +
+                                         CUDA event timing)
+  Coloring + PNG save (CPU)
+```
+
+`CUDARemoteIterationCalculator` implements the same `IterationCalculator` interface as every other backend — sampling runs locally, and only the pre-sampled points array is sent to the worker. The worker does no sampling; it just runs the CUDA kernel and returns the flat iteration count array.
+
+### Building and pushing the Docker image
+
+From the **project root**:
+
+```bash
+docker build -f RunPod/Dockerfile -t your-dockerhub/mandelbrot-worker:latest .
+docker push your-dockerhub/mandelbrot-worker:latest
+```
+
+### Deploying to RunPod
+
+1. Go to [RunPod Serverless](https://www.runpod.io/serverless) and create a new endpoint.
+2. Point it at your Docker image.
+3. Select a GPU type (RTX 3090 or better recommended for HP mode).
+4. Copy the **Endpoint ID** — your full endpoint URL is `https://api.runpod.ai/v2/<id>/runsync`.
+
+### Configuring the GUI
+
+1. Build the C++ backend normally — `CUDA_REMOTE` is always compiled in. No CUDA Toolkit or local GPU required.
+2. Start the GUI. Select **CUDA Remote** in the Mode dropdown.
+3. A **RunPod Settings** button appears — click it to open the settings dialog.
+4. Enter the endpoint URL and your RunPod API key, then click **Save**.
+5. Credentials are stored in `runpod-settings.json` next to the application and injected as environment variables at render time. They are never passed as command-line arguments or committed to the repository.
+
+### Response format
+
+The worker outputs a single JSON line to stdout:
+
+```json
+{
+  "execution_time_ms": 42.5,
+  "handler_time_ms":  150.0,
+  "width": 900,
+  "height": 600,
+  "samples": 1,
+  "iterations": "<base64-encoded int32 array>"
+}
+```
+
+`execution_time_ms` is measured with CUDA events (GPU kernel only, excluding memory transfers). `handler_time_ms` is the total subprocess wall time measured by the Python handler.
