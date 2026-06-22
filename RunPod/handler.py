@@ -14,7 +14,7 @@ def handler(job: dict) -> dict:
     # Pass the entire input object to the worker via stdin as JSON.
     # The worker reads it, deserialises the base64-encoded points array,
     # runs the CUDA kernel, and writes results JSON to stdout.
-    stdin_data = json.dumps(job_input)
+    stdin_data = json.dumps(job_input, separators=(',', ':'))
 
     t0 = time.perf_counter()
     proc = subprocess.run(
