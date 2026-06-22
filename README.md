@@ -11,7 +11,8 @@ An interactive Mandelbrot set explorer with a Tauri/TypeScript GUI and a high-pe
 - **OpenMP parallelism** — CPU rendering uses all available cores
 - **Anti-aliasing** — configurable samples-per-pixel with random sub-pixel jitter
 - **8 colour palettes** — cyclic palettes with configurable cycle length
-- **Multiple compute backends** — CPU (default), OpenCL, CUDA (optional, requires separate build flags)
+- **Multiple compute backends** — CPU (default), OpenCL, CUDA local, and CUDA remote via RunPod (optional, see below)
+- **Remote GPU rendering** — offload CUDA execution to a RunPod worker over HTTP; no local NVIDIA GPU required
 - **Headless CLI** — the C++ binary can be used standalone without the GUI
 
 ---
@@ -27,22 +28,31 @@ MandelbrotSetVisualizer/
 │       ├── Mode.h               Compute mode enum
 │       ├── Sampler.cpp/.h       Complex-plane pixel sampling (LP + HP)
 │       ├── calculators/
-│       │   ├── IterationCalculator.h          Interface
-│       │   ├── SequentialIterationCalculator  CPU/OpenMP implementation
-│       │   ├── OpenCLIterationCalculator      OpenCL implementation
-│       │   └── CUDAUnifiedKernel.cu           CUDA implementation
+│       │   ├── IterationCalculator.h               Interface (CPU/OpenCL/CUDA)
+│       │   ├── SequentialIterationCalculator        CPU/OpenMP implementation
+│       │   ├── OpenCLIterationCalculator            OpenCL implementation
+│       │   ├── CUDAUnifiedKernel.cu                CUDA implementation
+│       │   └── CUDARemoteIterationCalculator        HTTP client for RunPod worker
 │       ├── color/
-│       │   ├── ColorManager.cpp/.h            Cyclic palette colouring
-│       │   └── Palettes.h                     Palette definitions
+│       │   ├── ColorManager.cpp/.h                 Cyclic palette colouring
+│       │   └── Palettes.h                          Palette definitions
 │       ├── math/
-│       │   └── FixedPointArithmetics.cpp/.h   128-bit fixed-point library
+│       │   └── FixedPointArithmetics.cpp/.h        128-bit fixed-point library
 │       ├── kernels/
-│       │   ├── OpenCLKernel.cl                OpenCL double-precision kernel
-│       │   └── OpenCLKernelHP.cl              OpenCL high-precision kernel
+│       │   ├── OpenCLKernel.cl                     OpenCL double-precision kernel
+│       │   └── OpenCLKernelHP.cl                   OpenCL high-precision kernel
 │       └── util/
 │           ├── ScopedTimer.h    Scoped wall-clock timer
+│           ├── base64.h         Header-only base64 encode/decode
 │           ├── ImageWriter      PNG output via fpng
 │           └── fpng             Fast PNG encoder
+├── RunPod/                      RunPod worker
+│   ├── Dockerfile               Multi-stage CUDA build
+│   ├── CMakeLists.txt           Worker binary build
+│   ├── handler.py               HTTP server (serves / and /ping)
+│   ├── requirements.txt
+│   └── src/
+│       └── main_worker.cpp      Reads boundary JSON, samples, runs CUDA kernel
 └── GUI/
     └── MandelbrotSetVisualizer/ Tauri application
         ├── src/
@@ -50,7 +60,7 @@ MandelbrotSetVisualizer/
         │   └── styles.css
         ├── index.html
         └── src-tauri/
-            ├── src/main.rs      Tauri commands, sidecar bridge
+            ├── src/main.rs      Tauri commands, sidecar bridge, RunPod settings
             └── tauri.conf.json
 ```
 
@@ -239,7 +249,7 @@ mandelbrot_visualizer --list-modes
 | `CPU_PARALLEL` | Multi-threaded CPU via OpenMP. Always available. |
 | `OPENCL_LOCAL` | GPU via OpenCL. Requires `-DENABLE_OPENCL=ON` at build time and at least one OpenCL platform present at runtime. |
 | `CUDA_LOCAL` | GPU via CUDA. Requires `-DENABLE_CUDA=ON` at build time and an NVIDIA GPU. |
-| `CUDA_REMOTE` | GPU via CUDA running on a RunPod serverless worker. Always available — no local GPU or CUDA Toolkit needed. Requires valid RunPod credentials configured in the GUI settings. |
+| `CUDA_REMOTE` | GPU via CUDA running on a RunPod worker. Always compiled in — no local GPU or CUDA Toolkit needed. Requires a deployed RunPod worker and credentials configured in the GUI settings. |
 
 The GUI populates the Mode dropdown by running `mandelbrot_visualizer --list-modes` at startup, so only modes available in the current build and on the current hardware are shown.
 
@@ -247,27 +257,28 @@ The GUI populates the Mode dropdown by running `mandelbrot_visualizer --list-mod
 
 ## RunPod remote CUDA deployment
 
-`CUDA_REMOTE` offloads the CUDA iteration kernel to a RunPod serverless worker, allowing GPU-accelerated rendering from machines without a local NVIDIA GPU.
+`CUDA_REMOTE` offloads pixel sampling and the CUDA iteration kernel to a RunPod worker, allowing GPU-accelerated rendering from machines without a local NVIDIA GPU.
 
 ### Architecture
 
 ```
-Local machine                           RunPod worker
-─────────────────────────────────────   ──────────────────────────────────
-Tauri GUI → C++ sidecar
-  Sampling (CPU)
-  HTTP POST: base64-encoded points  ──► handler.py → mandelbrot_cuda_worker
-    (~8 MB LP / ~17 MB HP per render)     (CUDA kernel only)
-                                    ◄──  JSON response (base64 iterations +
-                                         CUDA event timing)
+Local machine                              RunPod worker (load balancer)
+──────────────────────────────────────     ─────────────────────────────────────
+Tauri GUI → C++ sidecar                    handler.py (HTTP server, port 80)
+  HTTP POST: boundary coords + dims   ──►    mandelbrot_cuda_worker
+    (~200 bytes, LP or HP)                      samplePointsFromComplexPlane (CPU)
+                                                CUDA kernel
+                                     ◄──    JSON: sampling_time_ms,
+                                                  execution_time_ms,
+                                                  base64 iterations
   Coloring + PNG save (CPU)
 ```
 
-`CUDARemoteIterationCalculator` implements the same `IterationCalculator` interface as every other backend — sampling runs locally, and only the pre-sampled points array is sent to the worker. The worker does no sampling; it just runs the CUDA kernel and returns the flat iteration count array.
+`CUDARemoteIterationCalculator` sends only the viewport boundary and image dimensions to the worker. Sampling and kernel execution both happen remotely, keeping the request payload at ~200 bytes regardless of image size or sample count.
 
 ### Building and pushing the Docker image
 
-From the **project root**:
+Must be run from the **project root** (the build context includes files from both `Visualizer/` and `RunPod/`):
 
 ```bash
 docker build -f RunPod/Dockerfile -t your-dockerhub/mandelbrot-worker:latest .
@@ -276,32 +287,44 @@ docker push your-dockerhub/mandelbrot-worker:latest
 
 ### Deploying to RunPod
 
-1. Go to [RunPod Serverless](https://www.runpod.io/serverless) and create a new endpoint.
-2. Point it at your Docker image.
-3. Select a GPU type (RTX 3090 or better recommended for HP mode).
-4. Copy the **Endpoint ID** — your full endpoint URL is `https://api.runpod.ai/v2/<id>/runsync`.
+1. Create a new **load balancer** endpoint on RunPod and point it at your Docker image.
+2. Select a GPU type (RTX 3090 or better recommended for HP mode).
+3. Set the `PORT` environment variable to `80` in the endpoint configuration.
+4. Copy the endpoint URL — it will look like `https://<id>.api.runpod.ai`.
 
 ### Configuring the GUI
 
 1. Build the C++ backend normally — `CUDA_REMOTE` is always compiled in. No CUDA Toolkit or local GPU required.
-2. Start the GUI. Select **CUDA Remote** in the Mode dropdown.
-3. A **RunPod Settings** button appears — click it to open the settings dialog.
-4. Enter the endpoint URL and your RunPod API key, then click **Save**.
+2. Open the **Settings** view (button in the sidebar footer, always accessible).
+3. Enter the endpoint URL and your RunPod API key, then click **Save**.
+4. Select **CUDA Remote** in the Mode dropdown.
 5. Credentials are stored in `runpod-settings.json` next to the application and injected as environment variables at render time. They are never passed as command-line arguments or committed to the repository.
+
+### Request format
+
+The C++ client sends a compact JSON body directly to the worker (no RunPod SDK envelope):
+
+**Standard precision:**
+```json
+{"use_hp":0,"max_iter":1000,"samples":4,"width":900,"height":600,
+ "re_start":-2.0,"re_end":1.0,"im_start":-1.0,"im_end":1.0}
+```
+
+**High precision** (4 × 32-bit fixed-point words per coordinate):
+```json
+{"use_hp":1,"max_iter":1000,"samples":4,"width":900,"height":600,
+ "re_start_0":W,"re_start_1":X,"re_start_2":Y,"re_start_3":Z, ...}
+```
 
 ### Response format
 
-The worker outputs a single JSON line to stdout:
-
 ```json
 {
+  "sampling_time_ms":  12.3,
   "execution_time_ms": 42.5,
-  "handler_time_ms":  150.0,
-  "width": 900,
-  "height": 600,
-  "samples": 1,
+  "handler_time_ms":   58.1,
   "iterations": "<base64-encoded int32 array>"
 }
 ```
 
-`execution_time_ms` is measured with CUDA events (GPU kernel only, excluding memory transfers). `handler_time_ms` is the total subprocess wall time measured by the Python handler.
+`sampling_time_ms` is measured with `chrono::steady_clock` (CPU sampling). `execution_time_ms` is measured with CUDA events (kernel only). `handler_time_ms` is the total subprocess wall time measured by the Python handler.
