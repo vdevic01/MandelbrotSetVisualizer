@@ -10,6 +10,7 @@
 #ifdef ENABLE_OPENCL
 #include "OpenCLIterationCalculator.h"
 #endif
+#include "CUDARemoteIterationCalculator.h"
 #ifdef ENABLE_CUDA
 #include "CUDAIterationCalculator.h"
 #endif
@@ -106,11 +107,9 @@ static void listAvailableModes() {
     if (isOpenCLAvailable()) cout << "OPENCL_LOCAL\n";
 #endif
 #ifdef ENABLE_CUDA
-    if (isCUDAAvailable()) {
-        cout << "CUDA_LOCAL\n";
-        cout << "CUDA_REMOTE\n";
-    }
+    if (isCUDAAvailable()) cout << "CUDA_LOCAL\n";
 #endif
+    cout << "CUDA_REMOTE\n";
 }
 
 unique_ptr<IterationCalculator> makeCalculator(Mode mode) {
@@ -124,13 +123,19 @@ unique_ptr<IterationCalculator> makeCalculator(Mode mode) {
 #ifdef ENABLE_CUDA
         case Mode::CUDA_LOCAL:
             return make_unique<CUDAIterationCalculator>();
-        case Mode::CUDA_REMOTE:
-            cerr << "Error: CUDA_REMOTE is not yet implemented.\n";
-            return nullptr;
 #endif
+        case Mode::CUDA_REMOTE: {
+            const char* endpoint = getenv("RUNPOD_ENDPOINT");
+            const char* apiKey   = getenv("RUNPOD_API_KEY");
+            if (!endpoint || !apiKey || endpoint[0] == '\0' || apiKey[0] == '\0') {
+                cerr << "Error: CUDA_REMOTE requires RUNPOD_ENDPOINT and RUNPOD_API_KEY environment variables.\n";
+                return nullptr;
+            }
+            return make_unique<CUDARemoteIterationCalculator>(endpoint, apiKey);
+        }
         default:
             cerr << "Error: Mode '" << modeToString(mode) << "' is not supported in this build.\n";
-            cerr << "Rebuild with -DENABLE_OPENCL=ON or -DENABLE_CUDA=ON to enable GPU modes.\n";
+            cerr << "Rebuild with -DENABLE_OPENCL=ON or -DENABLE_CUDA=ON to enable local GPU modes.\n";
             return nullptr;
     }
 }
