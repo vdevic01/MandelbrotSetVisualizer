@@ -87,7 +87,7 @@ vector<int> CUDARemoteIterationCalculator::calculate(
          << ",\"im_end\":" << imEnd
          << "}";
 
-    const string body = "{\"input\":" + json.str() + "}";
+    const string body = json.str();
     cout << "Sending LP boundary to RunPod...\n";
 
     const string response = httpPost(body);
@@ -115,7 +115,7 @@ vector<int> CUDARemoteIterationCalculator::calculateHP(
     }
     json << "}";
 
-    const string body = "{\"input\":" + json.str() + "}";
+    const string body = json.str();
     cout << "Sending HP boundary to RunPod...\n";
 
     const string response = httpPost(body);
