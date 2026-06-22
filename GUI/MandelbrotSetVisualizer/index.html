@@ -10,63 +10,91 @@
   </head>
 
   <body>
-    <div class="sidebar">
-      <div class="section">
-        <label for="select-mode">Mode:</label>
-        <select class="form-field" id="select-mode">
-          <option value="CPU_PARALLEL">CPU Parallel</option>
-          <option value="OPENCL_LOCAL">OpenCL</option>
-          <option value="CUDA_LOCAL">CUDA Local</option>
-          <option value="CUDA_REMOTE">CUDA Remote</option>
-        </select>
+    <!-- Main app view -->
+    <div id="app-view">
+      <div class="sidebar">
+        <div class="section">
+          <label for="select-mode">Mode:</label>
+          <select class="form-field" id="select-mode">
+            <option value="CPU_PARALLEL">CPU Parallel</option>
+            <option value="OPENCL_LOCAL">OpenCL</option>
+            <option value="CUDA_LOCAL">CUDA Local</option>
+            <option value="CUDA_REMOTE">CUDA Remote</option>
+          </select>
+        </div>
+        <hr>
+        <div class="section">
+          <label for="input-max-iter">Max Iterations:</label>
+          <input value="700" class="form-field" type="number" id="input-max-iter">
+          <div class="button-row">
+            <button style="margin-right: 5px;" id="button-max-iter">Apply</button>
+            <button style="margin-left: 5px;" id="button-max-iter-cancel" disabled>Cancel</button>
+          </div>
+        </div>
+        <hr>
+        <div class="section">
+          <label for="input-palette-length">Palette Length:</label>
+          <input value="250" class="form-field" type="number" id="input-palette-length">
+          <div class="button-row">
+            <button style="margin-right: 5px;" id="button-palette-length">Apply</button>
+            <button style="margin-left: 5px;" id="button-palette-length-cancel" disabled>Cancel</button>
+          </div>
+        </div>
+        <hr>
+        <div class="section">
+          <label for="input-samples">Samples:</label>
+          <input value="1" class="form-field" type="number" id="input-samples">
+          <div class="button-row">
+            <button style="margin-right: 5px;" id="button-samples">Apply</button>
+            <button style="margin-left: 5px;" id="button-samples-cancel" disabled>Cancel</button>
+          </div>
+        </div>
+        <hr>
+        <div class="section">
+          <label for="select-color-palette">Palette:</label>
+          <select class="form-field" id="select-color-palette">
+            <option value="0">Navy</option>
+            <option value="1">Sunset</option>
+            <option value="2">Ocean</option>
+            <option value="3">Fire and Ash</option>
+            <option value="4">Twilight</option>
+            <option value="5">Garden</option>
+            <option value="6">Pomegranate</option>
+            <option value="7">Greyscale</option>
+          </select>
+        </div>
+        <div class="sidebar-footer">
+          <button id="button-settings">Settings</button>
+          <button id="button-reset">Reset</button>
+        </div>
       </div>
-      <hr>
-      <div class="section">
-        <label for="input-max-iter">Max Iterations:</label>
-        <input value="700" class="form-field" type="number" id="input-max-iter">
-        <div class="button-row">
-          <button style="margin-right: 5px;" id="button-max-iter">Apply</button>
-          <button style="margin-left: 5px;" id="button-max-iter-cancel" disabled>Cancel</button>
-        </div>      
-      </div>
-      <hr>
-      <div class="section">
-        <label for="input-palette-length">Palette Length:</label>
-        <input value="250" class="form-field" type="number" id="input-palette-length">
-        <div class="button-row">
-          <button style="margin-right: 5px;" id="button-palette-length">Apply</button>
-          <button style="margin-left: 5px;" id="button-palette-length-cancel" disabled>Cancel</button>
-        </div>      
-      </div>
-      <hr>
-      <div class="section">
-        <label for="input-samples">Samples:</label>
-        <input value="1" class="form-field" type="number" id="input-samples">
-        <div class="button-row">
-          <button style="margin-right: 5px;" id="button-samples">Apply</button>
-          <button style="margin-left: 5px;" id="button-samples-cancel" disabled>Cancel</button>
-        </div>      
-      </div>
-      <hr>
-      <div class="section">
-        <label for="select-color-palette">Palette:</label>
-        <select class="form-field" id="select-color-palette">
-          <option value="0">Navy</option>
-          <option value="1">Sunset</option>
-          <option value="2">Ocean</option>
-          <option value="3">Fire and Ash</option>
-          <option value="4">Twilight</option>
-          <option value="5">Garden</option>
-          <option value="6">Pomegranate</option>
-          <option value="7">Greyscale</option>
-        </select>
-      </div>
-      <div class="sidebar-footer">
-        <button id="button-reset">Reset</button>
+      <div class="canvas-wrapper">
+        <div id="main-canvas"></div>
       </div>
     </div>
-    <div class="canvas-wrapper">
-      <div id="main-canvas"></div>
+
+    <!-- Settings view -->
+    <div id="settings-view" style="display:none;">
+      <div class="settings-header">
+        <button id="button-settings-back">← Back</button>
+        <h2>Settings</h2>
+      </div>
+      <div class="settings-body">
+        <div class="settings-section">
+          <h3>RunPod</h3>
+          <p class="settings-desc">Endpoint and API key for remote CUDA rendering. Stored locally in <code>runpod-settings.json</code> — never passed as command-line arguments.</p>
+          <label for="input-runpod-endpoint">Endpoint URL</label>
+          <input type="text" id="input-runpod-endpoint" class="form-field"
+                 placeholder="https://api.runpod.ai/v2/{endpoint-id}/runsync">
+          <label for="input-runpod-api-key">API Key</label>
+          <input type="password" id="input-runpod-api-key" class="form-field"
+                 placeholder="your RunPod API key">
+          <div class="button-row">
+            <button id="button-runpod-save">Save</button>
+          </div>
+          <p id="runpod-save-status" class="settings-status" style="display:none;"></p>
+        </div>
+      </div>
     </div>
   </body>
 </html>

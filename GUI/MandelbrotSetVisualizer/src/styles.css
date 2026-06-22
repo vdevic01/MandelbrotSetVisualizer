@@ -84,3 +84,81 @@ button:not(:disabled):hover{
 label{
   margin-bottom: 5px;
 }
+#app-view {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  height: 100%;
+}
+#settings-view {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  background-color: #0f0f0f;
+  overflow-y: auto;
+}
+.settings-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 32px;
+  border-bottom: 1px solid #222;
+}
+.settings-header h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+.settings-header button {
+  margin-top: 0;
+  background: none;
+  border: none;
+  color: #aaa;
+  font-size: 0.9rem;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-radius: 2px;
+}
+.settings-header button:hover {
+  color: #fff;
+  background: #1e1e1e;
+}
+.settings-body {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 32px;
+}
+.settings-body > .settings-section {
+  width: 100%;
+  max-width: 540px;
+}
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.settings-section h3 {
+  margin: 0 0 4px 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+.settings-desc {
+  margin: 0 0 12px 0;
+  font-size: 0.85rem;
+  color: #aaa;
+  line-height: 1.5;
+}
+.settings-desc code {
+  font-family: monospace;
+  background: #2a2a2f;
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+.settings-status {
+  font-size: 0.85rem;
+  margin-top: 4px;
+}

@@ -329,6 +329,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   let pressY = -1;
   const boxRatio = [2, 3];
   let isPressed = false;
+  let settingsOpen = false;
   let boundaryManager: BoundaryManager;
 
   const sketch = (p5: P5) => {
@@ -372,6 +373,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     }
 
     p5.mousePressed = () => {
+      if(settingsOpen) return;
       if(p5.mouseX < 0 || p5.mouseX > p5.width || p5.mouseY < 0 || p5.mouseY > p5.height){
         return;
       }
@@ -384,6 +386,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     }
 
     p5.mouseReleased = () => {
+      if(settingsOpen) return;
       if(!isPressed){
         return;
       }
@@ -457,5 +460,51 @@ window.addEventListener("DOMContentLoaded", async () => {
   } catch (e) {
     console.error("Failed to detect available modes:", e);
   }
+
+  // ── Settings view ──────────────────────────────────────────────────────────
+
+  const settingsView      = document.getElementById("settings-view") as HTMLElement;
+  const inputEndpoint     = document.getElementById("input-runpod-endpoint") as HTMLInputElement;
+  const inputApiKey       = document.getElementById("input-runpod-api-key") as HTMLInputElement;
+  const btnRunpodSave     = document.getElementById("button-runpod-save") as HTMLButtonElement;
+  const runpodStatus      = document.getElementById("runpod-save-status") as HTMLElement;
+
+  async function openSettings() {
+    try {
+      const settings: { endpoint: string; api_key: string } = await invoke("get_runpod_settings");
+      inputEndpoint.value = settings.endpoint ?? "";
+      inputApiKey.value   = settings.api_key  ?? "";
+    } catch (e) {
+      console.error("Failed to load settings:", e);
+    }
+    runpodStatus.style.display = "none";
+    settingsView.style.display = "flex";
+    settingsOpen = true;
+  }
+
+  function closeSettings() {
+    settingsView.style.display = "none";
+    settingsOpen = false;
+    isPressed = false;
+  }
+
+  document.getElementById("button-settings")?.addEventListener("click", openSettings);
+  document.getElementById("button-settings-back")?.addEventListener("click", closeSettings);
+
+  btnRunpodSave.addEventListener("click", async () => {
+    const endpoint = inputEndpoint.value.trim();
+    const apiKey   = inputApiKey.value.trim();
+    try {
+      await invoke("save_runpod_settings", { endpoint, apiKey });
+      runpodStatus.textContent   = "Saved.";
+      runpodStatus.style.color   = "#6fcf97";
+      runpodStatus.style.display = "";
+      setTimeout(() => { runpodStatus.style.display = "none"; }, 2000);
+    } catch (e) {
+      runpodStatus.textContent   = "Failed to save: " + e;
+      runpodStatus.style.color   = "#eb5757";
+      runpodStatus.style.display = "";
+    }
+  });
 });
 
