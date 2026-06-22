@@ -39,7 +39,6 @@ COPY RunPod/requirements.txt ./
 
 RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
 
-EXPOSE 8080
-EXPOSE 8081
+EXPOSE 80
 
 CMD ["python3", "-u", "handler.py"]

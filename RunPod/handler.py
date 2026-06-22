@@ -3,12 +3,10 @@ import json
 import os
 import socketserver
 import subprocess
-import threading
 import time
 
 WORKER_BIN = os.path.join(os.path.dirname(__file__), "mandelbrot_cuda_worker")
-PORT        = int(os.environ.get("PORT",        8080))
-PORT_HEALTH = int(os.environ.get("PORT_HEALTH", 8081))
+PORT = int(os.environ.get("PORT", 80))
 
 
 def run_worker(job_input: dict) -> dict:
@@ -35,7 +33,17 @@ def run_worker(job_input: dict) -> dict:
     return output
 
 
-class MainHandler(http.server.BaseHTTPRequestHandler):
+class Handler(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == "/ping":
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain")
+            self.end_headers()
+            self.wfile.write(b"OK")
+        else:
+            self.send_response(404)
+            self.end_headers()
+
     def do_POST(self):
         length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(length)
@@ -54,22 +62,7 @@ class MainHandler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(payload)
 
     def log_message(self, fmt, *args):
-        print(f"[main] {self.address_string()} {fmt % args}", flush=True)
-
-
-class HealthHandler(http.server.BaseHTTPRequestHandler):
-    def do_GET(self):
-        if self.path == "/ping":
-            self.send_response(200)
-            self.send_header("Content-Type", "text/plain")
-            self.end_headers()
-            self.wfile.write(b"OK")
-        else:
-            self.send_response(404)
-            self.end_headers()
-
-    def log_message(self, fmt, *args):
-        pass  # suppress health-check noise
+        print(f"{self.address_string()} {fmt % args}", flush=True)
 
 
 class ThreadedHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
@@ -77,10 +70,6 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
 
 
 if __name__ == "__main__":
-    health_server = ThreadedHTTPServer(("0.0.0.0", PORT_HEALTH), HealthHandler)
-    threading.Thread(target=health_server.serve_forever, daemon=True).start()
-    print(f"Health server listening on port {PORT_HEALTH}", flush=True)
-
-    main_server = ThreadedHTTPServer(("0.0.0.0", PORT), MainHandler)
-    print(f"Main server listening on port {PORT}", flush=True)
-    main_server.serve_forever()
+    server = ThreadedHTTPServer(("0.0.0.0", PORT), Handler)
+    print(f"Listening on port {PORT}", flush=True)
+    server.serve_forever()
