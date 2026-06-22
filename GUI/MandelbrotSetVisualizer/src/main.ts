@@ -34,6 +34,7 @@ class BoundaryManager{
   private maxIter: number = 700;
   private paletteId: number = 0;
   private samples: number = 1;
+  private mode: string = 'CPU_PARALLEL';
   private static imgUrl: string;
 
 
@@ -87,6 +88,14 @@ class BoundaryManager{
   }
   public setPaletteId(id: number){
     this.paletteId = id;
+    if(this.highPrecission){
+      this.generateMandelbrotHighPrecission();
+    }else{
+      this.generateMandelbrot();
+    }
+  }
+  public setMode(mode: string){
+    this.mode = mode;
     if(this.highPrecission){
       this.generateMandelbrotHighPrecission();
     }else{
@@ -272,6 +281,7 @@ class BoundaryManager{
 
   private async generateMandelbrot(){
     const args = {
+      mode: this.mode,
       ...this.lowPrecissionBoundary,
       maxIter: this.maxIter,
       paletteLength: this.paletteLength,
@@ -283,6 +293,7 @@ class BoundaryManager{
   }
   private async generateMandelbrotHighPrecission(){
     const args = {
+      mode: this.mode,
       reStart: this.decimalToFixedPoint(this.highPrecissionBoundary!.reStart),
       reEnd: this.decimalToFixedPoint(this.highPrecissionBoundary!.reEnd),
       imStart: this.decimalToFixedPoint(this.highPrecissionBoundary!.imStart),
@@ -306,7 +317,14 @@ class BoundaryManager{
 }
 
 
-window.addEventListener("DOMContentLoaded", () => {
+const MODE_LABELS: Record<string, string> = {
+  "CPU_PARALLEL": "CPU Parallel",
+  "OPENCL_LOCAL": "OpenCL",
+  "CUDA_LOCAL":  "CUDA Local",
+  "CUDA_REMOTE": "CUDA Remote",
+};
+
+window.addEventListener("DOMContentLoaded", async () => {
   let pressX = -1;
   let pressY = -1;
   const boxRatio = [2, 3];
@@ -376,6 +394,7 @@ window.addEventListener("DOMContentLoaded", () => {
   }
   
   new P5(sketch);
+
   const inputPaletteLength: HTMLInputElement = document.getElementById("input-palette-length") as HTMLInputElement;
   const inputMaxIter: HTMLInputElement = document.getElementById("input-max-iter") as HTMLInputElement;
   const inputSamples: HTMLInputElement = document.getElementById("input-samples") as HTMLInputElement;
@@ -414,11 +433,29 @@ window.addEventListener("DOMContentLoaded", () => {
     const paletteId: number = parseInt((document.getElementById("select-color-palette") as HTMLInputElement)?.value);
     boundaryManager.setPaletteId(paletteId);
   });
+  document.getElementById("select-mode")?.addEventListener("change", () => {
+    const mode: string = (document.getElementById("select-mode") as HTMLSelectElement).value;
+    boundaryManager.setMode(mode);
+  });
   inputPaletteLength.addEventListener("input", () => {
     buttonPaletteLengthCancel.disabled = false;
   });
   inputMaxIter.addEventListener("input", () => {
     buttonMaxIterCancel.disabled = false;
   });
+
+  try {
+    const availableModes: string[] = await invoke("get_available_modes");
+    const selectMode = document.getElementById("select-mode") as HTMLSelectElement;
+    selectMode.innerHTML = "";
+    availableModes.forEach(mode => {
+      const option = document.createElement("option");
+      option.value = mode;
+      option.textContent = MODE_LABELS[mode] ?? mode;
+      selectMode.appendChild(option);
+    });
+  } catch (e) {
+    console.error("Failed to detect available modes:", e);
+  }
 });
 
