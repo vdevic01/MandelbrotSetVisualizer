@@ -46,7 +46,7 @@ MandelbrotSetVisualizer/
 │           ├── base64.h         Header-only base64 encode/decode
 │           ├── ImageWriter      PNG output via fpng
 │           └── fpng             Fast PNG encoder
-├── RunPod/                      RunPod worker
+├── Worker/                      Remote CUDA worker
 │   ├── Dockerfile               Multi-stage CUDA build
 │   ├── CMakeLists.txt           Worker binary build
 │   ├── handler.py               HTTP server (serves / and /ping)
@@ -278,10 +278,10 @@ Tauri GUI → C++ sidecar                    handler.py (HTTP server, port 80)
 
 ### Building and pushing the Docker image
 
-Must be run from the **project root** (the build context includes files from both `Visualizer/` and `RunPod/`):
+Must be run from the **project root** (the build context includes files from both `Visualizer/` and `Worker/`):
 
 ```bash
-docker build -f RunPod/Dockerfile -t your-dockerhub/mandelbrot-worker:latest .
+docker build -f Worker/Dockerfile -t your-dockerhub/mandelbrot-worker:latest .
 docker push your-dockerhub/mandelbrot-worker:latest
 ```
 
@@ -289,7 +289,7 @@ docker push your-dockerhub/mandelbrot-worker:latest
 
 1. Create a new **load balancer** endpoint on RunPod and point it at your Docker image.
 2. Select a GPU type (RTX 3090 or better recommended for HP mode).
-3. Set the `PORT` environment variable to `80` in the endpoint configuration.
+3. Set `PORT=80` in the container environment configuration.
 4. Copy the endpoint URL — it will look like `https://<id>.api.runpod.ai`.
 
 ### Configuring the GUI
@@ -298,7 +298,7 @@ docker push your-dockerhub/mandelbrot-worker:latest
 2. Open the **Settings** view (button in the sidebar footer, always accessible).
 3. Enter the endpoint URL and your RunPod API key, then click **Save**.
 4. Select **CUDA Remote** in the Mode dropdown.
-5. Credentials are stored in `runpod-settings.json` next to the application and injected as environment variables at render time. They are never passed as command-line arguments or committed to the repository.
+5. Credentials are stored in `remote-settings.json` next to the application and injected as `REMOTE_ENDPOINT` / `REMOTE_API_KEY` environment variables at render time. They are never passed as command-line arguments or committed to the repository.
 
 ### Request format
 

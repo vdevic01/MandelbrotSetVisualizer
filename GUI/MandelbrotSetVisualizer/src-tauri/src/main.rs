@@ -16,17 +16,17 @@ fn project_dir() -> PathBuf {
 }
 
 fn settings_path() -> PathBuf {
-    project_dir().join("runpod-settings.json")
+    project_dir().join("remote-settings.json")
 }
 
 #[derive(Serialize, Deserialize, Default, Clone)]
-struct RunPodSettings {
+struct RemoteSettings {
     endpoint: String,
     api_key:  String,
 }
 
 #[tauri::command]
-fn get_runpod_settings() -> RunPodSettings {
+fn get_remote_settings() -> RemoteSettings {
     let path = settings_path();
     fs::read_to_string(&path)
         .ok()
@@ -35,8 +35,8 @@ fn get_runpod_settings() -> RunPodSettings {
 }
 
 #[tauri::command]
-fn save_runpod_settings(endpoint: String, api_key: String) -> Result<(), String> {
-    let settings = RunPodSettings { endpoint, api_key };
+fn save_remote_settings(endpoint: String, api_key: String) -> Result<(), String> {
+    let settings = RemoteSettings { endpoint, api_key };
     let json = serde_json::to_string(&settings).map_err(|e| e.to_string())?;
     fs::write(settings_path(), json).map_err(|e| e.to_string())
 }
@@ -89,14 +89,14 @@ async fn run_sidecar(args: Vec<String>, env: HashMap<String, String>) -> Result<
     Ok(String::new())
 }
 
-fn runpod_env(mode: &str) -> HashMap<String, String> {
+fn remote_env(mode: &str) -> HashMap<String, String> {
     if mode != "CUDA_REMOTE" {
         return HashMap::new();
     }
-    let settings = get_runpod_settings();
+    let settings = get_remote_settings();
     let mut env = HashMap::new();
-    env.insert("RUNPOD_ENDPOINT".to_string(), settings.endpoint);
-    env.insert("RUNPOD_API_KEY".to_string(),  settings.api_key);
+    env.insert("REMOTE_ENDPOINT".to_string(), settings.endpoint);
+    env.insert("REMOTE_API_KEY".to_string(),  settings.api_key);
     env
 }
 
@@ -108,7 +108,7 @@ async fn generate_mandelbrot(
     max_iter: i32, palette_length: i32,
     palette_id: i32, samples: i32,
 ) -> Result<String, String> {
-    let env = runpod_env(&mode);
+    let env = remote_env(&mode);
     let args = vec![
         mode,
         project_dir().join("generated-files").join("mandelbrot_set.png").to_string_lossy().into_owned(),
@@ -129,7 +129,7 @@ async fn generate_mandelbrot_hp(
     max_iter: i32, palette_length: i32,
     palette_id: i32, samples: i32,
 ) -> Result<String, String> {
-    let env = runpod_env(&mode);
+    let env = remote_env(&mode);
     let mut args = vec![
         mode,
         project_dir().join("generated-files").join("mandelbrot_set.png").to_string_lossy().into_owned(),
@@ -151,8 +151,8 @@ fn main() {
             generate_mandelbrot_hp,
             get_project_dir,
             get_available_modes,
-            get_runpod_settings,
-            save_runpod_settings,
+            get_remote_settings,
+            save_remote_settings,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

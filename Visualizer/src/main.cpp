@@ -132,10 +132,10 @@ unique_ptr<IterationCalculator> makeCalculator(Mode mode) {
 }
 
 static unique_ptr<CUDARemoteIterationCalculator> makeRemoteCalculator() {
-    const char* endpoint = getenv("RUNPOD_ENDPOINT");
-    const char* apiKey   = getenv("RUNPOD_API_KEY");
+    const char* endpoint = getenv("REMOTE_ENDPOINT");
+    const char* apiKey   = getenv("REMOTE_API_KEY");
     if (!endpoint || !apiKey || endpoint[0] == '\0' || apiKey[0] == '\0') {
-        cerr << "Error: CUDA_REMOTE requires RUNPOD_ENDPOINT and RUNPOD_API_KEY environment variables.\n";
+        cerr << "Error: CUDA_REMOTE requires REMOTE_ENDPOINT and REMOTE_API_KEY environment variables.\n";
         return nullptr;
     }
     return make_unique<CUDARemoteIterationCalculator>(endpoint, apiKey);

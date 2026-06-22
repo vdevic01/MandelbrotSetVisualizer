@@ -463,21 +463,21 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   // ── Settings view ──────────────────────────────────────────────────────────
 
-  const settingsView      = document.getElementById("settings-view") as HTMLElement;
-  const inputEndpoint     = document.getElementById("input-runpod-endpoint") as HTMLInputElement;
-  const inputApiKey       = document.getElementById("input-runpod-api-key") as HTMLInputElement;
-  const btnRunpodSave     = document.getElementById("button-runpod-save") as HTMLButtonElement;
-  const runpodStatus      = document.getElementById("runpod-save-status") as HTMLElement;
+  const settingsView   = document.getElementById("settings-view") as HTMLElement;
+  const inputEndpoint  = document.getElementById("input-remote-endpoint") as HTMLInputElement;
+  const inputApiKey    = document.getElementById("input-remote-api-key") as HTMLInputElement;
+  const btnRemoteSave  = document.getElementById("button-remote-save") as HTMLButtonElement;
+  const remoteStatus   = document.getElementById("remote-save-status") as HTMLElement;
 
   async function openSettings() {
     try {
-      const settings: { endpoint: string; api_key: string } = await invoke("get_runpod_settings");
+      const settings: { endpoint: string; api_key: string } = await invoke("get_remote_settings");
       inputEndpoint.value = settings.endpoint ?? "";
       inputApiKey.value   = settings.api_key  ?? "";
     } catch (e) {
       console.error("Failed to load settings:", e);
     }
-    runpodStatus.style.display = "none";
+    remoteStatus.style.display = "none";
     settingsView.style.display = "flex";
     settingsOpen = true;
   }
@@ -491,19 +491,19 @@ window.addEventListener("DOMContentLoaded", async () => {
   document.getElementById("button-settings")?.addEventListener("click", openSettings);
   document.getElementById("button-settings-back")?.addEventListener("click", closeSettings);
 
-  btnRunpodSave.addEventListener("click", async () => {
+  btnRemoteSave.addEventListener("click", async () => {
     const endpoint = inputEndpoint.value.trim();
     const apiKey   = inputApiKey.value.trim();
     try {
-      await invoke("save_runpod_settings", { endpoint, apiKey });
-      runpodStatus.textContent   = "Saved.";
-      runpodStatus.style.color   = "#6fcf97";
-      runpodStatus.style.display = "";
-      setTimeout(() => { runpodStatus.style.display = "none"; }, 2000);
+      await invoke("save_remote_settings", { endpoint, apiKey });
+      remoteStatus.textContent   = "Saved.";
+      remoteStatus.style.color   = "#6fcf97";
+      remoteStatus.style.display = "";
+      setTimeout(() => { remoteStatus.style.display = "none"; }, 2000);
     } catch (e) {
-      runpodStatus.textContent   = "Failed to save: " + e;
-      runpodStatus.style.color   = "#eb5757";
-      runpodStatus.style.display = "";
+      remoteStatus.textContent   = "Failed to save: " + e;
+      remoteStatus.style.color   = "#eb5757";
+      remoteStatus.style.display = "";
     }
   });
 });

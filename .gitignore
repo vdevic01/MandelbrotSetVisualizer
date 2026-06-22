@@ -407,3 +407,7 @@ cmake-build-*/
 
 *.tiff
 **/Visualizer/**/*.png
+
+# Remote CUDA credentials — contains API key, must never be committed
+remote-settings.json
+runpod-settings.json

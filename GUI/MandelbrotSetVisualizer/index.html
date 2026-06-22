@@ -81,18 +81,18 @@
       </div>
       <div class="settings-body">
         <div class="settings-section">
-          <h3>RunPod</h3>
-          <p class="settings-desc">Endpoint and API key for remote CUDA rendering. Stored locally in <code>runpod-settings.json</code> — never passed as command-line arguments.</p>
-          <label for="input-runpod-endpoint">Endpoint URL</label>
-          <input type="text" id="input-runpod-endpoint" class="form-field"
-                 placeholder="https://api.runpod.ai/v2/{endpoint-id}/runsync">
-          <label for="input-runpod-api-key">API Key</label>
-          <input type="password" id="input-runpod-api-key" class="form-field"
-                 placeholder="your RunPod API key">
+          <h3>Remote CUDA</h3>
+          <p class="settings-desc">Endpoint and API key for remote CUDA rendering. Stored locally in <code>remote-settings.json</code> — never passed as command-line arguments.</p>
+          <label for="input-remote-endpoint">Endpoint URL</label>
+          <input type="text" id="input-remote-endpoint" class="form-field"
+                 placeholder="https://your-worker-host">
+          <label for="input-remote-api-key">API Key</label>
+          <input type="password" id="input-remote-api-key" class="form-field"
+                 placeholder="your API key">
           <div class="button-row">
-            <button id="button-runpod-save">Save</button>
+            <button id="button-remote-save">Save</button>
           </div>
-          <p id="runpod-save-status" class="settings-status" style="display:none;"></p>
+          <p id="remote-save-status" class="settings-status" style="display:none;"></p>
         </div>
       </div>
     </div>
