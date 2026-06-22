@@ -6,6 +6,8 @@ set(VIZ_SRC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 set(SOURCES
     src/main_worker.cpp
     ${VIZ_SRC}/calculators/CUDAUnifiedKernel.cu
+    ${VIZ_SRC}/Sampler.cpp
+    ${VIZ_SRC}/math/FixedPointArithmetics.cpp
 )
 
 add_executable(mandelbrot_cuda_worker ${SOURCES})
@@ -13,6 +15,8 @@ add_executable(mandelbrot_cuda_worker ${SOURCES})
 target_include_directories(mandelbrot_cuda_worker PRIVATE
     ${VIZ_SRC}/calculators
     ${VIZ_SRC}/util
+    ${VIZ_SRC}
+    ${VIZ_SRC}/math
 )
 
 target_compile_features(mandelbrot_cuda_worker PRIVATE cxx_std_17)

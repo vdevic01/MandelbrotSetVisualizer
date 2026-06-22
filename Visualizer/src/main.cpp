@@ -124,19 +124,57 @@ unique_ptr<IterationCalculator> makeCalculator(Mode mode) {
         case Mode::CUDA_LOCAL:
             return make_unique<CUDAIterationCalculator>();
 #endif
-        case Mode::CUDA_REMOTE: {
-            const char* endpoint = getenv("RUNPOD_ENDPOINT");
-            const char* apiKey   = getenv("RUNPOD_API_KEY");
-            if (!endpoint || !apiKey || endpoint[0] == '\0' || apiKey[0] == '\0') {
-                cerr << "Error: CUDA_REMOTE requires RUNPOD_ENDPOINT and RUNPOD_API_KEY environment variables.\n";
-                return nullptr;
-            }
-            return make_unique<CUDARemoteIterationCalculator>(endpoint, apiKey);
-        }
         default:
             cerr << "Error: Mode '" << modeToString(mode) << "' is not supported in this build.\n";
             cerr << "Rebuild with -DENABLE_OPENCL=ON or -DENABLE_CUDA=ON to enable local GPU modes.\n";
             return nullptr;
+    }
+}
+
+static unique_ptr<CUDARemoteIterationCalculator> makeRemoteCalculator() {
+    const char* endpoint = getenv("RUNPOD_ENDPOINT");
+    const char* apiKey   = getenv("RUNPOD_API_KEY");
+    if (!endpoint || !apiKey || endpoint[0] == '\0' || apiKey[0] == '\0') {
+        cerr << "Error: CUDA_REMOTE requires RUNPOD_ENDPOINT and RUNPOD_API_KEY environment variables.\n";
+        return nullptr;
+    }
+    return make_unique<CUDARemoteIterationCalculator>(endpoint, apiKey);
+}
+
+static void createMandelbrotSetRemote(
+    const MandelbrotConfig& config, const ColorManager& colorManager,
+    const CUDARemoteIterationCalculator& calc)
+{
+    cout << "=====================================================\n";
+    ScopedTimer total_timer("Total generation time");
+
+    vector<int> iters;
+    {
+        ScopedTimer timer("Remote execution (sampling + iterations)");
+        if (config.useHighPrecision) {
+            iters = calc.calculateHP(
+                config.reStartHP, config.reEndHP,
+                config.imStartHP, config.imEndHP,
+                config.imageWidth, config.imageHeight,
+                config.samples, static_cast<unsigned int>(config.maxIter));
+        } else {
+            iters = calc.calculate(
+                config.reStart, config.reEnd,
+                config.imStart, config.imEnd,
+                config.imageWidth, config.imageHeight,
+                config.samples, static_cast<unsigned int>(config.maxIter));
+        }
+    }
+
+    vector<Color> pixels;
+    {
+        ScopedTimer timer("Coloring");
+        pixels = colorManager.paint(iters);
+    }
+
+    {
+        ScopedTimer timer("Image generation");
+        saveColorImageToPng(pixels, config.imageWidth, config.imageHeight, config.outputFilename);
     }
 }
 
@@ -279,13 +317,18 @@ int main(int argc, char* argv[]) {
         config.paletteLength,
         config.samples);
 
-    const auto iterCalculator = makeCalculator(config.mode);
-    if (!iterCalculator) return 1;
-
-    if (config.useHighPrecision)
-        createMandelbrotSet<ComplexHP>(config, colorManager, *iterCalculator);
-    else
-        createMandelbrotSet<Complex>(config, colorManager, *iterCalculator);
+    if (config.mode == Mode::CUDA_REMOTE) {
+        const auto remoteCalc = makeRemoteCalculator();
+        if (!remoteCalc) return 1;
+        createMandelbrotSetRemote(config, colorManager, *remoteCalc);
+    } else {
+        const auto iterCalculator = makeCalculator(config.mode);
+        if (!iterCalculator) return 1;
+        if (config.useHighPrecision)
+            createMandelbrotSet<ComplexHP>(config, colorManager, *iterCalculator);
+        else
+            createMandelbrotSet<Complex>(config, colorManager, *iterCalculator);
+    }
 
     return 0;
 }

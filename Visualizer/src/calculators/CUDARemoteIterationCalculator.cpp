@@ -9,12 +9,9 @@
 #include <vector>
 
 #include "base64.h"
+#include "IterationCalculator.h"
 
 using namespace std;
-
-// ---------------------------------------------------------------------------
-// Minimal JSON field extractors (response format is under our control)
-// ---------------------------------------------------------------------------
 
 static string extractJsonString(const string& json, const string& key) {
     const string needle = "\"" + key + "\":\"";
@@ -33,10 +30,6 @@ static double extractJsonDouble(const string& json, const string& key) {
     try { return stod(json.substr(pos)); } catch (...) { return 0.0; }
 }
 
-// ---------------------------------------------------------------------------
-// HTTP POST via cpr
-// ---------------------------------------------------------------------------
-
 string CUDARemoteIterationCalculator::httpPost(const string& body) const {
     const cpr::Response r = cpr::Post(
         cpr::Url{endpoint_},
@@ -51,14 +44,13 @@ string CUDARemoteIterationCalculator::httpPost(const string& body) const {
     return r.text;
 }
 
-// ---------------------------------------------------------------------------
-// Response decoding
-// ---------------------------------------------------------------------------
-
 void CUDARemoteIterationCalculator::decodeResponse(const string& response, vector<int>& iters) {
-    double kernelMs = extractJsonDouble(response, "execution_time_ms");
-    if (kernelMs > 0.0)
-        cout << fixed << setprecision(2) << "Remote kernel time: " << kernelMs << " ms\n";
+    const double samplingMs = extractJsonDouble(response, "sampling_time_ms");
+    const double kernelMs   = extractJsonDouble(response, "execution_time_ms");
+    if (samplingMs > 0.0 || kernelMs > 0.0)
+        cout << fixed << setprecision(2)
+             << "Remote sampling time: " << samplingMs << " ms\n"
+             << "Remote kernel time:   " << kernelMs   << " ms\n";
 
     const string b64 = extractJsonString(response, "iterations");
     if (b64.empty()) {
@@ -78,32 +70,56 @@ void CUDARemoteIterationCalculator::decodeResponse(const string& response, vecto
     memcpy(iters.data(), raw.data(), raw.size());
 }
 
-// ---------------------------------------------------------------------------
-// calculate() overloads
-// ---------------------------------------------------------------------------
-
-template<typename T>
-static string buildRequest(const vector<T>& points, unsigned int maxIter, int useHp) {
-    const auto* raw = reinterpret_cast<const uint8_t*>(points.data());
-    const string b64 = base64::encode(raw, points.size() * sizeof(T));
-
+vector<int> CUDARemoteIterationCalculator::calculate(
+    double reStart, double reEnd, double imStart, double imEnd,
+    int width, int height, int samples, unsigned int maxIter) const
+{
     ostringstream json;
-    json << R"({"input":{"use_hp":)" << useHp
-         << ",\"max_iter\":"           << maxIter
-         << R"(,"points":")"           << b64 << "\"}}";
-    return json.str();
+    json << fixed << setprecision(17)
+         << "{\"use_hp\":0"
+         << ",\"max_iter\":" << maxIter
+         << ",\"samples\":" << samples
+         << ",\"width\":" << width
+         << ",\"height\":" << height
+         << ",\"re_start\":" << reStart
+         << ",\"re_end\":" << reEnd
+         << ",\"im_start\":" << imStart
+         << ",\"im_end\":" << imEnd
+         << "}";
+
+    const string body = "{\"input\":" + json.str() + "}";
+    cout << "Sending LP boundary to RunPod...\n";
+
+    const string response = httpPost(body);
+    vector<int> iters(static_cast<size_t>(width) * height * samples);
+    decodeResponse(response, iters);
+    return iters;
 }
 
-void CUDARemoteIterationCalculator::calculate(
-    const vector<Complex>& points, vector<int>& iters, unsigned int maxIter) const
+vector<int> CUDARemoteIterationCalculator::calculateHP(
+    const fpa::uint reStart[fpa::FP_SIZE], const fpa::uint reEnd[fpa::FP_SIZE],
+    const fpa::uint imStart[fpa::FP_SIZE], const fpa::uint imEnd[fpa::FP_SIZE],
+    int width, int height, int samples, unsigned int maxIter) const
 {
-    cout << "Sending " << points.size() << " LP points to RunPod...\n";
-    decodeResponse(httpPost(buildRequest(points, maxIter, 0)), iters);
-}
+    ostringstream json;
+    json << "{\"use_hp\":1"
+         << ",\"max_iter\":" << maxIter
+         << ",\"samples\":" << samples
+         << ",\"width\":" << width
+         << ",\"height\":" << height;
+    for (int i = 0; i < fpa::FP_SIZE; i++) {
+        json << ",\"re_start_" << i << "\":" << reStart[i]
+             << ",\"re_end_"   << i << "\":" << reEnd[i]
+             << ",\"im_start_" << i << "\":" << imStart[i]
+             << ",\"im_end_"   << i << "\":" << imEnd[i];
+    }
+    json << "}";
 
-void CUDARemoteIterationCalculator::calculate(
-    const vector<ComplexHP>& points, vector<int>& iters, unsigned int maxIter) const
-{
-    cout << "Sending " << points.size() << " HP points to RunPod...\n";
-    decodeResponse(httpPost(buildRequest(points, maxIter, 1)), iters);
+    const string body = "{\"input\":" + json.str() + "}";
+    cout << "Sending HP boundary to RunPod...\n";
+
+    const string response = httpPost(body);
+    vector<int> iters(static_cast<size_t>(width) * height * samples);
+    decodeResponse(response, iters);
+    return iters;
 }

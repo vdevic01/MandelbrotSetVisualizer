@@ -3,19 +3,24 @@
 #include <string>
 #include <vector>
 
-#include "IterationCalculator.h"
+#include "FixedPointArithmetics.h"
 
-// Implements IterationCalculator over HTTP: serialises the pre-sampled points
-// array as base64, POSTs it to a RunPod serverless worker that runs the CUDA
-// kernel, and decodes the returned iteration counts.  Sampling always happens
-// locally — only the kernel step is offloaded.
-class CUDARemoteIterationCalculator : public IterationCalculator {
+// Sends boundary coordinates and image dimensions to a RunPod serverless
+// worker. Sampling and kernel execution happen remotely — only the small
+// boundary description is transmitted, not a pre-sampled points array.
+class CUDARemoteIterationCalculator {
 public:
     CUDARemoteIterationCalculator(std::string endpoint, std::string apiKey)
         : endpoint_(std::move(endpoint)), apiKey_(std::move(apiKey)) {}
 
-    void calculate(const std::vector<Complex>&   points, std::vector<int>& iters, unsigned int maxIter) const override;
-    void calculate(const std::vector<ComplexHP>& points, std::vector<int>& iters, unsigned int maxIter) const override;
+    std::vector<int> calculate(
+        double reStart, double reEnd, double imStart, double imEnd,
+        int width, int height, int samples, unsigned int maxIter) const;
+
+    std::vector<int> calculateHP(
+        const fpa::uint reStart[fpa::FP_SIZE], const fpa::uint reEnd[fpa::FP_SIZE],
+        const fpa::uint imStart[fpa::FP_SIZE], const fpa::uint imEnd[fpa::FP_SIZE],
+        int width, int height, int samples, unsigned int maxIter) const;
 
 private:
     std::string endpoint_;

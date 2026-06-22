@@ -14,6 +14,10 @@ COPY Visualizer/src/calculators/IterationCalculator.h     src/calculators/
 COPY Visualizer/src/calculators/CUDAIterationCalculator.h src/calculators/
 COPY Visualizer/src/calculators/CUDAUnifiedKernel.cu      src/calculators/
 COPY Visualizer/src/util/base64.h                         src/util/
+COPY Visualizer/src/Sampler.h                             src/
+COPY Visualizer/src/Sampler.cpp                           src/
+COPY Visualizer/src/math/FixedPointArithmetics.h          src/math/
+COPY Visualizer/src/math/FixedPointArithmetics.cpp        src/math/
 COPY RunPod/CMakeLists.txt                                ./
 COPY RunPod/src/                                          src/
 

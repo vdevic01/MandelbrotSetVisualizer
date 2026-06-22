@@ -1,16 +1,17 @@
 // RunPod CUDA worker binary.
-// Reads a JSON job from stdin, runs the CUDA iteration kernel, writes results to stdout.
+// Reads boundary coordinates + image dimensions from stdin, samples the complex plane,
+// runs the CUDA iteration kernel, and writes results to stdout.
 //
-// Stdin:  {"use_hp":<0|1>,"max_iter":<N>,"points":"<base64-encoded Complex[] or ComplexHP[]>"}
-// Stdout: {"execution_time_ms":<ms>,"iterations":"<base64-encoded int32[]>"}
-//
-// execution_time_ms is measured with CUDA events (kernel dispatch only, excluding
-// host-device memory transfers and base64 encode/decode).
+// LP stdin:  {"use_hp":0,"max_iter":<N>,"samples":<S>,"width":<W>,"height":<H>,
+//             "re_start":<f>,"re_end":<f>,"im_start":<f>,"im_end":<f>}
+// HP stdin:  {"use_hp":1,"max_iter":<N>,"samples":<S>,"width":<W>,"height":<H>,
+//             "re_start_0":<u>,...,"im_end_3":<u>}
+// stdout:    {"execution_time_ms":<ms>,"iterations":"<base64-encoded int32[]>"}
 
 #include <cuda_runtime.h>
 
+#include <chrono>
 #include <cstdint>
-#include <cstring>
 #include <iomanip>
 #include <iostream>
 #include <iterator>
@@ -19,22 +20,10 @@
 #include <vector>
 
 #include "CUDAIterationCalculator.h"
+#include "Sampler.h"
 #include "base64.h"
 
 using namespace std;
-
-// ---------------------------------------------------------------------------
-// Minimal JSON field extractors
-// ---------------------------------------------------------------------------
-
-static string extractJsonString(const string& json, const string& key) {
-    const string needle = "\"" + key + "\":\"";
-    size_t pos = json.find(needle);
-    if (pos == string::npos) throw runtime_error("Missing JSON field: " + key);
-    pos += needle.size();
-    size_t end = json.find('"', pos);
-    return json.substr(pos, end - pos);
-}
 
 static int extractJsonInt(const string& json, const string& key) {
     const string needle = "\"" + key + "\":";
@@ -44,19 +33,31 @@ static int extractJsonInt(const string& json, const string& key) {
     return stoi(json.substr(pos));
 }
 
-// ---------------------------------------------------------------------------
-// Main
-// ---------------------------------------------------------------------------
+static unsigned int extractJsonUint(const string& json, const string& key) {
+    const string needle = "\"" + key + "\":";
+    size_t pos = json.find(needle);
+    if (pos == string::npos) throw runtime_error("Missing JSON field: " + key);
+    pos += needle.size();
+    return static_cast<unsigned int>(stoul(json.substr(pos)));
+}
+
+static double extractJsonDouble(const string& json, const string& key) {
+    const string needle = "\"" + key + "\":";
+    size_t pos = json.find(needle);
+    if (pos == string::npos) throw runtime_error("Missing JSON field: " + key);
+    pos += needle.size();
+    return stod(json.substr(pos));
+}
 
 int main() {
     try {
-        // Read entire stdin as the JSON request
         const string jsonInput(istreambuf_iterator<char>(cin), {});
 
         const bool useHp   = extractJsonInt(jsonInput, "use_hp") != 0;
         const int  maxIter = extractJsonInt(jsonInput, "max_iter");
-        const string pointsB64 = extractJsonString(jsonInput, "points");
-        const vector<uint8_t> rawPoints = base64::decode(pointsB64);
+        const int  samples = extractJsonInt(jsonInput, "samples");
+        const int  width   = extractJsonInt(jsonInput, "width");
+        const int  height  = extractJsonInt(jsonInput, "height");
 
         CUDAIterationCalculator calc;
 
@@ -66,31 +67,49 @@ int main() {
 
         string iterB64;
 
+        using clock = chrono::steady_clock;
+
+        vector<int> iters;
+        double samplingMs = 0.0;
+
         if (useHp) {
-            const size_t n = rawPoints.size() / sizeof(ComplexHP);
-            vector<ComplexHP> points(n);
-            memcpy(points.data(), rawPoints.data(), rawPoints.size());
+            fpa::uint reStart[fpa::FP_SIZE], reEnd[fpa::FP_SIZE];
+            fpa::uint imStart[fpa::FP_SIZE], imEnd[fpa::FP_SIZE];
+            for (int i = 0; i < fpa::FP_SIZE; i++) {
+                reStart[i] = extractJsonUint(jsonInput, "re_start_" + to_string(i));
+                reEnd[i]   = extractJsonUint(jsonInput, "re_end_"   + to_string(i));
+                imStart[i] = extractJsonUint(jsonInput, "im_start_" + to_string(i));
+                imEnd[i]   = extractJsonUint(jsonInput, "im_end_"   + to_string(i));
+            }
 
-            vector<int> iters(n);
+            auto t0 = clock::now();
+            const auto points = samplePointsFromComplexPlane(
+                height, width, imStart, imEnd, reStart, reEnd, samples);
+            samplingMs = chrono::duration<double, milli>(clock::now() - t0).count();
+
+            iters.resize(points.size());
             cudaEventRecord(evStart);
             calc.calculate(points, iters, static_cast<unsigned int>(maxIter));
             cudaEventRecord(evStop);
-
-            const auto* raw = reinterpret_cast<const uint8_t*>(iters.data());
-            iterB64 = base64::encode(raw, iters.size() * sizeof(int32_t));
         } else {
-            const size_t n = rawPoints.size() / sizeof(Complex);
-            vector<Complex> points(n);
-            memcpy(points.data(), rawPoints.data(), rawPoints.size());
+            const double reStart = extractJsonDouble(jsonInput, "re_start");
+            const double reEnd   = extractJsonDouble(jsonInput, "re_end");
+            const double imStart = extractJsonDouble(jsonInput, "im_start");
+            const double imEnd   = extractJsonDouble(jsonInput, "im_end");
 
-            vector<int> iters(n);
+            auto t0 = clock::now();
+            const auto points = samplePointsFromComplexPlane(
+                height, width, imStart, imEnd, reStart, reEnd, samples);
+            samplingMs = chrono::duration<double, milli>(clock::now() - t0).count();
+
+            iters.resize(points.size());
             cudaEventRecord(evStart);
             calc.calculate(points, iters, static_cast<unsigned int>(maxIter));
             cudaEventRecord(evStop);
-
-            const auto* raw = reinterpret_cast<const uint8_t*>(iters.data());
-            iterB64 = base64::encode(raw, iters.size() * sizeof(int32_t));
         }
+
+        const auto* raw = reinterpret_cast<const uint8_t*>(iters.data());
+        iterB64 = base64::encode(raw, iters.size() * sizeof(int32_t));
 
         cudaEventSynchronize(evStop);
         float kernelMs = 0.0f;
@@ -98,7 +117,8 @@ int main() {
         cudaEventDestroy(evStart);
         cudaEventDestroy(evStop);
 
-        cout << "{\"execution_time_ms\":" << fixed << setprecision(3) << kernelMs
+        cout << "{\"sampling_time_ms\":" << fixed << setprecision(3) << samplingMs
+             << ",\"execution_time_ms\":" << kernelMs
              << ",\"iterations\":\"" << iterB64 << "\"}" << endl;
 
     } catch (const exception& e) {
