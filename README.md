@@ -11,7 +11,8 @@ An interactive Mandelbrot set explorer with a Tauri/TypeScript GUI and a high-pe
 - **OpenMP parallelism** — CPU rendering uses all available cores
 - **Anti-aliasing** — configurable samples-per-pixel with random sub-pixel jitter
 - **8 colour palettes** — cyclic palettes with configurable cycle length
-- **Multiple compute backends** — CPU (default), OpenCL, CUDA (optional, requires separate build flags)
+- **Multiple compute backends** — CPU (default), OpenCL, CUDA local, and CUDA remote (optional, see below)
+- **Remote GPU rendering** — offload CUDA execution to a remote GPU worker over HTTP; no local NVIDIA GPU required
 - **Headless CLI** — the C++ binary can be used standalone without the GUI
 
 ---
@@ -27,22 +28,31 @@ MandelbrotSetVisualizer/
 │       ├── Mode.h               Compute mode enum
 │       ├── Sampler.cpp/.h       Complex-plane pixel sampling (LP + HP)
 │       ├── calculators/
-│       │   ├── IterationCalculator.h          Interface
-│       │   ├── SequentialIterationCalculator  CPU/OpenMP implementation
-│       │   ├── OpenCLIterationCalculator      OpenCL implementation
-│       │   └── CUDAUnifiedKernel.cu           CUDA implementation
+│       │   ├── IterationCalculator.h               Interface (CPU/OpenCL/CUDA)
+│       │   ├── SequentialIterationCalculator        CPU/OpenMP implementation
+│       │   ├── OpenCLIterationCalculator            OpenCL implementation
+│       │   ├── CUDAUnifiedKernel.cu                CUDA implementation
+│       │   └── CUDARemoteIterationCalculator        HTTP client for remote CUDA worker
 │       ├── color/
-│       │   ├── ColorManager.cpp/.h            Cyclic palette colouring
-│       │   └── Palettes.h                     Palette definitions
+│       │   ├── ColorManager.cpp/.h                 Cyclic palette colouring
+│       │   └── Palettes.h                          Palette definitions
 │       ├── math/
-│       │   └── FixedPointArithmetics.cpp/.h   128-bit fixed-point library
+│       │   └── FixedPointArithmetics.cpp/.h        128-bit fixed-point library
 │       ├── kernels/
-│       │   ├── OpenCLKernel.cl                OpenCL double-precision kernel
-│       │   └── OpenCLKernelHP.cl              OpenCL high-precision kernel
+│       │   ├── OpenCLKernel.cl                     OpenCL double-precision kernel
+│       │   └── OpenCLKernelHP.cl                   OpenCL high-precision kernel
 │       └── util/
 │           ├── ScopedTimer.h    Scoped wall-clock timer
+│           ├── base64.h         Header-only base64 encode/decode
 │           ├── ImageWriter      PNG output via fpng
 │           └── fpng             Fast PNG encoder
+├── Worker/                      Remote CUDA worker
+│   ├── Dockerfile               Multi-stage CUDA build
+│   ├── CMakeLists.txt           Worker binary build
+│   ├── handler.py               HTTP server (serves / and /ping)
+│   ├── requirements.txt
+│   └── src/
+│       └── main_worker.cpp      Reads boundary JSON, samples, runs CUDA kernel
 └── GUI/
     └── MandelbrotSetVisualizer/ Tauri application
         ├── src/
@@ -50,7 +60,7 @@ MandelbrotSetVisualizer/
         │   └── styles.css
         ├── index.html
         └── src-tauri/
-            ├── src/main.rs      Tauri commands, sidecar bridge
+            ├── src/main.rs      Tauri commands, sidecar bridge, remote settings
             └── tauri.conf.json
 ```
 
@@ -65,7 +75,8 @@ MandelbrotSetVisualizer/
 | CMake | 3.20+ | Build system |
 | GCC / MinGW-w64 | Any modern | C++17 required |
 | OpenMP | — | Bundled with GCC; enables multi-core CPU rendering |
-| CUDA Toolkit | 11+ | Optional; enable with `-DENABLE_CUDA=ON` |
+| CUDA Toolkit | 11+ | Optional; enable local GPU rendering with `-DENABLE_CUDA=ON` |
+| libcurl | 7.x+ | Always required (used by `CUDA_REMOTE` mode). Install via your package manager: `apt install libcurl4-openssl-dev`, `brew install curl`, or vcpkg/MSYS2 on Windows. The [cpr](https://github.com/libcpr/cpr) wrapper is fetched automatically by CMake via FetchContent — no manual installation needed. |
 | OpenCL | — | Optional; enable with `-DENABLE_OPENCL=ON` |
 
 ### GUI
@@ -98,7 +109,7 @@ To enable GPU backends pass additional flags at configure time:
 # OpenCL
 cmake -S Visualizer -B Visualizer/cmake-build-release -DCMAKE_BUILD_TYPE=Release -DENABLE_OPENCL=ON
 
-# CUDA
+# CUDA (local GPU)
 cmake -S Visualizer -B Visualizer/cmake-build-release -DCMAKE_BUILD_TYPE=Release -DENABLE_CUDA=ON
 ```
 
@@ -238,6 +249,82 @@ mandelbrot_visualizer --list-modes
 | `CPU_PARALLEL` | Multi-threaded CPU via OpenMP. Always available. |
 | `OPENCL_LOCAL` | GPU via OpenCL. Requires `-DENABLE_OPENCL=ON` at build time and at least one OpenCL platform present at runtime. |
 | `CUDA_LOCAL` | GPU via CUDA. Requires `-DENABLE_CUDA=ON` at build time and an NVIDIA GPU. |
-| `CUDA_REMOTE` | Reserved for future remote CUDA execution. Not yet implemented. |
+| `CUDA_REMOTE` | GPU via CUDA on a remote worker. Always compiled in — no local GPU or CUDA Toolkit needed. Requires a deployed worker and credentials configured in the GUI settings. |
 
 The GUI populates the Mode dropdown by running `mandelbrot_visualizer --list-modes` at startup, so only modes available in the current build and on the current hardware are shown.
+
+---
+
+## Remote CUDA deployment
+
+`CUDA_REMOTE` offloads pixel sampling and the CUDA iteration kernel to a remote GPU worker, allowing GPU-accelerated rendering from machines without a local NVIDIA GPU.
+
+### Architecture
+
+```
+Local machine                              Remote worker (load balancer)
+──────────────────────────────────────     ─────────────────────────────────────
+Tauri GUI → C++ sidecar                    handler.py (HTTP server, port 80)
+  HTTP POST: boundary coords + dims   ──►    mandelbrot_cuda_worker
+    (~200 bytes, LP or HP)                      samplePointsFromComplexPlane (CPU)
+                                                CUDA kernel
+                                     ◄──    JSON: sampling_time_ms,
+                                                  execution_time_ms,
+                                                  base64 iterations
+  Coloring + PNG save (CPU)
+```
+
+`CUDARemoteIterationCalculator` sends only the viewport boundary and image dimensions to the worker. Sampling and kernel execution both happen remotely, keeping the request payload at ~200 bytes regardless of image size or sample count.
+
+### Building and pushing the Docker image
+
+Must be run from the **project root** (the build context includes files from both `Visualizer/` and `Worker/`):
+
+```bash
+docker build -f Worker/Dockerfile -t your-dockerhub/mandelbrot-worker:latest .
+docker push your-dockerhub/mandelbrot-worker:latest
+```
+
+### Deploying the worker
+
+1. Push the image to any container registry and deploy it on a GPU instance (e.g. RunPod, Vast.ai, AWS EC2 GPU, or any machine with an NVIDIA GPU and Docker).
+2. Ensure the container has GPU access and set `PORT=80` in the environment.
+3. The worker needs an HTTP load balancer or public port forwarding so the client can reach it.
+4. Note the public endpoint URL.
+
+### Configuring the GUI
+
+1. Build the C++ backend normally — `CUDA_REMOTE` is always compiled in. No CUDA Toolkit or local GPU required.
+2. Open the **Settings** view (button in the sidebar footer, always accessible).
+3. Enter the endpoint URL and your API key, then click **Save**.
+4. Select **CUDA Remote** in the Mode dropdown.
+5. Credentials are stored in `remote-settings.json` next to the application and injected as `REMOTE_ENDPOINT` / `REMOTE_API_KEY` environment variables at render time. They are never passed as command-line arguments or committed to the repository.
+
+### Request format
+
+The C++ client sends a compact JSON body directly to the worker:
+
+**Standard precision:**
+```json
+{"use_hp":0,"max_iter":1000,"samples":4,"width":900,"height":600,
+ "re_start":-2.0,"re_end":1.0,"im_start":-1.0,"im_end":1.0}
+```
+
+**High precision** (4 × 32-bit fixed-point words per coordinate):
+```json
+{"use_hp":1,"max_iter":1000,"samples":4,"width":900,"height":600,
+ "re_start_0":W,"re_start_1":X,"re_start_2":Y,"re_start_3":Z, ...}
+```
+
+### Response format
+
+```json
+{
+  "sampling_time_ms":  12.3,
+  "execution_time_ms": 42.5,
+  "handler_time_ms":   58.1,
+  "iterations": "<base64-encoded int32 array>"
+}
+```
+
+`sampling_time_ms` is measured with `chrono::steady_clock` (CPU sampling). `execution_time_ms` is measured with CUDA events (kernel only). `handler_time_ms` is the total subprocess wall time measured by the Python handler.

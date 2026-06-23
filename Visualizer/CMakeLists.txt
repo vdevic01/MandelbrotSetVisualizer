@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 
 option(ENABLE_OPENCL "Enable OpenCL backend (OPENCL_LOCAL mode)" OFF)
-option(ENABLE_CUDA   "Enable CUDA backend (CUDA_LOCAL / CUDA_REMOTE modes)" OFF)
+option(ENABLE_CUDA   "Enable local CUDA backend (CUDA_LOCAL mode — requires NVIDIA GPU + CUDA Toolkit)" OFF)
 
 set(SOURCES
     src/main.cpp
@@ -15,6 +15,8 @@ set(SOURCES
     src/calculators/OpenCLIterationCalculator.cpp
     src/calculators/CUDAIterationCalculator.h
     src/calculators/CUDAUnifiedKernel.cu
+    src/calculators/CUDARemoteIterationCalculator.h
+    src/calculators/CUDARemoteIterationCalculator.cpp
     src/color/ColorManager.cpp
     src/color/ColorManager.h
     src/color/Palettes.h
@@ -30,9 +32,10 @@ set(SOURCES
     src/kernels/OpenCLKernelHP.cl
 )
 
-# Exclude GPU implementation files from compilation by default so the project
+# Exclude hardware-specific GPU files from compilation by default so the project
 # builds without OpenCL/CUDA installed. CLion still indexes them as part of the
 # target, which eliminates the "not in any project target" warning.
+# CUDARemoteIterationCalculator.cpp is NOT excluded — it is plain C++ (HTTP only).
 set_source_files_properties(
     src/calculators/OpenCLIterationCalculator.cpp
     src/calculators/CUDAUnifiedKernel.cu
@@ -157,3 +160,17 @@ if(ENABLE_CUDA)
     target_compile_definitions(mandelbrot_visualizer PRIVATE ENABLE_CUDA)
     set_target_properties(mandelbrot_visualizer PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 endif()
+
+# cpr (C++ Requests) wraps libcurl — always linked for CUDA_REMOTE mode.
+# BUILD_SHARED_LIBS=OFF forces cpr and its bundled curl to build as static
+# archives so the final binary is self-contained (no DLLs needed at runtime).
+include(FetchContent)
+FetchContent_Declare(
+    cpr
+    GIT_REPOSITORY https://github.com/libcpr/cpr.git
+    GIT_TAG        1.11.2
+)
+set(CPR_USE_SYSTEM_CURL OFF CACHE BOOL "" FORCE)
+set(BUILD_SHARED_LIBS   OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(cpr)
+target_link_libraries(mandelbrot_visualizer cpr::cpr)

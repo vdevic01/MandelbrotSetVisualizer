@@ -1,5 +1,6 @@
 #include <cuda_runtime.h>
 #include <device_launch_parameters.h>
+#include <cstdint>
 #include <iostream>
 
 #include "CUDAIterationCalculator.h"
@@ -201,7 +202,7 @@ __global__ void calculateIters(const ComplexHP* points, int32_t* iterations)
 
 
 template<typename T_ComplexType>
-int calculateItersInternal(const std::vector<T_ComplexType>& points, std::vector<int>& iters, const unsigned int maxIter) {
+void calculateItersInternal(const std::vector<T_ComplexType>& points, std::vector<int>& iters, const unsigned int maxIter) {
 	const size_t N = points.size();
 
 	T_ComplexType* devicePointsBuffer;
@@ -223,14 +224,12 @@ int calculateItersInternal(const std::vector<T_ComplexType>& points, std::vector
 
 	cudaFree(devicePointsBuffer);
 	cudaFree(deviceItersBuffer);
-
-	return 0;
 }
 
-int CUDAIterationCalculator::calculate(const std::vector<Complex>& points, std::vector<int>& iters, const unsigned int maxIter) const {
-	return calculateItersInternal<Complex>(points, iters, maxIter);
+void CUDAIterationCalculator::calculate(const std::vector<Complex>& points, std::vector<int>& iters, unsigned int maxIter) const {
+	calculateItersInternal<Complex>(points, iters, maxIter);
 }
 
-int CUDAIterationCalculator::calculate(const std::vector<ComplexHP>& points, std::vector<int>& iters, const unsigned int maxIter) const {
-	return calculateItersInternal<ComplexHP>(points, iters, maxIter);
+void CUDAIterationCalculator::calculate(const std::vector<ComplexHP>& points, std::vector<int>& iters, unsigned int maxIter) const {
+	calculateItersInternal<ComplexHP>(points, iters, maxIter);
 }
