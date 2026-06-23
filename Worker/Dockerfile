@@ -1,5 +1,5 @@
 # Build this from the project root:
-#   docker build -f RunPod/Dockerfile -t mandelbrot-worker .
+#   docker build -f Worker/Dockerfile -t mandelbrot-worker .
 
 # ── Stage 1: build the worker binary ─────────────────────────────────────────
 FROM nvidia/cuda:12.6.0-devel-ubuntu24.04 AS builder
@@ -18,8 +18,8 @@ COPY Visualizer/src/Sampler.h                             src/
 COPY Visualizer/src/Sampler.cpp                           src/
 COPY Visualizer/src/math/FixedPointArithmetics.h          src/math/
 COPY Visualizer/src/math/FixedPointArithmetics.cpp        src/math/
-COPY RunPod/CMakeLists.txt                                ./
-COPY RunPod/src/                                          src/
+COPY Worker/CMakeLists.txt                                ./
+COPY Worker/src/                                          src/
 
 RUN cmake -B build -DCMAKE_BUILD_TYPE=Release \
     && cmake --build build --parallel
@@ -34,8 +34,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 COPY --from=builder /build/build/mandelbrot_cuda_worker ./
-COPY RunPod/handler.py       ./
-COPY RunPod/requirements.txt ./
+COPY Worker/handler.py       ./
+COPY Worker/requirements.txt ./
 
 RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
 
