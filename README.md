@@ -290,9 +290,15 @@ Tauri GUI → C++ sidecar                    handler.py (HTTP server, port 80)
 
 `CUDARemoteIterationCalculator` sends only the viewport boundary and image dimensions to the worker. Sampling and kernel execution both happen remotely, keeping the request payload at ~200 bytes regardless of image size or sample count.
 
-### Building and pushing the Docker image
+### Automatic builds from `main`
 
-Must be run from the **project root** (the build context includes files from both `Visualizer/` and `Worker/`):
+Our deployed worker rebuilds itself automatically. The serverless endpoint (RunPod) is linked to this GitHub repository: it tracks the **`main`** branch, builds `Worker/Dockerfile` with the repository root as the build context, and picks up the new image when `main` changes. So **merging a change to `main` is what updates the worker**; there is no manual `docker push` step. A change on any other branch does not reach the worker until it is merged.
+
+The Dockerfile copies source files one by one. If worker code starts using a new file from `Visualizer/src`, add a `COPY` line for it in `Worker/Dockerfile`, otherwise the automatic build fails.
+
+### Building and pushing the Docker image manually
+
+Only needed for other platforms, or to test the image locally. Run it from the **project root** (the build context includes files from both `Visualizer/` and `Worker/`):
 
 ```bash
 docker build -f Worker/Dockerfile -t your-dockerhub/mandelbrot-worker:latest .
