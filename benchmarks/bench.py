@@ -234,7 +234,7 @@ def cmd_compare(args):
 
 
 def chart_html(a, b):
-    """Self-contained HTML page (no dependencies): per stage, old vs new bars scaled to the slower of the two."""
+    """Self-contained HTML page (no dependencies): per stage, old vs new bars scaled so the whiskers fit."""
     esc = html.escape
     rows = []
     for scene, bdata in b["scenes"].items():
@@ -251,7 +251,7 @@ def chart_html(a, b):
             change = percent_change(ov["mean_ms"], nv["mean_ms"])
             noise = max(ov["stdev_ms"] / ov["mean_ms"], nv["stdev_ms"] / nv["mean_ms"]) * 100 if ov["mean_ms"] and nv["mean_ms"] else 0
             verdict = "slower" if change > max(5.0, noise) else "faster" if change < -max(5.0, noise) else "same"
-            scale = max(ov["mean_ms"], nv["mean_ms"]) or 1.0
+            scale = max(ov["mean_ms"] + ov["stdev_ms"], nv["mean_ms"] + nv["stdev_ms"]) or 1.0   # leave room for the whiskers
             bars = ""
             for label, v, cls in (("old", ov, "old"), ("new", nv, "new " + verdict)):
                 width = v["mean_ms"] / scale * 100
@@ -260,7 +260,7 @@ def chart_html(a, b):
                          '<div class="bar %s" style="width:%.2f%%"></div>'
                          '<div class="whisker" style="left:%.2f%%;width:%.2f%%"></div></div>'
                          '<span class="val">%.0f ms <small>&plusmn;%.0f</small></span></div>'
-                         % (label, cls, width, max(0, width - err), min(2 * err, 100 - max(0, width - err)),
+                         % (label, cls, width, max(0, width - err), min(2 * err, 100 - max(0, width - err), width + err),
                             v["mean_ms"], v["stdev_ms"]))
             rows.append('<div class="stage"><div class="stage-head"><b>%s</b><span class="badge %s">%+.1f%%</span></div>%s</div>'
                         % (esc(stage), verdict, change, bars))
@@ -282,7 +282,7 @@ h1{font-size:20px;margin:0 0 4px}h2{font-size:17px;margin:28px 0 10px}.sub{color
     head = ('<h1>Benchmark comparison</h1><p class="sub">old: <b>%s</b> %s</p><p class="sub">new: <b>%s</b> %s</p>'
             % (a["commit"][:10], esc(a["subject"]), b["commit"][:10], esc(b["subject"])))
     note = ('<p class="note">Bars show the mean, with a whisker for &plusmn; one standard deviation; each pair is scaled '
-            'to the slower of the two. A change counts as slower/faster only when it exceeds 5%% and the run-to-run noise.</p>')
+            'to the larger of the two (mean + deviation). A change counts as slower/faster only when it exceeds 5%% and the run-to-run noise.</p>')
     return ('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
             '<title>Benchmark comparison</title><style>%s</style></head><body>%s%s%s</body></html>'
             % (css, head, "".join(rows), note))
