@@ -10,6 +10,7 @@ iterations: 6232 ms"), and stores a machine-readable report named after the comm
     python benchmarks/bench.py run main             # benchmark any commit / branch / tag
     python benchmarks/bench.py run 8bfd514 --force  # re-run an old commit (overwrites its report)
     python benchmarks/bench.py compare main HEAD    # table of the difference between two stored reports
+    python benchmarks/bench.py clean                # delete all worktrees and build folders (keeps reports)
 
 Reports live in benchmarks/results/<full commit hash>.json (git-ignored: timings are only comparable
 between runs on the same machine). Uncommitted changes are NOT benchmarked - commit first.
@@ -218,6 +219,33 @@ def cmd_compare(args):
             print("%-6s %-36s %10.1f %10.1f %+8.1f%%" % (scene, stage, ov["mean_ms"], nv["mean_ms"], change))
 
 
+# ----------------------------------------------------------------------------------------------- clean
+def cmd_clean(args):
+    """Removes the worktrees and build folders (the next run of a commit rebuilds it). Reports are kept."""
+    commits = [resolve(args.rev)] if args.rev else sorted(
+        {p.name for d in (WORK_DIR, BUILD_DIR) if d.exists() for p in d.iterdir() if p.is_dir()})
+    if not commits:
+        print("nothing to clean")
+        return
+    for commit in commits:
+        for path, kind in ((WORK_DIR / commit, "worktree"), (BUILD_DIR / commit, "build folder")):
+            if not path.exists():
+                continue
+            print("%s %s: %s" % ("would remove" if args.dry_run else "removing", kind, path.relative_to(REPO)))
+            if args.dry_run:
+                continue
+            if kind == "worktree":
+                subprocess.run(["git", "worktree", "remove", "--force", str(path)], cwd=REPO, check=False,
+                               capture_output=True)
+            if path.exists():
+                shutil.rmtree(path, ignore_errors=True)
+    if not args.dry_run:
+        git("worktree", "prune")
+        for d in (WORK_DIR, BUILD_DIR):   # remove the parent folders once empty
+            if d.exists() and not any(d.iterdir()):
+                d.rmdir()
+
+
 # ----------------------------------------------------------------------------------------------- main
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -237,6 +265,11 @@ def main():
     cmp_.add_argument("old")
     cmp_.add_argument("new")
     cmp_.set_defaults(func=cmd_compare)
+
+    clean = sub.add_parser("clean", help="delete worktrees and build folders (reports are kept)")
+    clean.add_argument("rev", nargs="?", help="only clean this commit (default: all)")
+    clean.add_argument("--dry-run", action="store_true", help="show what would be removed")
+    clean.set_defaults(func=cmd_clean)
 
     args = parser.parse_args()
     args.func(args)
