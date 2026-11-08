@@ -69,24 +69,55 @@ async fn get_available_modes() -> Result<Vec<String>, String> {
 }
 
 async fn run_sidecar(args: Vec<String>, env: HashMap<String, String>) -> Result<String, String> {
+    let mode = args.first().cloned().unwrap_or_default();
+    eprintln!("[renderer] starting, mode {}", mode);
+
     let (mut rx, _child) = Command::new_sidecar("mandelbrot_visualizer")
-        .map_err(|e| e.to_string())?
+        .map_err(|e| {
+            eprintln!("[renderer] cannot find the mandelbrot_visualizer binary: {}", e);
+            format!("Cannot find the renderer binary (mandelbrot_visualizer): {}", e)
+        })?
         .args(args)
         .envs(env)
         .spawn()
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            eprintln!("[renderer] failed to start: {}", e);
+            format!("Failed to start the renderer: {}", e)
+        })?;
+
+    // Keep what the renderer wrote to stderr, so a failure can be reported to the UI.
+    let mut stderr_lines: Vec<String> = Vec::new();
 
     while let Some(event) = rx.recv().await {
         match event {
-            CommandEvent::Stdout(line)  => print!("{}", line),
-            CommandEvent::Stderr(line)  => eprint!("{}", line),
+            CommandEvent::Stdout(line) => print!("{}", line),
+            CommandEvent::Stderr(line) => {
+                eprint!("{}", line);
+                stderr_lines.push(line.trim_end().to_string());
+            }
+            CommandEvent::Error(message) => {
+                eprintln!("[renderer] error: {}", message);
+                stderr_lines.push(message);
+            }
             CommandEvent::Terminated(p) => {
-                return Ok(p.code.map(|c| c.to_string()).unwrap_or_default());
+                eprintln!("[renderer] finished with exit code {:?}", p.code);
+                return match p.code {
+                    Some(0) => Ok("0".to_string()),
+                    code => {
+                        let details = stderr_lines.join("\n");
+                        let code_text = code.map(|c| c.to_string()).unwrap_or_else(|| "unknown".to_string());
+                        Err(if details.is_empty() {
+                            format!("The renderer failed (exit code {}) without an error message.", code_text)
+                        } else {
+                            details
+                        })
+                    }
+                };
             }
             _ => {}
         }
     }
-    Ok(String::new())
+    Err("The renderer stopped without reporting a result.".to_string())
 }
 
 fn remote_env(mode: &str) -> HashMap<String, String> {

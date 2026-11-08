@@ -162,3 +162,17 @@ label{
   font-size: 0.85rem;
   margin-top: 4px;
 }
+.render-status {
+  font-size: 0.85rem;
+  padding: 6px 10px;
+  margin-bottom: 6px;
+  border-radius: 3px;
+  background: #2a2a2f;
+  color: #ccc;
+}
+.render-status.error {
+  background: #4a1f24;
+  color: #ffb3b8;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
