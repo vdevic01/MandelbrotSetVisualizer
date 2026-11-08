@@ -1,11 +1,11 @@
 #pragma once
 
-// Header-only core of the fixed-point arithmetic: every operation as a template on the number of fraction
-// words F (or on the word count N). Nothing here allocates; all scratch buffers are stack arrays sized at
-// compile time. Include this directly to use a format chosen at compile time (no dispatch cost); the
-// runtime-dispatching API is in FixedPointArithmetics.h.
+// CPU-only part of the fixed-point arithmetic: everything the GPU kernels do not need (comparison with
+// equality, division, double conversions, random numbers). Includes the shared part, so including this
+// header gives the complete set of fpa::core operations. Nothing here allocates; all scratch buffers are
+// stack arrays sized at compile time. The runtime-dispatching API is in FixedPointArithmetics.h.
 
-#include "FixedPointArithmetics.h"
+#include "FixedPointShared.h"
 
 #include <algorithm>
 #include <cmath>
@@ -15,61 +15,8 @@
 namespace fpa::core {
 
 	// ---------------------------------------------------------------------------------------------
-	// Word-level primitives. N is the number of 32-bit words; all buffers live on the stack.
+	// CPU-only word-level helpers.
 	// ---------------------------------------------------------------------------------------------
-
-	template<int N>
-	void addWords(const uint* a, const uint* b, uint* c) {
-		uint carry = 0;
-		for (int i = N - 1; i >= 0; i--) {
-			ulong temp = (ulong)a[i] + b[i] + carry;
-			carry = temp >> WORD_BITS;
-			c[i] = temp;
-		}
-	}
-
-	template<int N>
-	void incWords(const uint* a, uint* c) {
-		uint carry = 1;
-		for (int i = N - 1; i >= 0; i--) {
-			ulong temp = (ulong)a[i] + carry;
-			carry = temp >> WORD_BITS;
-			c[i] = (uint)temp;
-		}
-	}
-
-	template<int N>
-	void cmplWords(const uint* a, uint* c) {
-		for (int i = 0; i < N; i++) {
-			c[i] = ~a[i];
-		}
-		incWords<N>(c, c);
-	}
-
-	// a - b == a + ~b + 1. Computed word by word with an initial carry of 1, so the output may be
-	// the same buffer as either input.
-	template<int N>
-	void subWords(const uint* a, const uint* b, uint* c) {
-		uint carry = 1;
-		for (int i = N - 1; i >= 0; i--) {
-			ulong temp = (ulong)a[i] + (uint)~b[i] + carry;
-			carry = temp >> WORD_BITS;
-			c[i] = temp;
-		}
-	}
-
-	template<int N>
-	bool gtWords(const uint* a, const uint* b) {
-		uint signA = a[0] >> SIGN_SHIFT;
-		uint signB = b[0] >> SIGN_SHIFT;
-		if (signA != signB) {
-			return signA == 0;
-		}
-		uint diff[N];
-		subWords<N>(b, a, diff);
-		uint sign = diff[0] >> SIGN_SHIFT;
-		return sign == 1;
-	}
 
 	template<int N>
 	bool gteWords(const uint* a, const uint* b) {
@@ -168,64 +115,6 @@ namespace fpa::core {
 	// ---------------------------------------------------------------------------------------------
 	// Format-level operations. F is the number of fraction words.
 	// ---------------------------------------------------------------------------------------------
-
-	template<int F>
-	void mulCmplImpl(const uint* a, const uint* b, uint* c) {
-		constexpr int SIZE = WHOLE_PART + F;
-		constexpr int MUL_BUFFER_SIZE = SIZE * 2;
-
-		ulong result[MUL_BUFFER_SIZE] = {};
-
-		uint tempA[SIZE];
-		uint tempB[SIZE];
-		const uint* aAbs = a;
-		const uint* bAbs = b;
-		uint aSign = a[0] >> SIGN_SHIFT;
-		uint bSign = b[0] >> SIGN_SHIFT;
-		bool negate = false;
-		if (aSign != bSign) {
-			if (aSign == 1) {
-				cmplWords<SIZE>(a, tempA);
-				aAbs = tempA;
-			}
-			else {
-				cmplWords<SIZE>(b, tempB);
-				bAbs = tempB;
-			}
-			negate = true;
-		}
-		else if (aSign == 1 && bSign == 1) {
-			cmplWords<SIZE>(a, tempA);
-			cmplWords<SIZE>(b, tempB);
-			aAbs = tempA;
-			bAbs = tempB;
-		}
-
-		for (int i = SIZE - 1; i >= 0; i--) {
-			if (aAbs[i] == 0)
-				continue;
-			for (int j = SIZE - 1; j >= 0; j--) {
-				if (bAbs[j] == 0)
-					continue;
-				ulong temp = (ulong)aAbs[i] * bAbs[j];
-				ulong tempLSB = temp & WORD_MASK;
-				ulong tempMSB = temp >> WORD_BITS;
-				result[i + j + 1] += tempLSB;
-				result[i + j] += tempMSB;
-			}
-		}
-		for (int i = MUL_BUFFER_SIZE - 1; i >= 1; i--) {
-			result[i - 1] += result[i] >> WORD_BITS;
-		}
-		// The product has 2 * WHOLE_PART whole words; keep the window that starts at its last whole word.
-		const int leftBound = WHOLE_PART * 2 - 1;
-		const int rightBound = leftBound + SIZE;
-		for (int i = leftBound; i < rightBound; i++) {
-			c[i - leftBound] = result[i];
-		}
-		if (negate)
-			cmplWords<SIZE>(c, c);
-	}
 
 	template<int F>
 	void divImpl(const uint* a, const uint* b, uint* c) {
@@ -367,18 +256,10 @@ namespace fpa::core {
 	}
 
 	// ---------------------------------------------------------------------------------------------
-	// Format-level entry points. F is the number of fraction words and must be a compile-time constant.
-	// Use these from performance-critical code: there is no runtime dispatch, so the compiler can inline
-	// the whole operation. The runtime fractionWords API in FixedPointArithmetics.h dispatches to them.
+	// CPU-only format-level entry points (see FixedPointShared.h for add, inc, cmpl, sub, gt, mul).
 	// ---------------------------------------------------------------------------------------------
 
-	template<int F> inline void add(const uint* a, const uint* b, uint* c) { addWords<WHOLE_PART + F>(a, b, c); }
-	template<int F> inline void inc(const uint* a, uint* c) { incWords<WHOLE_PART + F>(a, c); }
-	template<int F> inline void cmpl(const uint* a, uint* c) { cmplWords<WHOLE_PART + F>(a, c); }
-	template<int F> inline void sub(const uint* a, const uint* b, uint* c) { subWords<WHOLE_PART + F>(a, b, c); }
-	template<int F> inline bool gt(const uint* a, const uint* b) { return gtWords<WHOLE_PART + F>(a, b); }
 	template<int F> inline bool gte(const uint* a, const uint* b) { return gteWords<WHOLE_PART + F>(a, b); }
-	template<int F> inline void mul(const uint* a, const uint* b, uint* c) { mulCmplImpl<F>(a, b, c); }
 	template<int F> inline void div(const uint* a, const uint* b, uint* c) { divImpl<F>(a, b, c); }
 	template<int F> inline void floatingToFixed(double decimal, uint* out) { floatingToFixedImpl<F>(decimal, out); }
 	template<int F> inline double fixedToFloating(const uint* fpNum) { return fixedToFloatingImpl<F>(fpNum); }
