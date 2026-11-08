@@ -263,13 +263,18 @@ namespace fpa {
 			copy(aAbs, aAbs + SIZE, buffA);
 			copy(bAbs, bAbs + SIZE, buffB + F);
 
+			// Build the quotient in a local, zero-initialised buffer and only write the output at the end.
+			// This makes the result independent of the output's previous contents and lets the output be
+			// the same buffer as either input.
+			uint quotient[SIZE] = { 0 };
+
 			uint tempBuffer[DIV_BUFFER_SIZE];
 			for (int i = DIV_BUFFER_SIZE * WORD_BITS - 1; i >= 0; i--) {
 				rightShiftWords<DIV_BUFFER_SIZE>(buffA, i, tempBuffer);
 				if (gteWords<DIV_BUFFER_SIZE>(tempBuffer, buffB)) {
 					uint temp[SIZE] = { 0 };
 					power<SIZE>(i, temp);
-					addWords<SIZE>(c, temp, c);
+					addWords<SIZE>(quotient, temp, quotient);
 					leftShiftWords<DIV_BUFFER_SIZE>(buffB, i, tempBuffer);
 					subWords<DIV_BUFFER_SIZE>(buffA, tempBuffer, tempBuffer);
 					copy(tempBuffer, tempBuffer + DIV_BUFFER_SIZE, buffA);
@@ -277,7 +282,8 @@ namespace fpa {
 			}
 
 			if (negate)
-				cmplWords<SIZE>(c, c);
+				cmplWords<SIZE>(quotient, quotient);
+			copy(quotient, quotient + SIZE, c);
 		}
 
 		template<int F>
