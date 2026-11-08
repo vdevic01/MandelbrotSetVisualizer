@@ -13,10 +13,10 @@ python benchmarks/bench.py run                   # benchmark HEAD
 python benchmarks/bench.py run main              # any commit, branch or tag
 python benchmarks/bench.py run 8bfd514 --force   # rerun an old commit (overwrites its report)
 python benchmarks/bench.py compare main HEAD     # table + HTML chart (opens in the browser)
-python benchmarks/bench.py clean                 # delete worktrees and build folders (keeps reports)
+python benchmarks/bench.py clean                 # delete saved executables (keeps reports and charts)
 ```
 
-`compare` also writes `benchmarks/results/compare-<old>-<new>.html`: per stage, old and new bars with a noise whisker and the % change (red = slower, green = faster, only when the change is above 5% and above the run-to-run noise). Use `--no-chart` for the table only, or `--no-open` to write the file without opening it.
+`compare` also writes `benchmarks/charts/compare-<old>-<new>.html`: per stage, old and new bars with a noise whisker and the % change (red = slower, green = faster, only when the change is above 5% and above the run-to-run noise). Use `--no-chart` for the table only, or `--no-open` to write the file without opening it.
 
 Useful options for `run`: `--runs N` (default 10), `--discard N` (default 3), `--scenes sp hp`, `--cmake <path>`, `--rebuild`.
 
@@ -24,10 +24,10 @@ Only **committed** code is benchmarked. Commit first, then run.
 
 ## What it does
 
-1. Checks the commit out into its own git worktree (`benchmarks/.work/<hash>`), so your working folder and branch are never touched.
-2. Builds it in Release mode (`benchmarks/.build/<hash>`). The first build of a commit takes a few minutes; later runs reuse it.
-3. Runs each scene `--runs` times. The first `--discard` runs are thrown away (warm-up). The headline number is the **mean** of the remaining runs; median, min, max and standard deviation are stored too.
-4. Writes `benchmarks/results/<full commit hash>.json`.
+1. If the commit has no saved executable yet, it checks the commit out into a temporary git worktree (so your working folder and branch are never touched) and builds it in Release mode. The first build takes a few minutes.
+2. It copies the executable to `benchmarks/.bin/<hash>/` and deletes the temporary worktree and build folder. A commit never changes, so later runs of the same commit reuse the saved executable (`--rebuild` builds it again, e.g. after a compiler change).
+3. It runs each scene `--runs` times. The first `--discard` runs are thrown away (warm-up). The headline number is the **mean** of the remaining runs; median, min, max and standard deviation are stored too.
+4. It writes `benchmarks/results/<full commit hash>.json`.
 
 Scenes (the exact command lines are in `bench.py`):
 - `sp`: single precision.
@@ -67,4 +67,4 @@ CMake is taken from `--cmake`, then `$CMAKE`, then `PATH`, then CLion's bundled 
 
 ## Disk space
 
-Each benchmarked commit keeps a worktree and a build folder (a few hundred MB) so reruns are fast. `python benchmarks/bench.py clean` removes them; `clean <commit>` removes one. Reports are never deleted by the script.
+Each benchmarked commit keeps only its executable (about 5 MB) in `benchmarks/.bin/`. `python benchmarks/bench.py clean` removes them (and any leftovers of an interrupted build); `clean <commit>` removes one. Reports and charts are never deleted by the script.
