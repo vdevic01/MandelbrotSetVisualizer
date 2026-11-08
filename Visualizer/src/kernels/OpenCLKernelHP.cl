@@ -37,8 +37,14 @@ void cmplFixed(const uint* a, uint c[FP_SIZE]) {
 }
 
 void subFixed(const uint* a, const uint* b, uint c[FP_SIZE]) {
-	cmplFixed(b, c);
-	addFixed(a, c, c);
+	// a - b == a + ~b + 1, computed word by word with an initial carry of 1, so the output
+	// may be the same buffer as either input (negating b into c first would destroy a).
+	uint carry = 1;
+	for (int i = FP_SIZE - 1; i >= 0; i--) {
+		ulong temp = (ulong)a[i] + (uint)~b[i] + carry;
+		carry = temp >> 32;
+		c[i] = temp;
+	}
 }
 
 bool gtFixed(const uint* a, const uint* b) {
