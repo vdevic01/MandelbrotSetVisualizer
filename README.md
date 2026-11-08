@@ -207,7 +207,9 @@ Standard `double` provides ~15–16 significant decimal digits. When zooming dee
 
 ### Fixed-point format
 
-Coordinates are **signed fixed-point numbers** made of 32-bit words in two's complement, big-endian: one integer word followed by `N` fraction words (`N` is the fraction size, 1 to 6):
+In this project a **word** is always **32 bits**, one `unsigned int` (`fpa::uint`), whatever the processor's register size. That size is deliberate: the product of two 32-bit words fits exactly in a 64-bit integer, and GPUs are natively 32-bit, so the same arithmetic runs on the CPU and in the CUDA and OpenCL kernels. (Other libraries call this unit a "limb".)
+
+Coordinates are **signed fixed-point numbers** made of such words in two's complement, big-endian: one integer word followed by `N` fraction words (`N` is the fraction size, 1 to 6). For example `N = 3` means a 96-bit fraction stored in 3 unsigned integers:
 
 ```
 [ integer word ][ fraction word 1 ] ... [ fraction word N ]
