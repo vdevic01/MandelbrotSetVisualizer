@@ -36,6 +36,7 @@ namespace fpa {
 	constexpr int FP_SIZE = WHOLE_PART + FRACTION_PART;
 	constexpr int FP_MUL_BUFFER_SIZE = FP_SIZE * 2;
 	constexpr int FP_DIV_BUFFER_SIZE = FP_SIZE + FRACTION_PART;
+	constexpr uint SIGN_BIT = uint(1) << SIGN_SHIFT;      // the sign bit of the most significant word
 
 	constexpr bool isSupportedFractionPart(int fractionWords) {
 		return fractionWords >= MIN_FRACTION_PART && fractionWords <= MAX_FRACTION_PART;
@@ -52,6 +53,8 @@ namespace fpa {
 	bool gtFixed(const uint* a, const uint* b, int fractionWords = FRACTION_PART);
 	bool gteFixed(const uint* a, const uint* b, int fractionWords = FRACTION_PART);
 	void mulCmplFixed(const uint* a, const uint* b, uint* c, int fractionWords = FRACTION_PART);
+	// Truncates toward zero. Throws std::invalid_argument when b is zero and std::overflow_error when the
+	// quotient is outside [min, max]; the output is left untouched in both cases.
 	void divFixed(const uint* a, const uint* b, uint* c, int fractionWords = FRACTION_PART);
 
 	void floatingToFixedPoint(double decimal, uint* out, int fractionWords = FRACTION_PART);

@@ -1,10 +1,9 @@
-// Minimal reproductions of defects found while reviewing FixedPointArithmetics. Each test states the
-// correct behaviour, so it FAILS while the defect exists and passes once it is fixed. The tests are
-// intentionally written first (before the fixes) to prove that the fixes are what makes them pass.
+// Regression tests for defects found while reviewing FixedPointArithmetic. They were written before the
+// fixes and failed until each fix landed. Each test states the correct behaviour in a short, readable
+// form.
 //
-// The generic vector tests in test_vectors.cpp also trip over these defects (the "...IgnoresPrevious
-// OutputContents" and "...WithOutputAliasing..." variants); the tests here are the short versions that
-// are easy to read and debug.
+// The generic vector tests in test_vectors.cpp (the "...IgnoresPreviousOutputContents" and
+// "...WithOutputAliasing..." variants) cover the same defects over many more inputs.
 
 #include "test_support.h"
 

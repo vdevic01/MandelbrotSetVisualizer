@@ -272,6 +272,8 @@ namespace fpa {
 			for (int i = DIV_BUFFER_SIZE * WORD_BITS - 1; i >= 0; i--) {
 				rightShiftWords<DIV_BUFFER_SIZE>(buffA, i, tempBuffer);
 				if (gteWords<DIV_BUFFER_SIZE>(tempBuffer, buffB)) {
+					// A quotient bit beyond the top of the number: the result cannot fit.
+					if (i >= SIZE * WORD_BITS) throw overflow_error("Division overflow: quotient does not fit the number format");
 					uint temp[SIZE] = { 0 };
 					power<SIZE>(i, temp);
 					addWords<SIZE>(quotient, temp, quotient);
@@ -280,6 +282,15 @@ namespace fpa {
 					copy(tempBuffer, tempBuffer + DIV_BUFFER_SIZE, buffA);
 				}
 			}
+
+			// quotient is the magnitude. A positive result must be at most max (sign bit clear); a negative
+			// one may reach magnitude 2^(B-1), which is exactly min.
+			bool fits = quotient[0] < SIGN_BIT;
+			if (negate && quotient[0] == SIGN_BIT) {
+				fits = true;
+				for (int k = 1; k < SIZE; k++) if (quotient[k] != 0) fits = false;
+			}
+			if (!fits) throw overflow_error("Division overflow: quotient does not fit the number format");
 
 			if (negate)
 				cmplWords<SIZE>(quotient, quotient);
