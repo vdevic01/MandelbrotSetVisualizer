@@ -24,16 +24,96 @@ type HighPrecissionBoundary = {
   imEnd: Decimal
 }
 
-// Shows a message in the status line above the canvas.
+// ---------------------------------------------------------------------------------------------------------
+// Status bar above the canvas: the precision of the last render, the scale of the view, how long the render took,
+// what the remote worker answered, and a message line for warnings and errors.
+// ---------------------------------------------------------------------------------------------------------
 type StatusKind = "info" | "warning" | "error";
-function setRenderStatus(message: string, kind: StatusKind = "info"){
-  const element = document.getElementById("render-status");
+
+function setField(id: string, text: string, tooltip: string = ""){
+  const element = document.getElementById(id);
   if (!element) return;
-  element.textContent = message;
-  element.classList.toggle("error", kind === "error");
-  element.classList.toggle("warning", kind === "warning");
-  element.style.display = "block";
+  element.textContent = text;
+  element.title = tooltip || text;
 }
+
+// Shows the order of magnitude of the width of the visible region, e.g. 10^-13.2.
+function setScale(log10Width: number){
+  const element = document.getElementById("status-scale");
+  if (!element) return;
+  const exponent = log10Width.toFixed(1);
+  element.innerHTML = `10<sup>${exponent}</sup>`;
+  element.title = `The visible region of the complex plane is about 10^${exponent} wide (the whole set is about 10^0.5)`;
+}
+
+// One line in the bar; the full text (an error can be several lines) is in the tooltip.
+function setMessage(message: string, kind: StatusKind = "info"){
+  const element = document.getElementById("status-message");
+  if (!element) return;
+  element.textContent = message.split("\n")[0];
+  element.title = message;
+  element.classList.toggle("warning", kind === "warning");
+  element.classList.toggle("error", kind === "error");
+}
+
+function formatDuration(milliseconds: number): string {
+  return milliseconds < 1000 ? `${Math.round(milliseconds)} ms` : `${(milliseconds / 1000).toFixed(2)} s`;
+}
+
+type RendererOutput = {
+  stages: string,    // "Pixel mapping 64 ms, Calculating escape iterations 3.2 s, ..." (for a tooltip)
+  remote?: string,   // what the remote worker answered, when remote rendering was used
+  remoteDetails?: string
+};
+
+// Reads what the renderer printed: the time of each stage and, for remote rendering, the worker's answer.
+function parseRendererOutput(output: string): RendererOutput {
+  const stages: string[] = [];
+  let httpStatus: string | undefined;
+  let roundTripMs: number | undefined;
+  let samplingMs: number | undefined;
+  let kernelMs: number | undefined;
+  for (const line of output.split(/\r?\n/)) {
+    let match = line.match(/^Remote: HTTP (\d+) after (\d+) ms/);
+    if (match) {
+      httpStatus = match[1];
+      roundTripMs = parseInt(match[2]);
+      continue;
+    }
+    match = line.match(/^Remote sampling time:\s+([\d.]+) ms/);
+    if (match) {
+      samplingMs = parseFloat(match[1]);
+      continue;
+    }
+    match = line.match(/^Remote kernel time:\s+([\d.]+) ms/);
+    if (match) {
+      kernelMs = parseFloat(match[1]);
+      continue;
+    }
+    match = line.match(/^(.+?):\s+(\d+) ms\s*$/);
+    if (match) {
+      stages.push(`${match[1]} ${formatDuration(parseInt(match[2]))}`);
+    }
+  }
+
+  const result: RendererOutput = { stages: stages.join("\n") };
+  if (httpStatus !== undefined) {
+    const parts = [`HTTP ${httpStatus}`];
+    if (roundTripMs !== undefined) parts.push(`round trip ${formatDuration(roundTripMs)}`);
+    if (kernelMs !== undefined) parts.push(`kernel ${formatDuration(kernelMs)}`);
+    if (samplingMs !== undefined) parts.push(`sampling ${formatDuration(samplingMs)}`);
+    result.remote = parts.join(" · ");
+    result.remoteDetails = parts.join("\n");
+  }
+  return result;
+}
+
+// What a render is about to do, for the status bar.
+type RenderInfo = {
+  precision: string,        // e.g. "double (64-bit)" or "fixed point · 3 words (~28 digits)"
+  scaleLog10: number,       // log10 of the width of the visible region
+  warning?: string          // shown in the message line (for example: maximum precision exceeded)
+};
 
 class BoundaryManager{
   private startingBoundary: Boundary;
@@ -239,7 +319,11 @@ class BoundaryManager{
       paletteId: this.paletteId,
       samples: this.samples
     };
-    await this.render("generate_mandelbrot", args, "double precision");
+    const width = Math.abs(this.lowPrecissionBoundary.reEnd - this.lowPrecissionBoundary.reStart);
+    await this.render("generate_mandelbrot", args, {
+      precision: "double (64-bit)",
+      scaleLog10: Math.log10(width)
+    });
   }
 
   private async generateMandelbrotHighPrecission(){
@@ -259,31 +343,46 @@ class BoundaryManager{
       paletteId: this.paletteId,
       samples: this.samples
     };
-    const note = `fixed point, ${fractionWords} fraction words, about ${fractionDigits(fractionWords)} digits`;
-    const warning = choice.limitReached
-      ? `Maximum precision reached (${note}): zooming in further produces an inaccurate image.`
-      : undefined;
-    await this.render("generate_mandelbrot_hp", args, note, warning);
+    const precision = `fixed point · ${fractionWords} words (~${fractionDigits(fractionWords)} digits)`;
+    await this.render("generate_mandelbrot_hp", args, {
+      precision: precision,
+      scaleLog10: boundary.reEnd.minus(boundary.reStart).abs().log(10).toNumber(),
+      warning: choice.limitReached
+        ? "Maximum precision reached: zooming in further produces an inaccurate image."
+        : undefined
+    });
   }
 
-  // Runs one render and tells the user what is happening: a status line while it runs, the time it took and the
-  // precision used (or a warning when the maximum precision is exceeded), or the error message when the
-  // renderer fails (otherwise a failed render looks like nothing happened).
-  private async render(command: string, args: Record<string, unknown>, precisionNote: string, warning?: string){
+  // Runs one render and keeps the status bar up to date: what it is rendering with, how long it took, what the
+  // remote worker answered, or why it failed (otherwise a failed render looks like nothing happened).
+  private async render(command: string, args: Record<string, unknown>, info: RenderInfo){
+    const remote = this.mode === "CUDA_REMOTE";
     const started = performance.now();
-    setRenderStatus(`Rendering (${this.mode}, ${precisionNote})...`);
+
+    setField("status-precision", info.precision);
+    setScale(info.scaleLog10);
+    setField("status-time", "rendering...");
+    setField("status-remote", remote ? "waiting for the worker..." : "not used (local render)");
+    setMessage("");
+
     try {
-      await invoke(command, args);
+      const output = await invoke<string>(command, args);
       this.img = this.p5Client.loadImage(BoundaryManager.imgUrl);
-      const seconds = ((performance.now() - started) / 1000).toFixed(1);
-      if (warning) {
-        setRenderStatus(`${warning} Rendered in ${seconds} s.`, "warning");
-      } else {
-        setRenderStatus(`Rendered in ${seconds} s (${precisionNote})`);
+      const parsed = parseRendererOutput(output);
+      setField("status-time", formatDuration(performance.now() - started), parsed.stages);
+      if (remote) {
+        setField("status-remote", parsed.remote ?? "no information from the worker", parsed.remoteDetails);
+      }
+      if (info.warning) {
+        setMessage(info.warning, "warning");
       }
     } catch (e) {
       console.error(`Render failed (${command}, mode ${this.mode}):`, e);
-      setRenderStatus(`Render failed (${this.mode}, ${precisionNote}): ${e}`, "error");
+      setField("status-time", "failed");
+      if (remote) {
+        setField("status-remote", "failed (see below)");
+      }
+      setMessage(String(e), "error");
     }
   }
 

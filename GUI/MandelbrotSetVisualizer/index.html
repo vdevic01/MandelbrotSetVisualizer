@@ -69,7 +69,27 @@
         </div>
       </div>
       <div class="canvas-wrapper">
-        <div id="render-status" class="render-status" style="display:none;"></div>
+        <div id="status-bar" class="status-bar">
+          <div class="status-items">
+            <div class="status-item">
+              <span class="status-label">Precision</span>
+              <span id="status-precision" class="status-value">-</span>
+            </div>
+            <div class="status-item">
+              <span class="status-label">Scale</span>
+              <span id="status-scale" class="status-value">-</span>
+            </div>
+            <div class="status-item">
+              <span class="status-label">Last render</span>
+              <span id="status-time" class="status-value">-</span>
+            </div>
+            <div class="status-item">
+              <span class="status-label">Remote</span>
+              <span id="status-remote" class="status-value">-</span>
+            </div>
+          </div>
+          <div id="status-message" class="status-message"></div>
+        </div>
         <div id="main-canvas"></div>
       </div>
     </div>

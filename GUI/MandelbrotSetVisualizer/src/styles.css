@@ -21,12 +21,14 @@ body{
 }
 .canvas-wrapper{
   flex-grow: 1;
+  display: flex;
+  flex-direction: column;
 }
 .sidebar{
   width: 300px;
   min-width: 300px;
   background-color: #0f0f0f;
-  height: 600px;
+  height: 100vh;
   display: flex;
   flex-direction: column;
   overflow-y: scroll;
@@ -162,21 +164,68 @@ label{
   font-size: 0.85rem;
   margin-top: 4px;
 }
-.render-status {
-  font-size: 0.85rem;
-  padding: 6px 10px;
-  margin-bottom: 6px;
-  border-radius: 3px;
-  background: #2a2a2f;
-  color: #ccc;
+
+/* Status bar above the canvas. Its height is fixed so the canvas never moves; the window is as much taller than
+   the canvas as the bar is high (see tauri.conf.json). */
+:root {
+  --status-bar-height: 64px;
 }
-.render-status.warning {
-  background: #4a3d1a;
+.status-bar {
+  height: var(--status-bar-height);
+  box-sizing: border-box;
+  padding: 4px 12px 0 12px;
+  background-color: #1b1b1f;
+  border-bottom: 1px solid #2c2c33;
+  display: flex;
+  flex-direction: column;
+}
+.status-items {
+  display: grid;
+  grid-template-columns: 2.1fr 0.75fr 0.85fr 3.6fr;
+  column-gap: 14px;
+  height: 38px;
+}
+.status-item {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.status-label {
+  font-size: 0.65rem;
+  line-height: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #8b8b95;
+}
+.status-value {
+  font-size: 0.8rem;
+  line-height: 20px;
+  color: #e8e8ee;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.status-value sup {
+  font-size: 0.6rem;
+  line-height: 0;
+}
+.status-message {
+  height: 22px;
+  font-size: 0.78rem;
+  line-height: 22px;
+  color: #b9b9c2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.status-message.warning {
   color: #ffe08a;
 }
-.render-status.error {
-  background: #4a1f24;
-  color: #ffb3b8;
-  white-space: pre-wrap;
-  word-break: break-word;
+.status-message.error {
+  color: #ff8f99;
+}
+
+/* A canvas is an inline element, which leaves a few pixels of descender space below it. */
+#main-canvas canvas {
+  display: block;
 }

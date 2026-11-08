@@ -85,12 +85,18 @@ async fn run_sidecar(args: Vec<String>, env: HashMap<String, String>) -> Result<
             format!("Failed to start the renderer: {}", e)
         })?;
 
-    // Keep what the renderer wrote to stderr, so a failure can be reported to the UI.
+    // Keep what the renderer wrote: stderr explains a failure, and stdout (stage timings, the remote worker's
+    // answer) is handed to the UI on success.
     let mut stderr_lines: Vec<String> = Vec::new();
+    let mut stdout_text = String::new();
 
     while let Some(event) = rx.recv().await {
         match event {
-            CommandEvent::Stdout(line) => print!("{}", line),
+            CommandEvent::Stdout(line) => {
+                println!("{}", line.trim_end());
+                stdout_text.push_str(line.trim_end());
+                stdout_text.push('\n');
+            }
             CommandEvent::Stderr(line) => {
                 eprint!("{}", line);
                 stderr_lines.push(line.trim_end().to_string());
@@ -102,7 +108,7 @@ async fn run_sidecar(args: Vec<String>, env: HashMap<String, String>) -> Result<
             CommandEvent::Terminated(p) => {
                 eprintln!("[renderer] finished with exit code {:?}", p.code);
                 return match p.code {
-                    Some(0) => Ok("0".to_string()),
+                    Some(0) => Ok(stdout_text),
                     code => {
                         let details = stderr_lines.join("\n");
                         let code_text = code.map(|c| c.to_string()).unwrap_or_else(|| "unknown".to_string());

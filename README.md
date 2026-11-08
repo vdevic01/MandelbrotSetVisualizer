@@ -171,6 +171,19 @@ The tests run automatically on every pull request to `main` (GitHub Actions work
 | Samples | 1 | Anti-aliasing samples per pixel. Each sample is a random sub-pixel jitter. Values above 4 noticeably reduce noise; values above 16 have diminishing returns. |
 | Palette | Navy | Colour palette (see list below). |
 
+### Status bar
+
+The bar above the canvas shows, for the last render:
+
+| Field | Meaning |
+|---|---|
+| Precision | The number format used: double, or fixed point with its number of fraction words and digits |
+| Scale | The width of the visible region of the complex plane as a power of ten (the whole set is about 10^0.5) |
+| Last render | How long the render took in total; hover for the time of each stage |
+| Remote | For CUDA Remote: the worker's HTTP status, the round trip, and the kernel and sampling times it reported |
+
+A line below shows warnings (such as reaching the maximum precision) and errors, including errors from the remote worker; hover it for the full text. The window is taller than the canvas by the height of the bar, so the bar never covers part of the image.
+
 ---
 
 ## Colour palettes
