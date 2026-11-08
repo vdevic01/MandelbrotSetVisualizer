@@ -18,6 +18,8 @@ COPY Visualizer/src/Sampler.h                             src/
 COPY Visualizer/src/Sampler.cpp                           src/
 COPY Visualizer/src/math/FixedPointArithmetics.h          src/math/
 COPY Visualizer/src/math/FixedPointArithmetics.cpp        src/math/
+COPY Visualizer/src/math/FixedPointCore.h                 src/math/
+COPY Visualizer/src/math/FixedPointShared.h               src/math/
 COPY Worker/CMakeLists.txt                                ./
 COPY Worker/src/                                          src/
 

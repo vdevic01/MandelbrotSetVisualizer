@@ -4,112 +4,36 @@
 #include <iostream>
 
 #include "CUDAIterationCalculator.h"
+#include "FixedPointShared.h"
 
 #pragma region Fixed Point Arithmetics
 
-constexpr uint32_t WHOLE_PART = 1;
-constexpr uint32_t FRACTION_PART = 3;
-constexpr uint32_t WHOLE_BITS = WHOLE_PART * 32;
-constexpr uint32_t FRACTION_BITS = FRACTION_PART * 32;
-constexpr uint32_t FP_SIZE = WHOLE_PART + FRACTION_PART;
-constexpr uint32_t FP_BUFFER_SIZE = FP_SIZE * 2;
+// The arithmetic itself is shared with the CPU build (FixedPointShared.h), so it is tested once by the
+// unit tests. These thin wrappers keep the kernel code below unchanged.
+constexpr uint32_t FP_SIZE = fpa::FP_SIZE;   // 1 whole word + 3 fraction words
 
-__device__ void addFixed(const uint32_t* a, const uint32_t* b, uint32_t c[FP_SIZE]) {
-	uint32_t carry = 0;
-	for (int i = FP_SIZE - 1; i >= 0; i--) {
-		uint64_t temp = (uint64_t)a[i] + b[i] + carry;
-		carry = temp >> 32;
-		c[i] = temp;
-	}
-};
-
-__device__ void incFixed(const uint32_t* a, uint32_t c[FP_SIZE]) {
-	uint32_t carry = 1;
-	for (int i = FP_SIZE - 1; i >= 0; i--) {
-		uint64_t temp = (uint64_t)a[i] + carry;
-		carry = temp >> 32;
-		c[i] = (uint32_t)temp;
-	}
+__device__ __forceinline__ void addFixed(const uint32_t* a, const uint32_t* b, uint32_t* c) {
+	fpa::core::add<fpa::FRACTION_PART>(a, b, c);
 }
 
-__device__ void cmplFixed(const uint32_t* a, uint32_t c[FP_SIZE]) {
-	for (int i = 0; i < FP_SIZE; i++) {
-		c[i] = ~a[i];
-	}
-	incFixed(c, c);
+__device__ __forceinline__ void incFixed(const uint32_t* a, uint32_t* c) {
+	fpa::core::inc<fpa::FRACTION_PART>(a, c);
 }
 
-__device__ void subFixed(const uint32_t* a, const uint32_t* b, uint32_t c[FP_SIZE]) {
-	cmplFixed(b, c);
-	addFixed(a, c, c);
+__device__ __forceinline__ void cmplFixed(const uint32_t* a, uint32_t* c) {
+	fpa::core::cmpl<fpa::FRACTION_PART>(a, c);
 }
 
-__device__ bool gtFixed(const uint32_t* a, const uint32_t* b) {
-	uint32_t signA = a[0] >> 31;
-	uint32_t signB = b[0] >> 31;
-	if (signA != signB) {
-		return signA == 0;
-	}
-	uint32_t diff[FP_SIZE];
-	subFixed(b, a, diff);
-	uint32_t sign = diff[0] >> 31;
-	return sign == 1;
+__device__ __forceinline__ void subFixed(const uint32_t* a, const uint32_t* b, uint32_t* c) {
+	fpa::core::sub<fpa::FRACTION_PART>(a, b, c);
 }
 
-__device__ void mulCmplFixed(const uint32_t* a, const uint32_t* b, uint32_t c[FP_SIZE]) {
-	uint64_t result[FP_BUFFER_SIZE];
-	for (int i = 0; i < FP_BUFFER_SIZE; i++) {
-		result[i] = 0;
-	}
+__device__ __forceinline__ bool gtFixed(const uint32_t* a, const uint32_t* b) {
+	return fpa::core::gt<fpa::FRACTION_PART>(a, b);
+}
 
-	const uint32_t* aAbs = a;
-	const uint32_t* bAbs = b;
-	char aSign = a[0] >> 31;
-	char bSign = b[0] >> 31;
-	bool negate = false;
-	uint32_t tempA[FP_SIZE];
-	uint32_t tempB[FP_SIZE];
-	if (aSign != bSign) {
-		if (aSign == 1) {
-			cmplFixed(a, tempA);
-			aAbs = tempA;
-		}
-		else {
-			cmplFixed(b, tempB);
-			bAbs = tempB;
-		}
-		negate = true;
-	}
-	else if (aSign == 1 && bSign == 1) {
-		cmplFixed(a, tempA);
-		cmplFixed(b, tempB);
-		aAbs = tempA;
-		bAbs = tempB;
-	}
-
-	for (int i = FP_SIZE - 1; i >= 0; i--) {
-		if (aAbs[i] == 0)
-			continue;
-		for (int j = FP_SIZE - 1; j >= 0; j--) {
-			if (bAbs[j] == 0)
-				continue;
-			uint64_t temp = (uint64_t)aAbs[i] * bAbs[j];
-			uint64_t tempLSB = temp & 0x00000000FFFFFFFF;
-			uint64_t tempMSB = temp >> 32;
-			result[i + j + 1] += tempLSB;
-			result[i + j] += tempMSB;
-		}
-	}
-	for (int i = FP_BUFFER_SIZE - 1; i >= 1; i--) {
-		result[i - 1] += result[i] >> 32;
-	}
-	const int leftBound = WHOLE_PART * 2 - 1;
-	const int rightBound = leftBound + FP_SIZE;
-	for (int i = leftBound; i < rightBound; i++) {
-		c[i - leftBound] = result[i];
-	}
-	if (negate)
-		cmplFixed(c, c);
+__device__ __forceinline__ void mulCmplFixed(const uint32_t* a, const uint32_t* b, uint32_t* c) {
+	fpa::core::mul<fpa::FRACTION_PART>(a, b, c);
 }
 
 #pragma endregion
