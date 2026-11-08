@@ -90,6 +90,11 @@ namespace fpa {
 		void power(const int n, uint* a) {
 			int idx = N - 1 - n / WORD_BITS;
 			int offset = n % WORD_BITS;
+#ifdef FPA_BOUNDS_CHECK
+			// Test-only instrumentation (the tests build a separate "fpa_checked" library with this defined):
+			// turns an out-of-bounds write into a deterministic, catchable error on platforms without a sanitizer.
+			if (idx < 0 || idx >= N) throw out_of_range("power(): bit index " + to_string(n) + " is outside a " + to_string(N) + "-word number");
+#endif
 			a[idx] = 1U << offset;
 		}
 
