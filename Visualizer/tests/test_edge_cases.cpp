@@ -189,6 +189,17 @@ TEST_P(EdgeTest, DivideIdentitiesAndZero) {
     }
 }
 
+TEST_P(EdgeTest, DivideQuotientAtTheEdgeOfTheRangeDoesNotThrow) {
+    // The quotient may be anywhere in [min, max]; only values outside that range are an overflow.
+    const int f = F();
+    const Number twoToThe30 = make(f, {0x40000000u});
+    EXPECT_TRUE(same(minValue(f), div(f, neg(f, twoToThe30), half()))) << "(-2^30) / 0.5 == -2^31 == min";
+    EXPECT_TRUE(same(minValue(f), div(f, twoToThe30, neg(f, half())))) << "2^30 / (-0.5) == -2^31 == min";
+    EXPECT_TRUE(same(minValue(f), div(f, minValue(f), one(f)))) << "min / 1 == min";
+    EXPECT_TRUE(same(maxValue(f), div(f, maxValue(f), one(f)))) << "max / 1 == max";
+    EXPECT_TRUE(same(make(f, {0x7FFFFFFFu}), div(f, make(f, {0x7FFFFFFFu}), one(f))));
+}
+
 TEST_P(EdgeTest, DivideTruncatesTowardZero) {
     const int f = F();
     EXPECT_TRUE(same(oneThird(), div(f, one(f), three())));

@@ -64,21 +64,26 @@ TEST_P(KnownBugsTest, DivisionWorksWhenTheOutputIsTheDivisor) {
     EXPECT_TRUE(same(make(F(), {2, kSignBit}), b)) << "5 / 2 == 2.5 computed in place into the divisor";
 }
 
-// Defect 4: when a quotient does not fit the number format (e.g. 1.0 divided by the smallest step),
-// divFixed calls power(i, ...) with a bit index beyond the buffer, which writes before the start of an
-// internal stack array (a stack buffer underflow).
-//
-// On a normal build that write is silent, so this test only FAILS under AddressSanitizer
-// (-DFPA_SANITIZE=ON, GCC/Clang on Linux/macOS). It becomes a plain pass/fail test once the behaviour
-// for unrepresentable quotients is defined (e.g. "throws std::overflow_error").
-TEST_P(KnownBugsTest, DivisionWithAnUnrepresentableQuotientIsMemorySafe) {
-    const Number tiny = ulp(F());
-    Number out = zero(F());
-    EXPECT_NO_THROW(fpa::divFixed(one(F()).data(), tiny.data(), out.data(), F()));
-    out = zero(F());
-    EXPECT_NO_THROW(fpa::divFixed(maxValue(F()).data(), tiny.data(), out.data(), F()));
-    out = zero(F());
-    EXPECT_NO_THROW(fpa::divFixed(minValue(F()).data(), tiny.data(), out.data(), F()));
+// Defect 4: when the quotient does not fit the number format (e.g. 1.0 divided by the smallest step),
+// divFixed silently returns a wrapped value and writes out of bounds in an internal buffer (power()
+// is called with a bit index past the end of an array).
+// Agreed behaviour: divFixed throws std::overflow_error when the (truncated) quotient is outside
+// [min, max]. The out-of-bounds write is also reported by AddressSanitizer (-DFPA_SANITIZE=ON).
+TEST_P(KnownBugsTest, DivisionWhoseQuotientDoesNotFitThrowsOverflowError) {
+    const int f = F();
+    const Number twoToThe30 = make(f, {0x40000000u});                 // 2^30
+    const struct { Number a, b; const char* what; } cases[] = {
+        {one(f), ulp(f), "1.0 / smallest step"},
+        {maxValue(f), ulp(f), "max / smallest step"},
+        {minValue(f), ulp(f), "min / smallest step"},
+        {twoToThe30, half(), "2^30 / 0.5 == 2^31, one above max"},
+        {neg(f, twoToThe30), neg(f, half()), "(-2^30) / (-0.5) == 2^31, one above max"},
+        {minValue(f), neg(f, one(f)), "min / -1 == 2^31, one above max"},
+    };
+    for (const auto& c : cases) {
+        Number out = zero(f);
+        EXPECT_THROW(fpa::divFixed(c.a.data(), c.b.data(), out.data(), f), std::overflow_error) << c.what;
+    }
 }
 
 FPA_INSTANTIATE_FOR_ALL_FORMATS(KnownBugsTest);
