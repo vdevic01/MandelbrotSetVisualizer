@@ -12,9 +12,11 @@ Run from the repository root.
 python benchmarks/bench.py run                   # benchmark HEAD
 python benchmarks/bench.py run main              # any commit, branch or tag
 python benchmarks/bench.py run 8bfd514 --force   # rerun an old commit (overwrites its report)
-python benchmarks/bench.py compare main HEAD     # table: old vs new, % change
+python benchmarks/bench.py compare main HEAD     # table + HTML chart (opens in the browser)
 python benchmarks/bench.py clean                 # delete worktrees and build folders (keeps reports)
 ```
+
+`compare` also writes `benchmarks/results/compare-<old>-<new>.html`: per stage, old and new bars with a noise whisker and the % change (red = slower, green = faster, only when the change is above 5% and above the run-to-run noise). Use `--no-chart` for the table only, or `--no-open` to write the file without opening it.
 
 Useful options for `run`: `--runs N` (default 10), `--discard N` (default 3), `--scenes sp hp`, `--cmake <path>`, `--rebuild`.
 

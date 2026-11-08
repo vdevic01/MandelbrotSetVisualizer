@@ -9,7 +9,7 @@ iterations: 6232 ms"), and stores a machine-readable report named after the comm
     python benchmarks/bench.py run                  # benchmark HEAD
     python benchmarks/bench.py run main             # benchmark any commit / branch / tag
     python benchmarks/bench.py run 8bfd514 --force  # re-run an old commit (overwrites its report)
-    python benchmarks/bench.py compare main HEAD    # table of the difference between two stored reports
+    python benchmarks/bench.py compare main HEAD    # table + HTML chart of the difference between two reports
     python benchmarks/bench.py clean                # delete all worktrees and build folders (keeps reports)
 
 Reports live in benchmarks/results/<full commit hash>.json (git-ignored: timings are only comparable
@@ -24,6 +24,7 @@ the laptop on mains power while benchmarking.
 import argparse
 import datetime
 import glob
+import html
 import json
 import os
 import platform
@@ -33,6 +34,7 @@ import statistics
 import subprocess
 import sys
 import tempfile
+import webbrowser
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -66,7 +68,8 @@ def scene_args(scene, output_png):
 
 # ----------------------------------------------------------------------------------------------- git/build
 def git(*args, cwd=REPO):
-    return subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True).stdout.strip()
+    return subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True,
+                          encoding="utf-8").stdout.strip()
 
 
 def resolve(rev):
@@ -203,20 +206,86 @@ def load_report(rev):
     return json.loads(path.read_text())
 
 
+def percent_change(old, new):
+    return (new - old) / old * 100 if old else 0.0
+
+
 def cmd_compare(args):
     a, b = load_report(args.old), load_report(args.new)
     print("old: %s  %s" % (a["commit"][:10], a["subject"]))
-    print("new: %s  %s\n" % (b["commit"][:10], b["subject"]))
+    print("new: %s  %s" % (b["commit"][:10], b["subject"]))
+    print()
     print("%-6s %-36s %10s %10s %9s" % ("scene", "stage", "old (ms)", "new (ms)", "change"))
     for scene in b["scenes"]:
         if scene not in a["scenes"]:
             continue
         for stage, nv in b["scenes"][scene]["stages"].items():
             ov = a["scenes"][scene]["stages"].get(stage)
+            if ov:
+                print("%-6s %-36s %10.1f %10.1f %+8.1f%%" % (scene, stage, ov["mean_ms"], nv["mean_ms"],
+                                                           percent_change(ov["mean_ms"], nv["mean_ms"])))
+    if not args.no_chart:
+        out = RESULTS_DIR / ("compare-%s-%s.html" % (a["commit"][:10], b["commit"][:10]))
+        out.write_text(chart_html(a, b), encoding="utf-8")
+        print()
+        print("chart: " + str(out.relative_to(REPO)))
+        if not args.no_open:
+            webbrowser.open(out.as_uri())
+
+
+def chart_html(a, b):
+    """Self-contained HTML page (no dependencies): per stage, old vs new bars scaled to the slower of the two."""
+    esc = html.escape
+    rows = []
+    for scene, bdata in b["scenes"].items():
+        if scene not in a["scenes"]:
+            continue
+        rows.append('<h2>%s precision</h2>' % ("High" if scene == "hp" else "Single" if scene == "sp" else esc(scene)))
+        stages = bdata["stages"]
+        # the slow, interesting stages first
+        order = sorted(stages, key=lambda n: -stages[n]["mean_ms"])
+        for stage in order:
+            ov, nv = a["scenes"][scene]["stages"].get(stage), stages[stage]
             if not ov:
                 continue
-            change = (nv["mean_ms"] - ov["mean_ms"]) / ov["mean_ms"] * 100 if ov["mean_ms"] else 0.0
-            print("%-6s %-36s %10.1f %10.1f %+8.1f%%" % (scene, stage, ov["mean_ms"], nv["mean_ms"], change))
+            change = percent_change(ov["mean_ms"], nv["mean_ms"])
+            noise = max(ov["stdev_ms"] / ov["mean_ms"], nv["stdev_ms"] / nv["mean_ms"]) * 100 if ov["mean_ms"] and nv["mean_ms"] else 0
+            verdict = "slower" if change > max(5.0, noise) else "faster" if change < -max(5.0, noise) else "same"
+            scale = max(ov["mean_ms"], nv["mean_ms"]) or 1.0
+            bars = ""
+            for label, v, cls in (("old", ov, "old"), ("new", nv, "new " + verdict)):
+                width = v["mean_ms"] / scale * 100
+                err = v["stdev_ms"] / scale * 100
+                bars += ('<div class="bar-row"><span class="who">%s</span><div class="track">'
+                         '<div class="bar %s" style="width:%.2f%%"></div>'
+                         '<div class="whisker" style="left:%.2f%%;width:%.2f%%"></div></div>'
+                         '<span class="val">%.0f ms <small>&plusmn;%.0f</small></span></div>'
+                         % (label, cls, width, max(0, width - err), min(2 * err, 100 - max(0, width - err)),
+                            v["mean_ms"], v["stdev_ms"]))
+            rows.append('<div class="stage"><div class="stage-head"><b>%s</b><span class="badge %s">%+.1f%%</span></div>%s</div>'
+                        % (esc(stage), verdict, change, bars))
+    css = """
+:root{--bg:#fff;--fg:#1d1d1f;--muted:#6e6e73;--card:#f5f5f7;--old:#8e8e93;--new:#0a84ff;--bad:#d70015;--good:#1a7f37;--same:#8e8e93}
+@media (prefers-color-scheme:dark){:root{--bg:#1c1c1e;--fg:#f5f5f7;--muted:#a1a1a6;--card:#2c2c2e;--old:#636366;--new:#64a8ff;--bad:#ff6961;--good:#4cd964}}
+body{font:15px/1.4 system-ui,sans-serif;background:var(--bg);color:var(--fg);max-width:820px;margin:0 auto;padding:24px 16px}
+h1{font-size:20px;margin:0 0 4px}h2{font-size:17px;margin:28px 0 10px}.sub{color:var(--muted);margin:2px 0}
+.stage{background:var(--card);border-radius:10px;padding:10px 14px;margin:8px 0}
+.stage-head{display:flex;justify-content:space-between;margin-bottom:6px}
+.badge{font-weight:600;font-variant-numeric:tabular-nums}.badge.slower{color:var(--bad)}.badge.faster{color:var(--good)}.badge.same{color:var(--muted)}
+.bar-row{display:flex;align-items:center;gap:8px;margin:3px 0}.who{width:30px;color:var(--muted);font-size:13px}
+.track{position:relative;flex:1;height:16px}.bar{height:100%;border-radius:3px;background:var(--old)}
+.bar.new{background:var(--new)}.bar.new.slower{background:var(--bad)}.bar.new.faster{background:var(--good)}
+.whisker{position:absolute;top:7px;height:2px;background:var(--fg);opacity:.55}
+.val{width:120px;text-align:right;font-variant-numeric:tabular-nums}small{color:var(--muted)}
+.note{color:var(--muted);font-size:13px;margin-top:24px}
+"""
+    head = ('<h1>Benchmark comparison</h1><p class="sub">old: <b>%s</b> %s</p><p class="sub">new: <b>%s</b> %s</p>'
+            % (a["commit"][:10], esc(a["subject"]), b["commit"][:10], esc(b["subject"])))
+    note = ('<p class="note">Bars show the mean, with a whisker for &plusmn; one standard deviation; each pair is scaled '
+            'to the slower of the two. A change counts as slower/faster only when it exceeds 5%% and the run-to-run noise.</p>')
+    return ('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+            '<title>Benchmark comparison</title><style>%s</style></head><body>%s%s%s</body></html>'
+            % (css, head, "".join(rows), note))
 
 
 # ----------------------------------------------------------------------------------------------- clean
@@ -264,6 +333,8 @@ def main():
     cmp_ = sub.add_parser("compare", help="compare two stored reports")
     cmp_.add_argument("old")
     cmp_.add_argument("new")
+    cmp_.add_argument("--no-chart", action="store_true", help="only print the table")
+    cmp_.add_argument("--no-open", action="store_true", help="write the HTML chart but do not open the browser")
     cmp_.set_defaults(func=cmd_compare)
 
     clean = sub.add_parser("clean", help="delete worktrees and build folders (reports are kept)")
