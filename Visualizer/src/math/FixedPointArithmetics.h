@@ -16,8 +16,6 @@ namespace fpa {
 
 	constexpr int WHOLE_PART = 1;
 	constexpr int FRACTION_PART = 3;
-	constexpr int WHOLE_BITS = WHOLE_PART * WORD_BITS;
-	constexpr int FRACTION_BITS = FRACTION_PART * WORD_BITS;
 	constexpr int FP_SIZE = WHOLE_PART + FRACTION_PART;
 	constexpr int FP_MUL_BUFFER_SIZE = FP_SIZE * 2;
 	constexpr int FP_DIV_BUFFER_SIZE = FP_SIZE + FRACTION_PART;
