@@ -19,8 +19,8 @@ set(SOURCES
     src/Sampler.cpp
     src/Sampler.h
     src/calculators/IterationCalculator.h
-    src/calculators/SequentialIterationCalculator.cpp
-    src/calculators/SequentialIterationCalculator.h
+    src/calculators/CpuParallelIterationCalculator.cpp
+    src/calculators/CpuParallelIterationCalculator.h
     src/calculators/OpenCLIterationCalculator.h
     src/calculators/OpenCLIterationCalculator.cpp
     src/calculators/CUDAIterationCalculator.h

@@ -1,9 +1,9 @@
-#include "SequentialIterationCalculator.h"
+#include "CpuParallelIterationCalculator.h"
 #include "FixedPointArithmetics.h"
 #include "FixedPointCore.h"
 
 
-void SequentialIterationCalculator::calculate(const std::vector<Complex>& points, std::vector<int>& iters, const unsigned int maxIter) const {
+void CpuParallelIterationCalculator::calculate(const std::vector<Complex>& points, std::vector<int>& iters, const unsigned int maxIter) const {
     const int N = static_cast<int>(points.size());
 
     #pragma omp parallel for schedule(dynamic) default(none) shared(points, iters, maxIter, N)
@@ -27,7 +27,7 @@ void SequentialIterationCalculator::calculate(const std::vector<Complex>& points
     }
 }
 
-void SequentialIterationCalculator::calculate(const std::vector<ComplexHP>& points, std::vector<int>& iters, const unsigned int maxIter) const {
+void CpuParallelIterationCalculator::calculate(const std::vector<ComplexHP>& points, std::vector<int>& iters, const unsigned int maxIter) const {
     using namespace fpa;
     // The number format is fixed at compile time here, so call the core templates directly: no per-call
     // dispatch on the fraction size, and the compiler can inline the arithmetic into this loop.

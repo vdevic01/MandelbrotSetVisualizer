@@ -29,7 +29,7 @@ MandelbrotSetVisualizer/
 │       ├── Sampler.cpp/.h       Complex-plane pixel sampling (LP + HP)
 │       ├── calculators/
 │       │   ├── IterationCalculator.h               Interface (CPU/OpenCL/CUDA)
-│       │   ├── SequentialIterationCalculator        CPU/OpenMP implementation
+│       │   ├── CpuParallelIterationCalculator       CPU/OpenMP implementation
 │       │   ├── OpenCLIterationCalculator            OpenCL implementation
 │       │   ├── CUDAUnifiedKernel.cu                CUDA implementation
 │       │   └── CUDARemoteIterationCalculator        HTTP client for remote CUDA worker

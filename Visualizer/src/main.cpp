@@ -6,7 +6,7 @@
 
 #include "Mode.h"
 #include "IterationCalculator.h"
-#include "SequentialIterationCalculator.h"
+#include "CpuParallelIterationCalculator.h"
 #ifdef ENABLE_OPENCL
 #include "OpenCLIterationCalculator.h"
 #endif
@@ -115,7 +115,7 @@ static void listAvailableModes() {
 unique_ptr<IterationCalculator> makeCalculator(Mode mode) {
     switch (mode) {
         case Mode::CPU_PARALLEL:
-            return make_unique<SequentialIterationCalculator>();
+            return make_unique<CpuParallelIterationCalculator>();
 #ifdef ENABLE_OPENCL
         case Mode::OPENCL_LOCAL:
             return make_unique<OpenCLIterationCalculator>();
