@@ -264,9 +264,8 @@ def chart_html(a, b):
             continue
         rows.append('<h2>%s precision</h2>' % ("High" if scene == "hp" else "Single" if scene == "sp" else esc(scene)))
         stages = bdata["stages"]
-        # the slow, interesting stages first
-        order = sorted(stages, key=lambda n: -stages[n]["mean_ms"])
-        for stage in order:
+        # keep the order the program reports the stages in (it is stored in the report in that order)
+        for stage in stages:
             ov, nv = a["scenes"][scene]["stages"].get(stage), stages[stage]
             if not ov:
                 continue
@@ -304,7 +303,7 @@ h1{font-size:20px;margin:0 0 4px}h2{font-size:17px;margin:28px 0 10px}.sub{color
     head = ('<h1>Benchmark comparison</h1><p class="sub">old: <b>%s</b> %s</p><p class="sub">new: <b>%s</b> %s</p>'
             % (a["commit"][:10], esc(a["subject"]), b["commit"][:10], esc(b["subject"])))
     note = ('<p class="note">Bars show the mean, with a whisker for &plusmn; one standard deviation; each pair is scaled '
-            'to the larger of the two (mean + deviation). A change counts as slower/faster only when it exceeds 5%% and the run-to-run noise.</p>')
+            'to the larger of the two (mean + deviation). A change counts as slower/faster only when it exceeds 5% and the run-to-run noise.</p>')
     return ('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
             '<title>Benchmark comparison</title><style>%s</style></head><body>%s%s%s</body></html>'
             % (css, head, "".join(rows), note))

@@ -2,6 +2,16 @@ cmake_minimum_required(VERSION 3.20)
 
 option(ENABLE_OPENCL "Enable OpenCL backend (OPENCL_LOCAL mode)" OFF)
 option(ENABLE_CUDA   "Enable local CUDA backend (CUDA_LOCAL mode — requires NVIDIA GPU + CUDA Toolkit)" OFF)
+option(BUILD_FPA_TESTS "Build the fixed-point arithmetic unit tests (fpa_tests, needs network access for GoogleTest)" OFF)
+
+# Fixed-point arithmetic is self-contained (standard library only), so it is built as its own
+# static library. The executable links it, and the unit tests link it without pulling in the rest.
+add_library(fpa STATIC
+    src/math/FixedPointArithmetics.cpp
+    src/math/FixedPointArithmetics.h
+)
+target_include_directories(fpa PUBLIC src/math)
+target_compile_features(fpa PUBLIC cxx_std_17)
 
 set(SOURCES
     src/main.cpp
@@ -9,8 +19,8 @@ set(SOURCES
     src/Sampler.cpp
     src/Sampler.h
     src/calculators/IterationCalculator.h
-    src/calculators/SequentialIterationCalculator.cpp
-    src/calculators/SequentialIterationCalculator.h
+    src/calculators/CpuParallelIterationCalculator.cpp
+    src/calculators/CpuParallelIterationCalculator.h
     src/calculators/OpenCLIterationCalculator.h
     src/calculators/OpenCLIterationCalculator.cpp
     src/calculators/CUDAIterationCalculator.h
@@ -20,8 +30,6 @@ set(SOURCES
     src/color/ColorManager.cpp
     src/color/ColorManager.h
     src/color/Palettes.h
-    src/math/FixedPointArithmetics.cpp
-    src/math/FixedPointArithmetics.h
     src/util/fpng.cpp
     src/util/fpng.h
     src/util/errors.h
@@ -174,3 +182,9 @@ set(CPR_USE_SYSTEM_CURL OFF CACHE BOOL "" FORCE)
 set(BUILD_SHARED_LIBS   OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(cpr)
 target_link_libraries(mandelbrot_visualizer cpr::cpr)
+target_link_libraries(mandelbrot_visualizer fpa)
+
+if(BUILD_FPA_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif()

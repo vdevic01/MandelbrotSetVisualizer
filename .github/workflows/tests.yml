@@ -1,0 +1,55 @@
+name: Tests
+
+# Runs the fixed-point arithmetic unit tests on every pull request and on every push to main.
+#
+# No path filters on purpose: if this check is marked as required for merging, it must report on every
+# pull request, otherwise a PR that does not touch the listed paths could never be merged.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fpa-tests:
+    name: Unit tests (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Release
+            build_type: Release
+            sanitize: "OFF"
+          # AddressSanitizer + UndefinedBehaviorSanitizer catch out-of-bounds writes and undefined
+          # behavior that a normal build silently survives.
+          - name: ASan + UBSan
+            build_type: Debug
+            sanitize: "ON"
+    env:
+      UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+      ASAN_OPTIONS: detect_leaks=1:abort_on_error=0
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: >
+          cmake -S Visualizer -B build
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -DBUILD_FPA_TESTS=ON
+          -DFPA_SANITIZE=${{ matrix.sanitize }}
+
+      - name: Build tests
+        run: cmake --build build --target fpa_tests --parallel
+
+      - name: Run tests
+        run: ctest --test-dir build --output-on-failure --parallel

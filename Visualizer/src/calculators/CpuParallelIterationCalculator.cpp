@@ -1,8 +1,9 @@
-#include "SequentialIterationCalculator.h"
+#include "CpuParallelIterationCalculator.h"
 #include "FixedPointArithmetics.h"
+#include "FixedPointCore.h"
 
 
-void SequentialIterationCalculator::calculate(const std::vector<Complex>& points, std::vector<int>& iters, const unsigned int maxIter) const {
+void CpuParallelIterationCalculator::calculate(const std::vector<Complex>& points, std::vector<int>& iters, const unsigned int maxIter) const {
     const int N = static_cast<int>(points.size());
 
     #pragma omp parallel for schedule(dynamic) default(none) shared(points, iters, maxIter, N)
@@ -26,8 +27,11 @@ void SequentialIterationCalculator::calculate(const std::vector<Complex>& points
     }
 }
 
-void SequentialIterationCalculator::calculate(const std::vector<ComplexHP>& points, std::vector<int>& iters, const unsigned int maxIter) const {
+void CpuParallelIterationCalculator::calculate(const std::vector<ComplexHP>& points, std::vector<int>& iters, const unsigned int maxIter) const {
     using namespace fpa;
+    // The number format is fixed at compile time here, so call the core templates directly: no per-call
+    // dispatch on the fraction size, and the compiler can inline the arithmetic into this loop.
+    constexpr int F = FRACTION_PART;
     const int N = static_cast<int>(points.size());
 
     #pragma omp parallel for schedule(dynamic) default(none) shared(points, iters, maxIter, N)
@@ -46,23 +50,23 @@ void SequentialIterationCalculator::calculate(const std::vector<ComplexHP>& poin
         iters[idx] = -1;
         for (unsigned int i = 0; i < maxIter; i++) {
             // y = (x + x) * y + y0
-            addFixed(x, x, temp);
-            mulCmplFixed(temp, y, temp);
-            addFixed(temp, y0, y);
+            core::add<F>(x, x, temp);
+            core::mul<F>(temp, y, temp);
+            core::add<F>(temp, y0, y);
 
             // x = x2 - y2 + x0
-            subFixed(x2, y2, temp);
-            addFixed(temp, x0, x);
+            core::sub<F>(x2, y2, temp);
+            core::add<F>(temp, x0, x);
 
             // x2 = x * x
-            mulCmplFixed(x, x, x2);
+            core::mul<F>(x, x, x2);
 
             // y2 = y * y
-            mulCmplFixed(y, y, y2);
+            core::mul<F>(y, y, y2);
 
             // escape check: x2 + y2 > 4
-            addFixed(x2, y2, temp);
-            if (gtFixed(temp, fourFixed)) {
+            core::add<F>(x2, y2, temp);
+            if (core::gt<F>(temp, fourFixed)) {
                 iters[idx] = static_cast<int>(i);
                 break;
             }
