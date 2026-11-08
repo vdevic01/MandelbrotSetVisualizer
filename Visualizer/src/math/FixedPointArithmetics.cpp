@@ -44,10 +44,16 @@ namespace fpa {
 			incWords<N>(c, c);
 		}
 
+		// a - b == a + ~b + 1. Computed word by word with an initial carry of 1, so the output may be
+		// the same buffer as either input.
 		template<int N>
 		void subWords(const uint* a, const uint* b, uint* c) {
-			cmplWords<N>(b, c);
-			addWords<N>(a, c, c);
+			uint carry = 1;
+			for (int i = N - 1; i >= 0; i--) {
+				ulong temp = (ulong)a[i] + (uint)~b[i] + carry;
+				carry = temp >> WORD_BITS;
+				c[i] = temp;
+			}
 		}
 
 		template<int N>
