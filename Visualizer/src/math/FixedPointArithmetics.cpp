@@ -11,7 +11,7 @@ namespace fpa {
 		uint carry = 0;
 		for (int i = FP_SIZE - 1; i >= 0; i--) {
 			ulong temp = (ulong)a[i] + b[i] + carry;
-			carry = temp >> 32;
+			carry = temp >> WORD_BITS;
 			c[i] = temp;
 		}
 	}
@@ -20,7 +20,7 @@ namespace fpa {
 		uint carry = 1;
 		for (int i = FP_SIZE - 1; i >= 0; i--) {
 			ulong temp = (ulong)a[i] + carry;
-			carry = temp >> 32;
+			carry = temp >> WORD_BITS;
 			c[i] = (uint)temp;
 		}
 	}
@@ -38,40 +38,40 @@ namespace fpa {
 	}
 
 	bool gtFixed(const uint* a, const uint* b) {
-		uint signA = a[0] >> 31;
-		uint signB = b[0] >> 31;
+		uint signA = a[0] >> SIGN_SHIFT;
+		uint signB = b[0] >> SIGN_SHIFT;
 		if (signA != signB) {
 			return signA == 0;
 		}
-		uint diff[4];
+		uint diff[FP_SIZE];
 		subFixed(b, a, diff);
-		uint sign = diff[0] >> 31;
+		uint sign = diff[0] >> SIGN_SHIFT;
 		return sign == 1;
 	}
 
 	bool gteFixed(const uint* a, const uint* b) {
-		uint signA = a[0] >> 31;
-		uint signB = b[0] >> 31;
+		uint signA = a[0] >> SIGN_SHIFT;
+		uint signB = b[0] >> SIGN_SHIFT;
 		if (signA != signB) {
 			return signA == 0;
 		}
-		uint diff[4];
+		uint diff[FP_SIZE];
 		subFixed(a, b, diff);
-		uint sign = diff[0] >> 31;
+		uint sign = diff[0] >> SIGN_SHIFT;
 		return sign == 0;
 	}
 
 	void power(const int n, uint a[FP_SIZE]) {
-		int idx = FP_SIZE - 1 - n / 32;
-		int offset = n % 32;
-		a[idx] = 1 << offset;
+		int idx = FP_SIZE - 1 - n / WORD_BITS;
+		int offset = n % WORD_BITS;
+		a[idx] = 1U << offset;
 	}
 
 	void addFixedLong(const uint* a, const uint* b, uint c[FP_DIV_BUFFER_SIZE]) {
 		uint carry = 0;
 		for (int i = FP_DIV_BUFFER_SIZE - 1; i >= 0; i--) {
 			ulong temp = (ulong)a[i] + b[i] + carry;
-			carry = temp >> 32;
+			carry = temp >> WORD_BITS;
 			c[i] = temp;
 		}
 	}
@@ -80,7 +80,7 @@ namespace fpa {
 		uint carry = 1;
 		for (int i = FP_DIV_BUFFER_SIZE - 1; i >= 0; i--) {
 			ulong temp = (ulong)a[i] + carry;
-			carry = temp >> 32;
+			carry = temp >> WORD_BITS;
 			c[i] = (uint)temp;
 		}
 	}
@@ -98,14 +98,14 @@ namespace fpa {
 	}
 
 	bool gteFixedLong(const uint* a, const uint* b) {
-		uint signA = a[0] >> 31;
-		uint signB = b[0] >> 31;
+		uint signA = a[0] >> SIGN_SHIFT;
+		uint signB = b[0] >> SIGN_SHIFT;
 		if (signA != signB) {
 			return signA == 0;
 		}
 		uint diff[FP_DIV_BUFFER_SIZE];
 		subFixedLong(a, b, diff);
-		uint sign = diff[0] >> 31;
+		uint sign = diff[0] >> SIGN_SHIFT;
 		return sign == 0;
 	}
 
@@ -114,13 +114,13 @@ namespace fpa {
 			for (int i = 0; i < FP_DIV_BUFFER_SIZE; i++) result[i] = a[i];
 			return;
 		}
-		if (n >= FP_DIV_BUFFER_SIZE * 32) {
+		if (n >= FP_DIV_BUFFER_SIZE * WORD_BITS) {
 			for (int i = 0; i < FP_DIV_BUFFER_SIZE; i++) result[i] = 0;
 			return;
 		}
 
-		int wholeWords = n / 32;
-		int bitShift = n % 32;
+		int wholeWords = n / WORD_BITS;
+		int bitShift = n % WORD_BITS;
 
 		// Zero-initialize result
 		for (int i = 0; i < FP_DIV_BUFFER_SIZE; i++) result[i] = 0;
@@ -134,7 +134,7 @@ namespace fpa {
 		if (bitShift > 0) {
 			for (int i = FP_DIV_BUFFER_SIZE - 1; i > 0; i--) {
 				result[i] >>= bitShift;
-				result[i] |= (result[i - 1] << (32 - bitShift));
+				result[i] |= (result[i - 1] << (WORD_BITS - bitShift));
 			}
 			result[0] >>= bitShift;
 		}
@@ -145,13 +145,13 @@ namespace fpa {
 			for (int i = 0; i < FP_DIV_BUFFER_SIZE; i++) result[i] = a[i];
 			return;
 		}
-		if (n >= FP_DIV_BUFFER_SIZE * 32) {
+		if (n >= FP_DIV_BUFFER_SIZE * WORD_BITS) {
 			for (int i = 0; i < FP_DIV_BUFFER_SIZE; i++) result[i] = 0;
 			return;
 		}
 
-		int wholeWords = n / 32;
-		int bitShift = n % 32;
+		int wholeWords = n / WORD_BITS;
+		int bitShift = n % WORD_BITS;
 
 		// Zero-initialize result
 		for (int i = 0; i < FP_DIV_BUFFER_SIZE; i++) result[i] = 0;
@@ -165,7 +165,7 @@ namespace fpa {
 		if (bitShift > 0) {
 			for (int i = 0; i < FP_DIV_BUFFER_SIZE - 1; i++) {
 				result[i] <<= bitShift;
-				result[i] |= (result[i + 1] >> (32 - bitShift));
+				result[i] |= (result[i + 1] >> (WORD_BITS - bitShift));
 			}
 			result[FP_DIV_BUFFER_SIZE - 1] <<= bitShift;
 		}
@@ -174,12 +174,12 @@ namespace fpa {
 	void mulCmplFixed(const uint* a, const uint* b, uint c[FP_SIZE]) {
 		ulong result[FP_MUL_BUFFER_SIZE] = {};
 
-		uint tempA[4];
-		uint tempB[4];
+		uint tempA[FP_SIZE];
+		uint tempB[FP_SIZE];
 		const uint* aAbs = a;
 		const uint* bAbs = b;
-		uint aSign = a[0] >> 31;
-		uint bSign = b[0] >> 31;
+		uint aSign = a[0] >> SIGN_SHIFT;
+		uint bSign = b[0] >> SIGN_SHIFT;
 		bool negate = false;
 		if (aSign != bSign) {
 			if (aSign == 1) {
@@ -206,14 +206,14 @@ namespace fpa {
 				if (bAbs[j] == 0)
 					continue;
 				ulong temp = (ulong)aAbs[i] * bAbs[j];
-				ulong tempLSB = temp & 0x00000000FFFFFFFF;
-				ulong tempMSB = temp >> 32;
+				ulong tempLSB = temp & WORD_MASK;
+				ulong tempMSB = temp >> WORD_BITS;
 				result[i + j + 1] += tempLSB;
 				result[i + j] += tempMSB;
 			}
 		}
 		for (int i = FP_MUL_BUFFER_SIZE - 1; i >= 1; i--) {
-			result[i - 1] += result[i] >> 32;
+			result[i - 1] += result[i] >> WORD_BITS;
 		}
 		const int leftBound = WHOLE_PART * 2 - 1;
 		const int rightBound = leftBound + FP_SIZE;
@@ -224,97 +224,50 @@ namespace fpa {
 			cmplFixed(c, c);
 	}
 
-	void floatingToFixedPoint(double decimal, uint out[4]) {
+	void floatingToFixedPoint(double decimal, uint out[FP_SIZE]) {
 		bool isNegative = false;
 		if (decimal < 0) {
 			decimal = -decimal;
 			isNegative = true;
 		}
 
-		double scaleFactor = pow(2.0, 32);
+		out[0] = static_cast<uint>(trunc(decimal));
+		double remaining = decimal - static_cast<double>(out[0]);
 
-		uint integerPart = static_cast<uint>(trunc(decimal));
-		double fractionalPart = decimal - static_cast<double>(integerPart);
-
-		uint fractionHigh = static_cast<uint>(trunc(fractionalPart * scaleFactor));
-		double remainingFraction = fractionalPart * scaleFactor - static_cast<double>(fractionHigh);
-
-		uint fractionLow1 = static_cast<uint>(trunc(remainingFraction * scaleFactor));
-		double remainingFraction2 = remainingFraction * scaleFactor - static_cast<double>(fractionLow1);
-
-		uint fractionLow2 = static_cast<uint>(trunc(remainingFraction2 * scaleFactor));
-
-		out[0] = integerPart;
-		out[1] = fractionHigh;
-		out[2] = fractionLow1;
-		out[3] = fractionLow2;
-
-		if (isNegative) {
-			ulong bigNums[4];
-			for (int i = 0; i < 4; i++) {
-				bigNums[i] = (~static_cast<ulong>(out[i])) & 0xFFFFFFFF;
-			}
-
-			bigNums[3] += 1;
-			for (int i = 3; i >= 1; --i) {
-				ulong carry = bigNums[i] >> 32;
-				bigNums[i] &= 0xFFFFFFFF;
-				bigNums[i - 1] += carry;
-			}
-			bigNums[0] &= 0xFFFFFFFF;
-
-			for (int i = 0; i < 4; ++i) {
-				out[i] = static_cast<ulong>(bigNums[i]);
-			}
+		// Peel off one fraction word at a time: scale the remainder up by one word, take the integer part.
+		for (int i = WHOLE_PART; i < FP_SIZE; i++) {
+			const double scaled = remaining * WORD_SCALE;
+			out[i] = static_cast<uint>(trunc(scaled));
+			remaining = scaled - static_cast<double>(out[i]);
 		}
+
+		if (isNegative)
+			cmplFixed(out, out);
 	}
 
-	double fixedToFloatingPoint(const uint fpNum[4]) {
-		uint temp[4];
-		for (int i = 0; i < 4; ++i)
+	double fixedToFloatingPoint(const uint fpNum[FP_SIZE]) {
+		uint temp[FP_SIZE];
+		for (int i = 0; i < FP_SIZE; ++i)
 			temp[i] = fpNum[i];
 
-		bool isNegative = false;
-
-		if ((temp[0] & 0x80000000) != 0) {
-			isNegative = true;
-
-			ulong bigNums[4];
-			for (int i = 0; i < 4; i++) {
-				bigNums[i] = (~static_cast<ulong>(temp[i])) & 0xFFFFFFFF;
-			}
-
-			bigNums[3] += 1;
-			for (int i = 3; i >= 1; --i) {
-				ulong carry = bigNums[i] >> 32;
-				bigNums[i] &= 0xFFFFFFFF;
-				bigNums[i - 1] += carry;
-			}
-			bigNums[0] &= 0xFFFFFFFF;
-
-			for (int i = 0; i < 4; ++i) {
-				temp[i] = static_cast<uint>(bigNums[i]);
-			}
-		}
+		const bool isNegative = (temp[0] >> SIGN_SHIFT) != 0;
+		if (isNegative)
+			cmplFixed(temp, temp);
 
 		auto result = static_cast<double>(temp[0]);
 		double divisor = 1.0;
 
-		for (int i = 1; i < 4; ++i) {
-			uint part = temp[i];
-			for (int j = 0; j < 32; ++j) {
+		for (int i = WHOLE_PART; i < FP_SIZE; ++i) {
+			const uint part = temp[i];
+			for (int j = 0; j < WORD_BITS; ++j) {
 				divisor *= 2.0;
-				if (part & (1U << (31 - j))) {
+				if (part & (1U << (WORD_BITS - 1 - j))) {
 					result += 1.0 / divisor;
 				}
 			}
 		}
 
-		if (isNegative) {
-			result = -result;
-		}
-
-		return result;
+		return isNegative ? -result : result;
 	}
 
 	bool isZero(const uint* a) {
@@ -328,13 +281,13 @@ namespace fpa {
 	void divFixed(const uint* a, const uint* b, uint c[FP_SIZE]) {
 		if (isZero(b)) throw invalid_argument("Division by zero");
 
-		uint tempA[4], tempB[4];
+		uint tempA[FP_SIZE], tempB[FP_SIZE];
 		const uint* aAbs = a;
 		const uint* bAbs = b;
 		bool negate = false;
 
-		bool aNeg = (a[0] >> 31) != 0;
-		bool bNeg = (b[0] >> 31) != 0;
+		bool aNeg = (a[0] >> SIGN_SHIFT) != 0;
+		bool bNeg = (b[0] >> SIGN_SHIFT) != 0;
 
 		if (aNeg != bNeg) {
 			if (aNeg) {
@@ -360,7 +313,7 @@ namespace fpa {
 		copy(bAbs, bAbs + FP_SIZE, buffB + FRACTION_PART);
 
 		uint tempBuffer[FP_DIV_BUFFER_SIZE];
-		for (int i = FP_DIV_BUFFER_SIZE * 32 - 1; i >= 0; i--) {
+		for (int i = FP_DIV_BUFFER_SIZE * WORD_BITS - 1; i >= 0; i--) {
 			rightShiftLong(buffA, i, tempBuffer);
 			if (gteFixedLong(tempBuffer, buffB)) {
 				uint temp[FP_SIZE] = { 0 };
