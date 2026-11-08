@@ -7,4 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 option(ENABLE_OPENCL "Enable OpenCL backend" OFF)
 option(ENABLE_CUDA   "Enable CUDA backend"   OFF)
 
+# Lets `ctest` (and CLion's "All CTest" configuration) find the tests registered in subdirectories.
+enable_testing()
+
 add_subdirectory(Visualizer)
