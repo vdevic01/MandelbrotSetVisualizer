@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 #include <algorithm>
 #include <cstdlib>
@@ -55,45 +56,48 @@ HpPoints samplePointsHp(
     points.fractionWords = F;
     points.words.resize(static_cast<size_t>(imageWidth) * imageHeight * samples * 2 * S);
 
-    fpa::uint imageHeightHP[S] = {static_cast<fpa::uint>(imageHeight)};
-    fpa::uint imageWidthHP[S]  = {static_cast<fpa::uint>(imageWidth)};
+    // Pixel boundaries. Column j covers [cols[j], cols[j+1]) and row i covers [rows[i], rows[i+1]).
+    // Each boundary is computed from the start as start + (index * range) / count, so its error is at most
+    // a couple of resolution steps however many pixels there are. (Adding a truncated per-pixel step instead
+    // would let the error grow with the pixel index, which distorts the image when a pixel is only a few
+    // resolution steps wide.)
+    auto boundaries = [](int count, const fpa::uint* start, const fpa::uint* end) {
+        std::vector<fpa::uint> result(static_cast<size_t>(count + 1) * S);
+        fpa::uint range[S] = {};
+        fpa::core::sub<F>(end, start, range);
+        fpa::uint countHP[S] = {static_cast<fpa::uint>(count)};
+        for (int k = 0; k < count; k++) {
+            fpa::uint indexHP[S] = {static_cast<fpa::uint>(k)};
+            fpa::uint product[S] = {};
+            fpa::uint offset[S] = {};
+            fpa::core::mul<F>(indexHP, range, product);
+            fpa::core::div<F>(product, countHP, offset);
+            fpa::core::add<F>(start, offset, &result[static_cast<size_t>(k) * S]);
+        }
+        std::copy(end, end + S, &result[static_cast<size_t>(count) * S]);   // the last boundary is the end itself
+        return result;
+    };
+    const std::vector<fpa::uint> cols = boundaries(imageWidth, reStart, reEnd);
+    const std::vector<fpa::uint> rows = boundaries(imageHeight, imStart, imEnd);
 
-    fpa::uint temp[S] = {};
-    fpa::uint scaleImaginary[S] = {};
-    fpa::core::sub<F>(imEnd, imStart, temp);
-    fpa::core::div<F>(temp, imageHeightHP, scaleImaginary);
-
-    fpa::uint scaleReal[S] = {};
-    fpa::core::sub<F>(reEnd, reStart, temp);
-    fpa::core::div<F>(temp, imageWidthHP, scaleReal);
-
-    fpa::uint realPartFP[S];
-    fpa::uint imagPartFP[S];
-
-    #pragma omp parallel for default(none) shared(points, imageHeight, imageWidth, imStart, reStart, scaleImaginary, scaleReal, samples) private(realPartFP, imagPartFP)
+    #pragma omp parallel for default(none) shared(points, cols, rows, imageHeight, imageWidth, samples)
     for (int i = 0; i < imageHeight; i++) {
-        fpa::uint imaginaryPartBoundary[S] = {};
-        fpa::uint iHP[S] = {};
-        fpa::core::floatingToFixed<F>(static_cast<double>(i), iHP);
-        fpa::core::mul<F>(iHP, scaleImaginary, imaginaryPartBoundary);
-        fpa::core::add<F>(imStart, imaginaryPartBoundary, imaginaryPartBoundary);
-
-        fpa::uint realPartBoundary[S] = {};
-        std::copy(reStart, reStart + S, realPartBoundary);
+        fpa::uint realPart[S];
+        fpa::uint imagPart[S];
+        const fpa::uint* rowLow = &rows[static_cast<size_t>(i) * S];
+        const fpa::uint* rowHigh = rowLow + S;
 
         for (int j = 0; j < imageWidth; j++) {
+            const fpa::uint* colLow = &cols[static_cast<size_t>(j) * S];
+            const fpa::uint* colHigh = colLow + S;
             for (int k = 0; k < samples; k++) {
-                fpa::core::add<F>(realPartBoundary, scaleReal, realPartFP);
-                fpa::core::randomFromRange<F>(realPartBoundary, realPartFP, realPartFP);
-
-                fpa::core::add<F>(imaginaryPartBoundary, scaleImaginary, imagPartFP);
-                fpa::core::randomFromRange<F>(imaginaryPartBoundary, imagPartFP, imagPartFP);
+                fpa::core::randomFromRange<F>(colLow, colHigh, realPart);
+                fpa::core::randomFromRange<F>(rowLow, rowHigh, imagPart);
 
                 const size_t idx = (static_cast<size_t>(j) + static_cast<size_t>(i) * imageWidth) * samples + k;
-                std::copy(realPartFP, realPartFP + S, points.real(idx));
-                std::copy(imagPartFP, imagPartFP + S, points.imag(idx));
+                std::copy(realPart, realPart + S, points.real(idx));
+                std::copy(imagPart, imagPart + S, points.imag(idx));
             }
-            fpa::core::add<F>(realPartBoundary, scaleReal, realPartBoundary);
         }
     }
     return points;
