@@ -1,13 +1,13 @@
 # Mandelbrot Set Visualizer
 
-An interactive Mandelbrot set explorer with a Tauri/TypeScript GUI and a high-performance C++ backend. Zoom arbitrarily deep using standard double precision, with automatic promotion to 128-bit fixed-point arithmetic when double precision runs out.
+An interactive Mandelbrot set explorer with a Tauri/TypeScript GUI and a high-performance C++ backend. Zoom arbitrarily deep using standard double precision, with automatic promotion to fixed-point arithmetic of up to 192 bits when double precision runs out.
 
 ---
 
 ## Features
 
 - **Interactive zoom** — draw a rectangle on the canvas to zoom into any region; the selection snaps to the canvas aspect ratio
-- **Automatic high-precision mode** — seamlessly switches from 64-bit `double` to 128-bit fixed-point arithmetic when the viewport width drops below ~6×10⁻¹³, allowing zoom depths that double precision cannot represent
+- **Automatic high-precision mode** — seamlessly switches from 64-bit `double` to fixed-point arithmetic when the viewport width drops below ~6×10⁻¹³ and grows the fixed-point size (2 to 6 words) as you zoom deeper, down to a viewport width of ~4×10⁻⁵⁵
 - **OpenMP parallelism** — CPU rendering uses all available cores
 - **Anti-aliasing** — configurable samples-per-pixel with random sub-pixel jitter
 - **8 colour palettes** — cyclic palettes with configurable cycle length
@@ -64,6 +64,7 @@ MandelbrotSetVisualizer/
     └── MandelbrotSetVisualizer/ Tauri application
         ├── src/
         │   ├── main.ts          Frontend logic (p5.js canvas, BoundaryManager)
+        │   ├── precision.ts     Number format for a zoom level, Decimal to fixed-point words
         │   └── styles.css
         ├── index.html
         └── src-tauri/
@@ -189,22 +190,51 @@ The tests run automatically on every pull request to `main` (GitHub Actions work
 
 ## High-precision mode
 
-Standard `double` provides ~15–16 significant decimal digits. When zooming deep into the set, adjacent pixels start mapping to the same floating-point coordinate and the image degrades. The app detects this automatically: once the viewport width (reEnd − reStart) drops below **6×10⁻¹³**, it promotes all subsequent renders to high-precision mode.
+Standard `double` provides ~15–16 significant decimal digits. When zooming deep into the set, adjacent pixels start mapping to the same floating-point coordinate and the image degrades. The app detects this automatically: once the viewport width (reEnd − reStart) drops below **6×10⁻¹³**, it switches to fixed-point arithmetic, and it keeps increasing the fixed-point size as you zoom deeper.
 
-High-precision coordinates are represented as **128-bit signed fixed-point numbers** using 4 × 32-bit words in two's complement, big-endian order:
+### Fixed-point format
+
+Coordinates are **signed fixed-point numbers** made of 32-bit words in two's complement, big-endian: one integer word followed by `N` fraction words (`N` is the fraction size, 1 to 6):
 
 ```
-[ integer word ][ fraction word 1 ][ fraction word 2 ][ fraction word 3 ]
-   32 bits           32 bits            32 bits            32 bits
+[ integer word ][ fraction word 1 ] ... [ fraction word N ]
 ```
 
-This gives 1 integer word and 96 bits of fractional precision — approximately **29 significant decimal digits**. The fixed-point library (`Visualizer/src/math/`) implements addition, subtraction, multiplication, division, comparison and complementing entirely in integer arithmetic, with no heap allocation.
+| Fraction words N | Bits | Resolution (smallest step) | Decimal digits |
+|---|---|---|---|
+| 1 | 64 | 2.3×10⁻¹⁰ | ~9 (coarser than a double: never used) |
+| 2 | 96 | 5.4×10⁻²⁰ | ~19 |
+| 3 | 128 | 1.3×10⁻²⁹ | ~28 |
+| 4 | 160 | 2.9×10⁻³⁹ | ~38 |
+| 5 | 192 | 6.8×10⁻⁴⁹ | ~48 |
+| 6 | 224 | 1.6×10⁻⁵⁸ | ~57 |
 
-The library is generic over the number of fraction words (1 to 6): every function in `FixedPointArithmetics.h` takes an optional `fractionWords` argument that defaults to the 3-word format above. The application, the CLI and the GPU paths currently use that default. Results are truncated toward zero, and division throws `std::overflow_error` when the quotient does not fit.
+Larger sizes cost more time per operation, so the app always uses the smallest size that is precise enough.
 
-The arithmetic the GPU needs (add, subtract, compare, multiply) lives in `FixedPointShared.h`, which the CPU build and the CUDA kernel both use, so it is tested once by the unit tests. The OpenCL high-precision kernel still has its own copy.
+### Choosing the size automatically
 
-Coordinate conversion between the Tauri frontend (which uses the `decimal.js` arbitrary-precision library) and the C++ backend (which uses the 4-word fixed-point format) is handled by `BoundaryManager.decimalToFixedPoint()` and `fixedToDecimal()` in `main.ts`, and by `fpa::floatingToFixedPoint()` / `fpa::fixedToFloatingPoint()` in C++.
+One pixel of the 900-pixel-wide canvas covers `viewport width / 900`. A format is used as long as one pixel is at least **3 resolution steps** wide (`SAFETY_STEPS_PER_PIXEL` in `precision.ts`). That is the same quality as the original double → fixed-point switch, and it works out to these switch points (viewport width):
+
+| Format | Used until the viewport width drops below |
+|---|---|
+| `double` | 6×10⁻¹³ |
+| 2 fraction words | 1.5×10⁻¹⁶ |
+| 3 fraction words | 3.4×10⁻²⁶ |
+| 4 fraction words | 7.9×10⁻³⁶ |
+| 5 fraction words | 1.8×10⁻⁴⁵ |
+| 6 fraction words | 4.3×10⁻⁵⁵ (the limit) |
+
+Below the limit rendering continues with 6 words and the status line above the canvas warns that the image is no longer accurate. The status line also shows which format each render used.
+
+The margin of 3 steps per pixel comes from measurements, not a guess: `benchmarks/precision_calibration.py` renders views with each size at a known number of steps per pixel and counts the pixels that differ from a 6-word reference image. At 3 steps about 3% of the pixels differ (visually indistinguishable), at 100 steps about 0.3%, at 1000 steps about 0.04%. A larger margin would give an even cleaner image but would switch to the slower, larger formats earlier; change `SAFETY_STEPS_PER_PIXEL` to trade one for the other.
+
+### Implementation notes
+
+The fixed-point library (`Visualizer/src/math/`) implements addition, subtraction, multiplication, division, comparison and complementing entirely in integer arithmetic, with no heap allocation. Every function in `FixedPointArithmetics.h` takes an optional `fractionWords` argument (default 3). Results are truncated toward zero, and division throws `std::overflow_error` when the quotient does not fit.
+
+The arithmetic the GPU needs (add, subtract, compare, multiply) lives in `FixedPointShared.h`, which the CPU build and the CUDA kernel both use, so it is tested once by the unit tests. The OpenCL high-precision kernel has its own copy, which the host compiles for the size of each render. All backends (CPU, CUDA local and remote, OpenCL) support sizes 1 to 6.
+
+The frontend uses `decimal.js` for the viewport coordinates, configured for 100 significant digits (its default of 20 would cap the zoom depth far below what the formats can represent). `precision.ts` converts them to fixed-point words with `decimalToFixedWords()`, and the C++ side converts doubles with `fpa::floatingToFixedPoint()` / `fpa::fixedToFloatingPoint()`.
 
 ---
 
@@ -225,7 +255,7 @@ mandelbrot_visualizer <MODE> <OUTPUT_FILE> <MAX_ITER> <PALETTE_LENGTH> <PALETTE_
 | `PALETTE_LENGTH` | int | Colour cycle length |
 | `PALETTE_ID` | int | Palette index (0–7) |
 | `SAMPLES` | int | Anti-aliasing samples per pixel (≥ 1) |
-| `USE_HP` | 0 or 1 | 0 = double precision, 1 = 128-bit fixed-point |
+| `USE_HP` | 0 or 1 | 0 = double precision, 1 = fixed point (size set by `--fraction-words`) |
 | `WIDTH HEIGHT` | int int | Optional. Output image dimensions (default: 900×600) |
 | `--fraction-words N` | 1–6 | Optional flag, may appear anywhere. Number of 32-bit fraction words of the fixed-point format used when `USE_HP=1` (default 3). More words allow deeper zooms but are slower. Ignored for double precision. |
 
@@ -354,9 +384,9 @@ The C++ client sends a compact JSON body directly to the worker:
  "re_start":-2.0,"re_end":1.0,"im_start":-1.0,"im_end":1.0}
 ```
 
-**High precision** (4 × 32-bit fixed-point words per coordinate):
+**High precision** (`1 + fraction_words` 32-bit fixed-point words per coordinate; `fraction_words` is optional and defaults to 3):
 ```json
-{"use_hp":1,"max_iter":1000,"samples":4,"width":900,"height":600,
+{"use_hp":1,"max_iter":1000,"samples":4,"width":900,"height":600,"fraction_words":3,
  "re_start_0":W,"re_start_1":X,"re_start_2":Y,"re_start_3":Z, ...}
 ```
 
