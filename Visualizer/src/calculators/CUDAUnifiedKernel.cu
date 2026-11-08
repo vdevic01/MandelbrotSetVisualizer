@@ -2,6 +2,8 @@
 #include <device_launch_parameters.h>
 #include <cstdint>
 #include <iostream>
+#include <stdexcept>
+#include <string>
 
 #include "CUDAIterationCalculator.h"
 #include "FixedPointShared.h"
@@ -126,8 +128,7 @@ __global__ void calculateIters(const ComplexHP* points, int32_t* iterations)
 
 
 template<typename T_ComplexType>
-void calculateItersInternal(const std::vector<T_ComplexType>& points, std::vector<int>& iters, const unsigned int maxIter) {
-	const size_t N = points.size();
+void calculateItersInternal(const T_ComplexType* points, const size_t N, std::vector<int>& iters, const unsigned int maxIter) {
 
 	T_ComplexType* devicePointsBuffer;
 	int* deviceItersBuffer;
@@ -135,7 +136,7 @@ void calculateItersInternal(const std::vector<T_ComplexType>& points, std::vecto
 	cudaMalloc(&devicePointsBuffer, N * sizeof(T_ComplexType));
 	cudaMalloc(&deviceItersBuffer, N * sizeof(int));
 
-	cudaMemcpy(devicePointsBuffer, points.data(), N * sizeof(T_ComplexType), cudaMemcpyHostToDevice);
+	cudaMemcpy(devicePointsBuffer, points, N * sizeof(T_ComplexType), cudaMemcpyHostToDevice);
 	cudaMemcpyToSymbol(deviceMaxIter, &maxIter, sizeof(unsigned int));
 	cudaMemcpyToSymbol(deviceN, &N, sizeof(size_t));
 
@@ -151,9 +152,12 @@ void calculateItersInternal(const std::vector<T_ComplexType>& points, std::vecto
 }
 
 void CUDAIterationCalculator::calculate(const std::vector<Complex>& points, std::vector<int>& iters, unsigned int maxIter) const {
-	calculateItersInternal<Complex>(points, iters, maxIter);
+	calculateItersInternal<Complex>(points.data(), points.size(), iters, maxIter);
 }
 
-void CUDAIterationCalculator::calculate(const std::vector<ComplexHP>& points, std::vector<int>& iters, unsigned int maxIter) const {
-	calculateItersInternal<ComplexHP>(points, iters, maxIter);
+void CUDAIterationCalculator::calculate(const HpPoints& points, std::vector<int>& iters, unsigned int maxIter) const {
+	// The kernel is still written for exactly 3 fraction words (same layout as ComplexHP).
+	if (points.fractionWords != fpa::FRACTION_PART)
+		throw std::runtime_error("The CUDA backend supports only " + std::to_string(fpa::FRACTION_PART) + " fraction words for now");
+	calculateItersInternal<ComplexHP>(reinterpret_cast<const ComplexHP*>(points.words.data()), points.size(), iters, maxIter);
 }

@@ -30,10 +30,11 @@ struct MandelbrotConfig {
     double reEnd   = -0.152809695287500013708;
     double imStart =  1.039611370300000000002;
     double imEnd   =  1.039757762612500000002;
-    fpa::uint reStartHP[fpa::FP_SIZE] = {};
-    fpa::uint reEndHP[fpa::FP_SIZE]   = {};
-    fpa::uint imStartHP[fpa::FP_SIZE] = {};
-    fpa::uint imEndHP[fpa::FP_SIZE]   = {};
+    int fractionWords = fpa::FRACTION_PART;   // fraction size of the high-precision format (--fraction-words)
+    fpa::uint reStartHP[fpa::MAX_FP_SIZE] = {};
+    fpa::uint reEndHP[fpa::MAX_FP_SIZE]   = {};
+    fpa::uint imStartHP[fpa::MAX_FP_SIZE] = {};
+    fpa::uint imEndHP[fpa::MAX_FP_SIZE]   = {};
     int samples     = 10;
     int maxIter     = 1000;
     int imageWidth  = 900;
@@ -43,17 +44,18 @@ struct MandelbrotConfig {
     int paletteId     = 0;
 };
 
-template<typename T_ComplexType>
+// T_Points is vector<Complex> (double precision) or HpPoints (fixed point).
+template<typename T_Points>
 void createMandelbrotSet(const MandelbrotConfig& config, const ColorManager& colorManager, const IterationCalculator& iterCalculator) {
     cout << "=====================================================\n";
     ScopedTimer total_timer("Total generation time");
 
     const int imageSize = config.imageHeight * config.imageWidth;
 
-    vector<T_ComplexType> points;
+    T_Points points;
     {
         ScopedTimer timer("Pixel mapping");
-        if constexpr (is_same_v<T_ComplexType, Complex>) {
+        if constexpr (is_same_v<T_Points, vector<Complex>>) {
             points = samplePointsFromComplexPlane(
                 config.imageHeight, config.imageWidth,
                 config.imStart, config.imEnd,
@@ -64,7 +66,7 @@ void createMandelbrotSet(const MandelbrotConfig& config, const ColorManager& col
                 config.imageHeight, config.imageWidth,
                 config.imStartHP, config.imEndHP,
                 config.reStartHP, config.reEndHP,
-                config.samples);
+                config.samples, config.fractionWords);
         }
     }
 
@@ -155,6 +157,7 @@ static void createMandelbrotSetRemote(
             iters = calc.calculateHP(
                 config.reStartHP, config.reEndHP,
                 config.imStartHP, config.imEndHP,
+                config.fractionWords,
                 config.imageWidth, config.imageHeight,
                 config.samples, static_cast<unsigned int>(config.maxIter));
         } else {
@@ -178,8 +181,47 @@ static void createMandelbrotSetRemote(
     }
 }
 
-optional<MandelbrotConfig> parseCommandLine(int argc, char* argv[]) {
+// Parses the command line. The only flag is --fraction-words N (or --fraction-words=N), which may appear
+// anywhere; everything else is positional (see the usage message).
+optional<MandelbrotConfig> parseCommandLine(int argcIn, char* argvIn[]) {
+    int fractionWords = fpa::FRACTION_PART;
+    vector<char*> positional;
+    for (int i = 0; i < argcIn; i++) {
+        const string arg = argvIn[i];
+        const string flag = "--fraction-words";
+        if (arg != flag && arg.rfind(flag + "=", 0) != 0) {
+            positional.push_back(argvIn[i]);
+            continue;
+        }
+        string value;
+        if (arg == flag) {
+            if (i + 1 >= argcIn) {
+                cerr << "Error: --fraction-words needs a value.\n";
+                return nullopt;
+            }
+            value = argvIn[++i];
+        } else {
+            value = arg.substr(flag.size() + 1);
+        }
+        try {
+            size_t parsed = 0;
+            fractionWords = stoi(value, &parsed);
+            if (parsed != value.size()) throw invalid_argument("not a number");
+        } catch (const exception&) {
+            cerr << "Error: --fraction-words must be an integer, got '" << value << "'.\n";
+            return nullopt;
+        }
+        if (!fpa::isSupportedFractionPart(fractionWords)) {
+            cerr << "Error: --fraction-words must be between " << fpa::MIN_FRACTION_PART << " and "
+                 << fpa::MAX_FRACTION_PART << ", got " << fractionWords << ".\n";
+            return nullopt;
+        }
+    }
+    int argc = static_cast<int>(positional.size());
+    char** argv = positional.data();
+
     MandelbrotConfig config;
+    config.fractionWords = fractionWords;
     if (argc > 1) {
         try {
             constexpr int W = 36;
@@ -215,24 +257,40 @@ optional<MandelbrotConfig> parseCommandLine(int argc, char* argv[]) {
 
             int nextArg;
             if (config.useHighPrecision) {
-                config.reStartHP[0] = stoul(argv[8]);  config.reStartHP[1] = stoul(argv[9]);
-                config.reStartHP[2] = stoul(argv[10]); config.reStartHP[3] = stoul(argv[11]);
+                cout << left << setw(W) << "Fraction words:" << config.fractionWords << "\n";
 
-                config.reEndHP[0] = stoul(argv[12]); config.reEndHP[1] = stoul(argv[13]);
-                config.reEndHP[2] = stoul(argv[14]); config.reEndHP[3] = stoul(argv[15]);
+                const int words = fpa::fpSize(config.fractionWords);
+                const int required = 8 + 4 * words;
+                if (argc < required) {
+                    cerr << "Error: high precision with " << config.fractionWords << " fraction words needs "
+                         << 4 * words << " coordinate numbers (" << words << " per coordinate), but "
+                         << (argc > 8 ? argc - 8 : 0) << " were given.\n";
+                    return nullopt;
+                }
 
-                config.imStartHP[0] = stoul(argv[16]); config.imStartHP[1] = stoul(argv[17]);
-                config.imStartHP[2] = stoul(argv[18]); config.imStartHP[3] = stoul(argv[19]);
+                auto readWords = [&](int first, fpa::uint* out) {
+                    for (int i = 0; i < words; i++) out[i] = static_cast<fpa::uint>(stoul(argv[first + i]));
+                };
+                readWords(8, config.reStartHP);
+                readWords(8 + words, config.reEndHP);
+                readWords(8 + 2 * words, config.imStartHP);
+                readWords(8 + 3 * words, config.imEndHP);
 
-                config.imEndHP[0] = stoul(argv[20]); config.imEndHP[1] = stoul(argv[21]);
-                config.imEndHP[2] = stoul(argv[22]); config.imEndHP[3] = stoul(argv[23]);
-
-                cout << left << setw(W) << "reStartHP:" << "{" << config.reStartHP[0] << "," << config.reStartHP[1] << "," << config.reStartHP[2] << "," << config.reStartHP[3] << "}\n";
-                cout << left << setw(W) << "reEndHP:"   << "{" << config.reEndHP[0]   << "," << config.reEndHP[1]   << "," << config.reEndHP[2]   << "," << config.reEndHP[3]   << "}\n";
-                cout << left << setw(W) << "imStartHP:" << "{" << config.imStartHP[0] << "," << config.imStartHP[1] << "," << config.imStartHP[2] << "," << config.imStartHP[3] << "}\n";
-                cout << left << setw(W) << "imEndHP:"   << "{" << config.imEndHP[0]   << "," << config.imEndHP[1]   << "," << config.imEndHP[2]   << "," << config.imEndHP[3]   << "}\n";
-                nextArg = 24;
+                auto printWords = [&](const char* label, const fpa::uint* v) {
+                    cout << left << setw(W) << label << "{";
+                    for (int i = 0; i < words; i++) cout << (i ? "," : "") << v[i];
+                    cout << "}\n";
+                };
+                printWords("reStartHP:", config.reStartHP);
+                printWords("reEndHP:", config.reEndHP);
+                printWords("imStartHP:", config.imStartHP);
+                printWords("imEndHP:", config.imEndHP);
+                nextArg = required;
             } else {
+                if (argc < 12) {
+                    cerr << "Error: double precision needs 4 coordinates (RE_START RE_END IM_START IM_END).\n";
+                    return nullopt;
+                }
                 config.reStart = stod(argv[8]);
                 config.reEnd   = stod(argv[9]);
                 config.imStart = stod(argv[10]);
@@ -245,9 +303,22 @@ optional<MandelbrotConfig> parseCommandLine(int argc, char* argv[]) {
                 nextArg = 12;
             }
 
-            if (argc > nextArg + 1) {
+            // After the coordinates only WIDTH HEIGHT may follow. Anything else usually means that the number
+            // of coordinate words does not match the fraction size (pass --fraction-words N).
+            const int extraArgs = argc - nextArg;
+            if (extraArgs != 0 && extraArgs != 2) {
+                cerr << "Error: found " << extraArgs << " argument(s) after the coordinates, expected none or WIDTH HEIGHT."
+                     << (config.useHighPrecision ? " Check that --fraction-words matches the number of coordinate words." : "")
+                     << "\n";
+                return nullopt;
+            }
+            if (extraArgs == 2) {
                 config.imageWidth  = stoi(argv[nextArg]);
                 config.imageHeight = stoi(argv[nextArg + 1]);
+                if (config.imageWidth <= 0 || config.imageHeight <= 0) {
+                    cerr << "Error: WIDTH and HEIGHT must be positive.\n";
+                    return nullopt;
+                }
             }
             cout << left << setw(W) << "Image size:" << config.imageWidth << "x" << config.imageHeight << "\n";
         }
@@ -256,8 +327,10 @@ optional<MandelbrotConfig> parseCommandLine(int argc, char* argv[]) {
             cerr << "Usage: " << argv[0]
                  << " <MODE> <OUTPUT_FILE> <MAX_ITER> <PALETTE_LENGTH> <PALETTE_ID>"
                     " <SAMPLES> <USE_HP(0/1)> <RE_START> <RE_END> <IM_START> <IM_END>"
-                    " [WIDTH HEIGHT]\n"
-                 << "  MODE: CPU_PARALLEL | OPENCL_LOCAL | CUDA_LOCAL | CUDA_REMOTE\n";
+                    " [WIDTH HEIGHT] [--fraction-words N]\n"
+                 << "  MODE: CPU_PARALLEL | OPENCL_LOCAL | CUDA_LOCAL | CUDA_REMOTE\n"
+                 << "  High precision takes 4 x (1 + N) coordinate numbers (N = fraction words, default "
+                 << fpa::FRACTION_PART << ", range " << fpa::MIN_FRACTION_PART << ".." << fpa::MAX_FRACTION_PART << ").\n";
             return nullopt;
         }
     }
@@ -326,9 +399,9 @@ int main(int argc, char* argv[]) {
             const auto iterCalculator = makeCalculator(config.mode);
             if (!iterCalculator) return 1;
             if (config.useHighPrecision)
-                createMandelbrotSet<ComplexHP>(config, colorManager, *iterCalculator);
+                createMandelbrotSet<HpPoints>(config, colorManager, *iterCalculator);
             else
-                createMandelbrotSet<Complex>(config, colorManager, *iterCalculator);
+                createMandelbrotSet<vector<Complex>>(config, colorManager, *iterCalculator);
         }
     } catch (const exception& e) {
         // A clean message and exit code instead of std::terminate, so the GUI can show what went wrong.

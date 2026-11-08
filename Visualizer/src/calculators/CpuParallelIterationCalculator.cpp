@@ -2,6 +2,9 @@
 #include "FixedPointArithmetics.h"
 #include "FixedPointCore.h"
 
+#include <stdexcept>
+#include <string>
+
 
 void CpuParallelIterationCalculator::calculate(const std::vector<Complex>& points, std::vector<int>& iters, const unsigned int maxIter) const {
     const int N = static_cast<int>(points.size());
@@ -27,25 +30,30 @@ void CpuParallelIterationCalculator::calculate(const std::vector<Complex>& point
     }
 }
 
-void CpuParallelIterationCalculator::calculate(const std::vector<ComplexHP>& points, std::vector<int>& iters, const unsigned int maxIter) const {
+namespace {
+
+// The high-precision loop for one fraction size F (a compile-time constant): the arithmetic is called
+// without any per-operation dispatch and the compiler can inline it into the loop.
+template<int F>
+void calculateHp(const HpPoints& points, std::vector<int>& iters, const unsigned int maxIter) {
     using namespace fpa;
-    // The number format is fixed at compile time here, so call the core templates directly: no per-call
-    // dispatch on the fraction size, and the compiler can inline the arithmetic into this loop.
-    constexpr int F = FRACTION_PART;
+    constexpr int S = WHOLE_PART + F;   // words per number
     const int N = static_cast<int>(points.size());
 
     #pragma omp parallel for schedule(dynamic) default(none) shared(points, iters, maxIter, N)
     for (int idx = 0; idx < N; idx++) {
-        uint x0[FP_SIZE], y0[FP_SIZE];
-        for (int k = 0; k < FP_SIZE; k++) {
-            x0[k] = points[idx].real[k];
-            y0[k] = points[idx].imag[k];
+        uint x0[S], y0[S];
+        const uint* re = points.real(idx);
+        const uint* im = points.imag(idx);
+        for (int k = 0; k < S; k++) {
+            x0[k] = re[k];
+            y0[k] = im[k];
         }
 
-        uint x[FP_SIZE]  = {}, y[FP_SIZE]  = {};
-        uint x2[FP_SIZE] = {}, y2[FP_SIZE] = {};
-        uint temp[FP_SIZE];
-        const uint fourFixed[FP_SIZE] = {4, 0, 0, 0};
+        uint x[S]  = {}, y[S]  = {};
+        uint x2[S] = {}, y2[S] = {};
+        uint temp[S];
+        const uint fourFixed[S] = {4};   // 4.0: the whole word is 4, the fraction words are 0
 
         iters[idx] = -1;
         for (unsigned int i = 0; i < maxIter; i++) {
@@ -71,5 +79,21 @@ void CpuParallelIterationCalculator::calculate(const std::vector<ComplexHP>& poi
                 break;
             }
         }
+    }
+}
+
+}  // namespace
+
+void CpuParallelIterationCalculator::calculate(const HpPoints& points, std::vector<int>& iters, const unsigned int maxIter) const {
+    // Pick the compile-time format once per render.
+    switch (points.fractionWords) {
+        case 1: calculateHp<1>(points, iters, maxIter); break;
+        case 2: calculateHp<2>(points, iters, maxIter); break;
+        case 3: calculateHp<3>(points, iters, maxIter); break;
+        case 4: calculateHp<4>(points, iters, maxIter); break;
+        case 5: calculateHp<5>(points, iters, maxIter); break;
+        case 6: calculateHp<6>(points, iters, maxIter); break;
+        default:
+            throw std::invalid_argument("Unsupported fraction size: " + std::to_string(points.fractionWords) + " words");
     }
 }

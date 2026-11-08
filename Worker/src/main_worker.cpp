@@ -84,7 +84,7 @@ int main() {
 
             auto t0 = clock::now();
             const auto points = samplePointsFromComplexPlane(
-                height, width, imStart, imEnd, reStart, reEnd, samples);
+                height, width, imStart, imEnd, reStart, reEnd, samples, fpa::FRACTION_PART);
             samplingMs = chrono::duration<double, milli>(clock::now() - t0).count();
 
             iters.resize(points.size());

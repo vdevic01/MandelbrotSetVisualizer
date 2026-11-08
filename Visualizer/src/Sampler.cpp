@@ -1,4 +1,9 @@
 #include "Sampler.h"
+#include "FixedPointCore.h"
+
+#include <algorithm>
+#include <stdexcept>
+#include <string>
 
 #include <algorithm>
 #include <cstdlib>
@@ -34,54 +39,82 @@ std::vector<Complex> samplePointsFromComplexPlane(
     return points;
 }
 
-std::vector<ComplexHP> samplePointsFromComplexPlane(
+namespace {
+
+// High-precision sampling for one fraction size F (a compile-time constant, so the arithmetic is inlined).
+template<int F>
+HpPoints samplePointsHp(
     int imageHeight, int imageWidth,
-    const fpa::uint imStart[fpa::FP_SIZE], const fpa::uint imEnd[fpa::FP_SIZE],
-    const fpa::uint reStart[fpa::FP_SIZE], const fpa::uint reEnd[fpa::FP_SIZE],
+    const fpa::uint* imStart, const fpa::uint* imEnd,
+    const fpa::uint* reStart, const fpa::uint* reEnd,
     int samples)
 {
-    std::vector<ComplexHP> points(imageWidth * imageHeight * samples);
+    constexpr int S = fpa::WHOLE_PART + F;   // words per number
 
-    fpa::uint imageHeightHP[fpa::FP_SIZE] = {static_cast<fpa::uint>(imageHeight), 0, 0, 0};
-    fpa::uint imageWidthHP[fpa::FP_SIZE]  = {static_cast<fpa::uint>(imageWidth),  0, 0, 0};
+    HpPoints points;
+    points.fractionWords = F;
+    points.words.resize(static_cast<size_t>(imageWidth) * imageHeight * samples * 2 * S);
 
-    fpa::uint temp[fpa::FP_SIZE] = {};
-    fpa::uint scaleImaginary[fpa::FP_SIZE] = {};
-    fpa::subFixed(imEnd, imStart, temp);
-    fpa::divFixed(temp, imageHeightHP, scaleImaginary);
+    fpa::uint imageHeightHP[S] = {static_cast<fpa::uint>(imageHeight)};
+    fpa::uint imageWidthHP[S]  = {static_cast<fpa::uint>(imageWidth)};
 
-    fpa::uint scaleReal[fpa::FP_SIZE] = {};
-    fpa::subFixed(reEnd, reStart, temp);
-    fpa::divFixed(temp, imageWidthHP, scaleReal);
+    fpa::uint temp[S] = {};
+    fpa::uint scaleImaginary[S] = {};
+    fpa::core::sub<F>(imEnd, imStart, temp);
+    fpa::core::div<F>(temp, imageHeightHP, scaleImaginary);
 
-    fpa::uint realPartFP[fpa::FP_SIZE];
-    fpa::uint imagPartFP[fpa::FP_SIZE];
+    fpa::uint scaleReal[S] = {};
+    fpa::core::sub<F>(reEnd, reStart, temp);
+    fpa::core::div<F>(temp, imageWidthHP, scaleReal);
+
+    fpa::uint realPartFP[S];
+    fpa::uint imagPartFP[S];
 
     #pragma omp parallel for default(none) shared(points, imageHeight, imageWidth, imStart, reStart, scaleImaginary, scaleReal, samples) private(realPartFP, imagPartFP)
     for (int i = 0; i < imageHeight; i++) {
-        fpa::uint imaginaryPartBoundary[fpa::FP_SIZE] = {};
-        fpa::uint iHP[fpa::FP_SIZE] = {};
-        fpa::floatingToFixedPoint(static_cast<double>(i), iHP);
-        fpa::mulCmplFixed(iHP, scaleImaginary, imaginaryPartBoundary);
-        fpa::addFixed(imStart, imaginaryPartBoundary, imaginaryPartBoundary);
+        fpa::uint imaginaryPartBoundary[S] = {};
+        fpa::uint iHP[S] = {};
+        fpa::core::floatingToFixed<F>(static_cast<double>(i), iHP);
+        fpa::core::mul<F>(iHP, scaleImaginary, imaginaryPartBoundary);
+        fpa::core::add<F>(imStart, imaginaryPartBoundary, imaginaryPartBoundary);
 
-        fpa::uint realPartBoundary[fpa::FP_SIZE] = {};
-        std::copy(reStart, reStart + fpa::FP_SIZE, realPartBoundary);
+        fpa::uint realPartBoundary[S] = {};
+        std::copy(reStart, reStart + S, realPartBoundary);
 
         for (int j = 0; j < imageWidth; j++) {
             for (int k = 0; k < samples; k++) {
-                fpa::addFixed(realPartBoundary, scaleReal, realPartFP);
-                fpa::randomFromRange(realPartBoundary, realPartFP, realPartFP);
+                fpa::core::add<F>(realPartBoundary, scaleReal, realPartFP);
+                fpa::core::randomFromRange<F>(realPartBoundary, realPartFP, realPartFP);
 
-                fpa::addFixed(imaginaryPartBoundary, scaleImaginary, imagPartFP);
-                fpa::randomFromRange(imaginaryPartBoundary, imagPartFP, imagPartFP);
+                fpa::core::add<F>(imaginaryPartBoundary, scaleImaginary, imagPartFP);
+                fpa::core::randomFromRange<F>(imaginaryPartBoundary, imagPartFP, imagPartFP);
 
-                const int idx = (j + i * imageWidth) * samples + k;
-                std::copy(realPartFP, realPartFP + fpa::FP_SIZE, points[idx].real);
-                std::copy(imagPartFP, imagPartFP + fpa::FP_SIZE, points[idx].imag);
+                const size_t idx = (static_cast<size_t>(j) + static_cast<size_t>(i) * imageWidth) * samples + k;
+                std::copy(realPartFP, realPartFP + S, points.real(idx));
+                std::copy(imagPartFP, imagPartFP + S, points.imag(idx));
             }
-            fpa::addFixed(realPartBoundary, scaleReal, realPartBoundary);
+            fpa::core::add<F>(realPartBoundary, scaleReal, realPartBoundary);
         }
     }
     return points;
+}
+
+}  // namespace
+
+HpPoints samplePointsFromComplexPlane(
+    int imageHeight, int imageWidth,
+    const fpa::uint* imStart, const fpa::uint* imEnd,
+    const fpa::uint* reStart, const fpa::uint* reEnd,
+    int samples, int fractionWords)
+{
+    switch (fractionWords) {
+        case 1: return samplePointsHp<1>(imageHeight, imageWidth, imStart, imEnd, reStart, reEnd, samples);
+        case 2: return samplePointsHp<2>(imageHeight, imageWidth, imStart, imEnd, reStart, reEnd, samples);
+        case 3: return samplePointsHp<3>(imageHeight, imageWidth, imStart, imEnd, reStart, reEnd, samples);
+        case 4: return samplePointsHp<4>(imageHeight, imageWidth, imStart, imEnd, reStart, reEnd, samples);
+        case 5: return samplePointsHp<5>(imageHeight, imageWidth, imStart, imEnd, reStart, reEnd, samples);
+        case 6: return samplePointsHp<6>(imageHeight, imageWidth, imStart, imEnd, reStart, reEnd, samples);
+        default:
+            throw std::invalid_argument("Unsupported fraction size: " + std::to_string(fractionWords) + " words");
+    }
 }

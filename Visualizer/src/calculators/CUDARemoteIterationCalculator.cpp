@@ -130,17 +130,20 @@ vector<int> CUDARemoteIterationCalculator::calculate(
 }
 
 vector<int> CUDARemoteIterationCalculator::calculateHP(
-    const fpa::uint reStart[fpa::FP_SIZE], const fpa::uint reEnd[fpa::FP_SIZE],
-    const fpa::uint imStart[fpa::FP_SIZE], const fpa::uint imEnd[fpa::FP_SIZE],
+    const fpa::uint* reStart, const fpa::uint* reEnd,
+    const fpa::uint* imStart, const fpa::uint* imEnd,
+    int fractionWords,
     int width, int height, int samples, unsigned int maxIter) const
 {
+    const int words = fpa::fpSize(fractionWords);
     ostringstream json;
     json << "{\"use_hp\":1"
          << ",\"max_iter\":" << maxIter
          << ",\"samples\":" << samples
          << ",\"width\":" << width
-         << ",\"height\":" << height;
-    for (int i = 0; i < fpa::FP_SIZE; i++) {
+         << ",\"height\":" << height
+         << ",\"fraction_words\":" << fractionWords;
+    for (int i = 0; i < words; i++) {
         json << ",\"re_start_" << i << "\":" << reStart[i]
              << ",\"re_end_"   << i << "\":" << reEnd[i]
              << ",\"im_start_" << i << "\":" << imStart[i]

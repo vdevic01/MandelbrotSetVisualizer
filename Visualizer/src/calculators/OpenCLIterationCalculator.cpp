@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <iostream>
+#include <stdexcept>
 #include <string>
 #include <fstream>
 #include <vector>
@@ -257,8 +258,8 @@ void printError(const cl_program& program, const cl_device_id& device) { // Memb
 
 
 template<typename T_ComplexType>
-void calculateItersInternal(const std::vector<T_ComplexType>& points, std::vector<int>& iters, const unsigned int maxIter, const char* kernelFilename) {
-	const unsigned int size = points.size();
+void calculateItersInternal(const T_ComplexType* points, const size_t count, std::vector<int>& iters, const unsigned int maxIter, const char* kernelFilename) {
+	const unsigned int size = static_cast<unsigned int>(count);
 	OpenclDeviceSetupInfo deviceInfo = setupOpenclDevices();
 	cl_int err = deviceInfo.err;
 
@@ -297,7 +298,7 @@ void calculateItersInternal(const std::vector<T_ComplexType>& points, std::vecto
 		CL_TRUE,                    /* blocking_write */
 		0,                          /* offset */
 		sizeof(T_ComplexType) * size, /* size */
-		points.data(),              /* ptr */
+		points,                     /* ptr */
 		NULL,                       /* num_events_in_wait_list */
 		NULL,                       /* event_wait_list */
 		NULL                        /* event */
@@ -428,9 +429,12 @@ void calculateItersInternal(const std::vector<T_ComplexType>& points, std::vecto
 
 
 void OpenCLIterationCalculator::calculate(const std::vector<Complex>& points, std::vector<int>& iters, const unsigned int maxIter) const {
-	calculateItersInternal<Complex>(points, iters, maxIter, "OpenCLKernel.cl");
+	calculateItersInternal<Complex>(points.data(), points.size(), iters, maxIter, "OpenCLKernel.cl");
 }
 
-void OpenCLIterationCalculator::calculate(const std::vector<ComplexHP>& points, std::vector<int>& iters, const unsigned int maxIter) const {
-	calculateItersInternal<ComplexHP>(points, iters, maxIter, "OpenCLKernelHP.cl");
+void OpenCLIterationCalculator::calculate(const HpPoints& points, std::vector<int>& iters, const unsigned int maxIter) const {
+	// The kernel is still written for exactly 3 fraction words (same layout as ComplexHP).
+	if (points.fractionWords != fpa::FRACTION_PART)
+		throw std::runtime_error("The OpenCL backend supports only " + std::to_string(fpa::FRACTION_PART) + " fraction words for now");
+	calculateItersInternal<ComplexHP>(reinterpret_cast<const ComplexHP*>(points.words.data()), points.size(), iters, maxIter, "OpenCLKernelHP.cl");
 }

@@ -10,8 +10,10 @@ std::vector<Complex> samplePointsFromComplexPlane(
     double reStart, double reEnd,
     int samples);
 
-std::vector<ComplexHP> samplePointsFromComplexPlane(
+// High precision: the boundaries are numbers of fpa::fpSize(fractionWords) words each.
+// Throws std::invalid_argument for an unsupported fractionWords.
+HpPoints samplePointsFromComplexPlane(
     int imageHeight, int imageWidth,
-    const fpa::uint imStart[fpa::FP_SIZE], const fpa::uint imEnd[fpa::FP_SIZE],
-    const fpa::uint reStart[fpa::FP_SIZE], const fpa::uint reEnd[fpa::FP_SIZE],
-    int samples);
+    const fpa::uint* imStart, const fpa::uint* imEnd,
+    const fpa::uint* reStart, const fpa::uint* reEnd,
+    int samples, int fractionWords);

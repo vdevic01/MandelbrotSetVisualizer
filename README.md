@@ -214,7 +214,7 @@ The C++ binary can be invoked directly without the GUI:
 
 ```
 mandelbrot_visualizer <MODE> <OUTPUT_FILE> <MAX_ITER> <PALETTE_LENGTH> <PALETTE_ID>
-                      <SAMPLES> <USE_HP> <COORDS...> [WIDTH HEIGHT]
+                      <SAMPLES> <USE_HP> <COORDS...> [WIDTH HEIGHT] [--fraction-words N]
 ```
 
 | Argument | Type | Description |
@@ -227,6 +227,7 @@ mandelbrot_visualizer <MODE> <OUTPUT_FILE> <MAX_ITER> <PALETTE_LENGTH> <PALETTE_
 | `SAMPLES` | int | Anti-aliasing samples per pixel (≥ 1) |
 | `USE_HP` | 0 or 1 | 0 = double precision, 1 = 128-bit fixed-point |
 | `WIDTH HEIGHT` | int int | Optional. Output image dimensions (default: 900×600) |
+| `--fraction-words N` | 1–6 | Optional flag, may appear anywhere. Number of 32-bit fraction words of the fixed-point format used when `USE_HP=1` (default 3). More words allow deeper zooms but are slower. Ignored for double precision. |
 
 **Standard precision** (`USE_HP=0`) — four doubles follow:
 
@@ -234,11 +235,13 @@ mandelbrot_visualizer <MODE> <OUTPUT_FILE> <MAX_ITER> <PALETTE_LENGTH> <PALETTE_
 RE_START  RE_END  IM_START  IM_END
 ```
 
-**High precision** (`USE_HP=1`) — sixteen unsigned 32-bit integers follow (4 words per coordinate, big-endian fixed-point):
+**High precision** (`USE_HP=1`) — unsigned 32-bit integers follow: four coordinates of `1 + N` words each, where `N` is the fraction size (`--fraction-words`, default 3, so 16 numbers). Words are big-endian two's-complement fixed-point, most significant (whole) word first:
 
 ```
-RE_START[0..3]  RE_END[0..3]  IM_START[0..3]  IM_END[0..3]
+RE_START[0..N]  RE_END[0..N]  IM_START[0..N]  IM_END[0..N]
 ```
+
+The number of coordinate words must match `N`; a mismatch is reported as an error.
 
 ### Examples
 
