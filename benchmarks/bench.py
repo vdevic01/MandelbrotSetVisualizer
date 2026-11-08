@@ -30,6 +30,7 @@ import os
 import platform
 import re
 import shutil
+import stat
 import statistics
 import subprocess
 import sys
@@ -98,6 +99,18 @@ def find_tools(cmake_arg):
     return cmake, [p for p in extra if Path(p).exists()]
 
 
+def remove_tree(path):
+    """Deletes a folder tree. Git marks its pack files read-only, which plain shutil.rmtree cannot delete on Windows."""
+    def make_writable_and_retry(func, failed_path, _error):
+        os.chmod(failed_path, stat.S_IWRITE)
+        func(failed_path)
+    hook = {"onexc": make_writable_and_retry} if sys.version_info >= (3, 12) else {"onerror": make_writable_and_retry}
+    try:
+        shutil.rmtree(path, **hook)
+    except OSError as error:
+        print("warning: could not fully delete %s (%s)" % (path, error))
+
+
 @contextlib.contextmanager
 def built_executable(commit, cmake, extra_path):
     """Builds `commit` in Release mode inside a temporary folder and yields the executable.
@@ -123,7 +136,7 @@ def built_executable(commit, cmake, extra_path):
         yield exe
     finally:
         subprocess.run(["git", "worktree", "remove", "--force", str(src)], cwd=REPO, check=False, capture_output=True)
-        shutil.rmtree(tmp, ignore_errors=True)
+        remove_tree(tmp)
         subprocess.run(["git", "worktree", "prune"], cwd=REPO, check=False, capture_output=True)
         print("temporary build files deleted")
 
