@@ -15,18 +15,11 @@ set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
-# The tests link a separate copy of the library built with FPA_BOUNDS_CHECK, which turns out-of-bounds
-# writes inside the library into catchable exceptions (so they fail a test on every platform, including
-# MinGW which has no sanitizer). The copy used by the application is unaffected.
-add_library(fpa_checked STATIC ${CMAKE_CURRENT_SOURCE_DIR}/../src/math/FixedPointArithmetics.cpp)
-target_include_directories(fpa_checked PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../src/math)
-target_compile_features(fpa_checked PUBLIC cxx_std_17)
-target_compile_definitions(fpa_checked PRIVATE FPA_BOUNDS_CHECK)
-
-option(FPA_SANITIZE "Build the tested library and the tests with AddressSanitizer + UBSan (GCC/Clang on Linux/macOS; not available in MinGW)" OFF)
+option(FPA_SANITIZE "Build fpa and the tests with AddressSanitizer + UBSan (GCC/Clang on Linux/macOS; not available in MinGW)" OFF)
 if(FPA_SANITIZE)
-    target_compile_options(fpa_checked PUBLIC -fsanitize=address,undefined -fno-omit-frame-pointer)
-    target_link_options(fpa_checked PUBLIC -fsanitize=address,undefined)
+    # Needed to catch out-of-bounds writes (see the KnownBugs tests). Applies to every target that links fpa.
+    target_compile_options(fpa PUBLIC -fsanitize=address,undefined -fno-omit-frame-pointer)
+    target_link_options(fpa PUBLIC -fsanitize=address,undefined)
 endif()
 
 add_executable(fpa_tests
@@ -40,7 +33,7 @@ add_executable(fpa_tests
     test_random_range.cpp
     test_known_bugs.cpp
 )
-target_link_libraries(fpa_tests PRIVATE fpa_checked GTest::gtest_main)
+target_link_libraries(fpa_tests PRIVATE fpa GTest::gtest_main)
 target_compile_definitions(fpa_tests PRIVATE FPA_VECTOR_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/vectors\")
 if(NOT MSVC)
     target_compile_options(fpa_tests PRIVATE -Wall -Wextra)

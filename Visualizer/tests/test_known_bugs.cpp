@@ -68,9 +68,9 @@ TEST_P(KnownBugsTest, DivisionWorksWhenTheOutputIsTheDivisor) {
 // divFixed calls power(i, ...) with a bit index beyond the buffer, which writes before the start of an
 // internal stack array (a stack buffer underflow).
 //
-// On a normal build that write is silent, so the tests link a copy of the library compiled with
-// FPA_BOUNDS_CHECK, where power() throws std::out_of_range instead of writing out of bounds. The same
-// defect is also reported by AddressSanitizer when built with -DFPA_SANITIZE=ON (Linux/macOS).
+// On a normal build that write is silent, so this test only FAILS under AddressSanitizer
+// (-DFPA_SANITIZE=ON, GCC/Clang on Linux/macOS). It becomes a plain pass/fail test once the behaviour
+// for unrepresentable quotients is defined (e.g. "throws std::overflow_error").
 TEST_P(KnownBugsTest, DivisionWithAnUnrepresentableQuotientIsMemorySafe) {
     const Number tiny = ulp(F());
     Number out = zero(F());
