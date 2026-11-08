@@ -26,7 +26,7 @@ namespace fpa {
 	static_assert(WHOLE_PART == 1, "only a single whole word is supported");
 
 	constexpr int SIGN_SHIFT = WORD_BITS - 1;             // bit position of the sign in the most significant word
-	constexpr ulong WORD_MASK = (ulong)~uint(0);          // low WORD_BITS bits of an ulong
+	constexpr ulong WORD_MASK = (ulong(1) << WORD_BITS) - 1; // low WORD_BITS bits of an ulong
 	constexpr double WORD_SCALE = (double)WORD_MASK + 1.0; // 2^WORD_BITS as a double (exact)
 
 	// Function declarations
