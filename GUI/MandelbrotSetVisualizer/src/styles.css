@@ -170,6 +170,10 @@ label{
   background: #2a2a2f;
   color: #ccc;
 }
+.render-status.warning {
+  background: #4a3d1a;
+  color: #ffe08a;
+}
 .render-status.error {
   background: #4a1f24;
   color: #ffb3b8;

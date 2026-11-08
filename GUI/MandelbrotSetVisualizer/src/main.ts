@@ -3,6 +3,12 @@ import P5 from "p5";
 import Decimal from "decimal.js";
 import { join } from '@tauri-apps/api/path';
 import { convertFileSrc } from '@tauri-apps/api/tauri';
+import {
+  DOUBLE_PRECISION_MIN_WIDTH,
+  chooseFractionWords,
+  decimalToFixedWords,
+  fractionDigits
+} from "./precision";
 
 type Boundary = {
   reStart: number,
@@ -18,12 +24,14 @@ type HighPrecissionBoundary = {
   imEnd: Decimal
 }
 
-// Shows a message in the status line above the canvas (red when it is an error).
-function setRenderStatus(message: string, isError: boolean = false){
+// Shows a message in the status line above the canvas.
+type StatusKind = "info" | "warning" | "error";
+function setRenderStatus(message: string, kind: StatusKind = "info"){
   const element = document.getElementById("render-status");
   if (!element) return;
   element.textContent = message;
-  element.classList.toggle("error", isError);
+  element.classList.toggle("error", kind === "error");
+  element.classList.toggle("warning", kind === "warning");
   element.style.display = "block";
 }
 
@@ -126,74 +134,6 @@ class BoundaryManager{
     this.pressY = pressY;
   }
 
-  public fixedToDecimal(fpNum: number[]): Decimal{
-
-    let isNegative = false;
-    if((fpNum[0] & 0x80000000) != 0){
-      isNegative = true;
-      let bigNums = fpNum.map(num => (~BigInt(num)) & 0x00000000FFFFFFFFn);
-      bigNums[3] += 1n;
-      for(let i = bigNums.length - 1; i>= 1; i--){
-        let msb = bigNums[i] >> BigInt(32);
-        let lsb = bigNums[i] & 0xFFFFFFFFn;
-        bigNums[i - 1] += msb;
-        fpNum[i] = Number(lsb);
-      }
-      fpNum[0] = Number(bigNums[0] & 0xFFFFFFFFn);
-    }
-    const wholePart = fpNum[0]
-    const fractionalParts = fpNum.slice(1)
-
-    let fractionalPart = '';
-    fractionalParts.forEach(part => {
-      fractionalPart += part.toString(2).padStart(32, '0')
-    });
-
-    let fractionalDecimal = new Decimal(0);
-    for(let i = 0; i < fractionalPart.length; i++){
-      if(fractionalPart[i] === '1'){
-        fractionalDecimal = fractionalDecimal.plus(new Decimal(1).dividedBy(new Decimal(2).pow(i + 1)));
-      }
-    }
-
-    let result = new Decimal(wholePart).plus(fractionalDecimal);
-    if(isNegative){
-      result = result.mul(-1);
-    }
-
-    return result;
-  }
-
-  public decimalToFixedPoint(decimal: Decimal): number[] {
-    let isNegative = false;
-    if(decimal.isNegative()){
-      decimal = decimal.negated();
-      isNegative = true;
-    }
-    const integerPart = decimal.trunc();
-    const fractionalPart = decimal.minus(integerPart);
-    const scaleFactor = new Decimal(2).pow(32);
-    const fractionHigh = fractionalPart.mul(scaleFactor).trunc();
-    const remainingFraction = fractionalPart.mul(scaleFactor).minus(fractionHigh);
-    const fractionLow1 = remainingFraction.mul(scaleFactor).trunc();
-    const fractionLow2 = remainingFraction.mul(scaleFactor).minus(fractionLow1).mul(scaleFactor).trunc();
-    
-    let nums = [integerPart.toNumber(), fractionHigh.toNumber(), fractionLow1.toNumber(), fractionLow2.toNumber()];
-    if(isNegative){
-      let bigNums = nums.map(num => (~BigInt(num)) & 0x00000000FFFFFFFFn);
-      bigNums[3] += 1n;
-      for(let i = bigNums.length - 1; i>= 1; i--){
-        let msb = bigNums[i] >> BigInt(32);
-        let lsb = bigNums[i] & 0xFFFFFFFFn;
-        bigNums[i - 1] += msb;
-        nums[i] = Number(lsb);
-      }
-      nums[0] = Number(bigNums[0] & 0xFFFFFFFFn);
-    }
-
-    return nums;
-  }
-  
   private transformMouseCoordinates(): Boundary{
     let relX;
     let relY;
@@ -265,9 +205,8 @@ class BoundaryManager{
       imStart: imStart,
       imEnd: imEnd
     };
-    this.generateMandelbrot();
-    if(this.lowPrecissionBoundary.reEnd - this.lowPrecissionBoundary.reStart < 0.0000000000006){
-      console.log("!!!Precission limit reached!!!")
+    if(this.lowPrecissionBoundary.reEnd - this.lowPrecissionBoundary.reStart < DOUBLE_PRECISION_MIN_WIDTH){
+      // The view is too small for a double: from here on use fixed point, starting from the current view.
       this.highPrecission = true;
       this.highPrecissionBoundary = {
         reStart: new Decimal(this.lowPrecissionBoundary.reStart),
@@ -275,6 +214,9 @@ class BoundaryManager{
         imStart: new Decimal(this.lowPrecissionBoundary.imStart),
         imEnd: new Decimal(this.lowPrecissionBoundary.imEnd)
       }
+      this.generateMandelbrotHighPrecission();
+    }else{
+      this.generateMandelbrot();
     }
   }
 
@@ -297,35 +239,51 @@ class BoundaryManager{
       paletteId: this.paletteId,
       samples: this.samples
     };
-    await this.render("generate_mandelbrot", args);
+    await this.render("generate_mandelbrot", args, "double precision");
   }
+
   private async generateMandelbrotHighPrecission(){
+    // Use the smallest fixed-point size that is precise enough for the current zoom level.
+    const boundary = this.highPrecissionBoundary!;
+    const choice = chooseFractionWords(boundary.reEnd.minus(boundary.reStart), this.p5Client.width);
+    const fractionWords = choice.fractionWords;
     const args = {
       mode: this.mode,
-      reStart: this.decimalToFixedPoint(this.highPrecissionBoundary!.reStart),
-      reEnd: this.decimalToFixedPoint(this.highPrecissionBoundary!.reEnd),
-      imStart: this.decimalToFixedPoint(this.highPrecissionBoundary!.imStart),
-      imEnd: this.decimalToFixedPoint(this.highPrecissionBoundary!.imEnd),
+      reStart: decimalToFixedWords(boundary.reStart, fractionWords),
+      reEnd: decimalToFixedWords(boundary.reEnd, fractionWords),
+      imStart: decimalToFixedWords(boundary.imStart, fractionWords),
+      imEnd: decimalToFixedWords(boundary.imEnd, fractionWords),
+      fractionWords: fractionWords,
       maxIter: this.maxIter,
       paletteLength: this.paletteLength,
       paletteId: this.paletteId,
       samples: this.samples
     };
-    await this.render("generate_mandelbrot_hp", args);
+    const note = `fixed point, ${fractionWords} fraction words, about ${fractionDigits(fractionWords)} digits`;
+    const warning = choice.limitReached
+      ? `Maximum precision reached (${note}): zooming in further produces an inaccurate image.`
+      : undefined;
+    await this.render("generate_mandelbrot_hp", args, note, warning);
   }
 
-  // Runs one render and tells the user what is happening: a status line while it runs, the time it took,
-  // or the error message when the renderer fails (otherwise a failed render looks like nothing happened).
-  private async render(command: string, args: Record<string, unknown>){
+  // Runs one render and tells the user what is happening: a status line while it runs, the time it took and the
+  // precision used (or a warning when the maximum precision is exceeded), or the error message when the
+  // renderer fails (otherwise a failed render looks like nothing happened).
+  private async render(command: string, args: Record<string, unknown>, precisionNote: string, warning?: string){
     const started = performance.now();
-    setRenderStatus(`Rendering (${this.mode})...`);
+    setRenderStatus(`Rendering (${this.mode}, ${precisionNote})...`);
     try {
       await invoke(command, args);
       this.img = this.p5Client.loadImage(BoundaryManager.imgUrl);
-      setRenderStatus(`Rendered in ${((performance.now() - started) / 1000).toFixed(1)} s`);
+      const seconds = ((performance.now() - started) / 1000).toFixed(1);
+      if (warning) {
+        setRenderStatus(`${warning} Rendered in ${seconds} s.`, "warning");
+      } else {
+        setRenderStatus(`Rendered in ${seconds} s (${precisionNote})`);
+      }
     } catch (e) {
       console.error(`Render failed (${command}, mode ${this.mode}):`, e);
-      setRenderStatus(`Render failed (${this.mode}): ${e}`, true);
+      setRenderStatus(`Render failed (${this.mode}, ${precisionNote}): ${e}`, "error");
     }
   }
 
