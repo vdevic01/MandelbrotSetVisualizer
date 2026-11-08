@@ -10,6 +10,7 @@
 
 #include "errors.h"
 #include "OpenCLIterationCalculator.h"
+#include "FixedPointArithmetics.h"
 
 using namespace std;
 
@@ -257,8 +258,9 @@ void printError(const cl_program& program, const cl_device_id& device) { // Memb
 }
 
 
-template<typename T_ComplexType>
-void calculateItersInternal(const T_ComplexType* points, const size_t count, std::vector<int>& iters, const unsigned int maxIter, const char* kernelFilename) {
+// points / inputBytes: the input buffer as raw bytes (double-precision points, or the flat fixed-point words).
+// buildOptions: extra options for the OpenCL compiler (for example -DFRACTION_PART=4), or NULL.
+void calculateItersInternal(const void* points, const size_t count, const size_t inputBytes, std::vector<int>& iters, const unsigned int maxIter, const char* kernelFilename, const char* buildOptions) {
 	const unsigned int size = static_cast<unsigned int>(count);
 	OpenclDeviceSetupInfo deviceInfo = setupOpenclDevices();
 	cl_int err = deviceInfo.err;
@@ -272,7 +274,7 @@ void calculateItersInternal(const T_ComplexType* points, const size_t count, std
 	device_buffer_input = clCreateBuffer(
 		deviceInfo.context,         /* context */
 		CL_MEM_READ_ONLY,           /* flags */
-		sizeof(T_ComplexType) * size, /* size */
+		inputBytes,                 /* size */
 		NULL,                       /* host_ptr */
 		&err                        /* errcode_ret */
 	);
@@ -297,7 +299,7 @@ void calculateItersInternal(const T_ComplexType* points, const size_t count, std
 		device_buffer_input,        /* buffer */
 		CL_TRUE,                    /* blocking_write */
 		0,                          /* offset */
-		sizeof(T_ComplexType) * size, /* size */
+		inputBytes,                 /* size */
 		points,                     /* ptr */
 		NULL,                       /* num_events_in_wait_list */
 		NULL,                       /* event_wait_list */
@@ -327,7 +329,7 @@ void calculateItersInternal(const T_ComplexType* points, const size_t count, std
 		program,            /* program */
 		1,                  /* num_devices */
 		deviceInfo.devices, /* device_list */
-		NULL,				/* options - now configurable */
+		buildOptions,       /* options */
 		NULL,               /* pfn_notify */
 		NULL                /* user_data */
 	);
@@ -429,12 +431,15 @@ void calculateItersInternal(const T_ComplexType* points, const size_t count, std
 
 
 void OpenCLIterationCalculator::calculate(const std::vector<Complex>& points, std::vector<int>& iters, const unsigned int maxIter) const {
-	calculateItersInternal<Complex>(points.data(), points.size(), iters, maxIter, "OpenCLKernel.cl");
+	calculateItersInternal(points.data(), points.size(), points.size() * sizeof(Complex), iters, maxIter, "OpenCLKernel.cl", NULL);
 }
 
 void OpenCLIterationCalculator::calculate(const HpPoints& points, std::vector<int>& iters, const unsigned int maxIter) const {
-	// The kernel is still written for exactly 3 fraction words (same layout as ComplexHP).
-	if (points.fractionWords != fpa::FRACTION_PART)
-		throw std::runtime_error("The OpenCL backend supports only " + std::to_string(fpa::FRACTION_PART) + " fraction words for now");
-	calculateItersInternal<ComplexHP>(reinterpret_cast<const ComplexHP*>(points.words.data()), points.size(), iters, maxIter, "OpenCLKernelHP.cl");
+	if (!fpa::isSupportedFractionPart(points.fractionWords))
+		throw std::invalid_argument("Unsupported fraction size: " + std::to_string(points.fractionWords) + " words");
+
+	// The kernel is compiled for the fraction size of this render.
+	const std::string buildOptions = "-DFRACTION_PART=" + std::to_string(points.fractionWords);
+	calculateItersInternal(points.words.data(), points.size(), points.words.size() * sizeof(unsigned int), iters, maxIter,
+	                       "OpenCLKernelHP.cl", buildOptions.c_str());
 }

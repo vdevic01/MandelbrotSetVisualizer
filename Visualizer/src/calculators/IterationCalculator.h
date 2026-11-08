@@ -11,17 +11,9 @@ struct Complex {
     double imag;
 };
 
-// Fixed layout for exactly 3 fraction words (1 whole + 3 fraction words per number). Only the GPU backends
-// still use it, until they are generalised to every fraction size.
-struct ComplexHP {
-    unsigned int real[4]; // 4 bytes for whole part and 12 bytes for fraction part, using big endian
-    unsigned int imag[4];
-};
-
 // Sample points in fixed-point format (high precision). Every number has 1 whole word plus `fractionWords`
 // fraction words, most significant word first, two's complement. The points are stored back to back as
-// [real words][imaginary words] per point, in one flat array (for fractionWords = 3 this is the same
-// memory layout as an array of ComplexHP).
+// [real words][imaginary words] per point, in one flat array (the GPU backends copy it as it is).
 struct HpPoints {
     int fractionWords = 0;
     std::vector<unsigned int> words;

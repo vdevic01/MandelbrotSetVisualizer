@@ -1,14 +1,12 @@
-typedef struct {
-	uint real[4]; // 4 bytes for whole part and 12 bytes for fraction part, using big endian
-	uint imag[4];
-} ComplexHP;
-
 #define WHOLE_PART 1
+// Number of 32-bit fraction words. The host passes -DFRACTION_PART=N when it builds the program.
+#ifndef FRACTION_PART
 #define FRACTION_PART 3
+#endif
 #define WHOLE_BITS WHOLE_PART * 32
 #define FRACTION_BITS FRACTION_PART * 32
 #define FP_SIZE (WHOLE_PART + FRACTION_PART)
-#define FP_BUFFER_SIZE FP_SIZE * 2
+#define FP_BUFFER_SIZE (FP_SIZE * 2)
 
 
 void addFixed(const uint* a, const uint* b, uint c[FP_SIZE]) {
@@ -53,13 +51,13 @@ bool gtFixed(const uint* a, const uint* b) {
 	if (signA != signB) {
 		return signA == 0;
 	}
-	uint diff[4];
+	uint diff[FP_SIZE];
 	subFixed(b, a, diff);
 	uint sign = diff[0] >> 31;
 	return sign == 1;
 }
 
-void mulCmplFixed(const uint* a, const uint* b, uint c[4]) {
+void mulCmplFixed(const uint* a, const uint* b, uint c[FP_SIZE]) {
 	ulong result[FP_BUFFER_SIZE];
 	for (int i = 0; i < FP_BUFFER_SIZE; i++) {
 		result[i] = 0;
@@ -70,8 +68,8 @@ void mulCmplFixed(const uint* a, const uint* b, uint c[4]) {
 	char aSign = a[0] >> 31;
 	char bSign = b[0] >> 31;
 	bool negate = false;
-	uint tempA[4];
-	uint tempB[4];
+	uint tempA[FP_SIZE];
+	uint tempB[FP_SIZE];
 	if (aSign != bSign) {
 		if (aSign == 1) {
 			cmplFixed(a, tempA);
@@ -115,26 +113,27 @@ void mulCmplFixed(const uint* a, const uint* b, uint c[4]) {
 		cmplFixed(c, c);
 }
 
-__kernel void calculateIters(__global ComplexHP* IN, __global int* OUT, const unsigned int max_iter)
+// IN holds, per point, the real words followed by the imaginary words (FP_SIZE words each, most significant first).
+__kernel void calculateIters(__global const uint* IN, __global int* OUT, const unsigned int max_iter)
 {
 	int idx = get_global_id(0);
-	ComplexHP c = IN[idx];
+	__global const uint* c = IN + (size_t)idx * 2 * FP_SIZE;
 
 	uint x0[FP_SIZE];
 	uint y0[FP_SIZE];
 	for (int i = 0; i < FP_SIZE; i++) {
-		x0[i] = c.real[i];
-		y0[i] = c.imag[i];
+		x0[i] = c[i];
+		y0[i] = c[FP_SIZE + i];
 	}
 
-	uint x2[FP_SIZE] = { 0,0,0,0 };
-	uint y2[FP_SIZE] = { 0,0,0,0 };
+	uint x2[FP_SIZE] = { 0 };
+	uint y2[FP_SIZE] = { 0 };
 
-	uint x[FP_SIZE] = { 0,0,0,0 };
-	uint y[FP_SIZE] = { 0,0,0,0 };
+	uint x[FP_SIZE] = { 0 };
+	uint y[FP_SIZE] = { 0 };
 
 	uint temp[FP_SIZE];
-	uint fourFixed[FP_SIZE] = { 4, 0, 0, 0 };
+	uint fourFixed[FP_SIZE] = { 4 };   // 4.0: the whole word is 4, the fraction words are 0
 
 	int result = -1;
 	for (int i = 0; i < max_iter; i++) {
@@ -142,7 +141,7 @@ __kernel void calculateIters(__global ComplexHP* IN, __global int* OUT, const un
 		mulCmplFixed(temp, y, temp);
 		addFixed(temp, y0, y);
 		//y = (x + x) * y + y0;
-		
+
 		subFixed(x2, y2, temp);
 		addFixed(temp, x0, x);
 		//x = x2 - y2 + x0;
