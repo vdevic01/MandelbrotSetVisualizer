@@ -1,6 +1,7 @@
 #include "CUDARemoteIterationCalculator.h"
 
 #include <cpr/cpr.h>
+#include <chrono>
 #include <cstring>
 #include <iomanip>
 #include <iostream>
@@ -30,7 +31,20 @@ static double extractJsonDouble(const string& json, const string& key) {
     try { return stod(json.substr(pos)); } catch (...) { return 0.0; }
 }
 
+// What the user can do about an HTTP failure, for the error message.
+static string statusHint(long status) {
+    switch (status) {
+        case 401: case 403: return "check the API key in Settings";
+        case 404: return "check the endpoint URL in Settings";
+        case 502: case 503: case 504: return "the worker may still be starting or is overloaded; try again";
+        default: return status >= 500 ? "the worker reported an error" : "unexpected response";
+    }
+}
+
 string CUDARemoteIterationCalculator::httpPost(const string& body) const {
+    cout << "Remote: POST " << endpoint_ << " (" << body.size() << " bytes), waiting for the worker...\n" << flush;
+    const auto start = chrono::steady_clock::now();
+
     const cpr::Response r = cpr::Post(
         cpr::Url{endpoint_},
         cpr::Bearer{apiKey_},
@@ -38,8 +52,27 @@ string CUDARemoteIterationCalculator::httpPost(const string& body) const {
         cpr::Header{{"Content-Type", "application/json"}},
         cpr::Timeout{300000});
 
-    if (r.error)
-        throw runtime_error("HTTP request failed: " + r.error.message);
+    const long long elapsedMs =
+        chrono::duration_cast<chrono::milliseconds>(chrono::steady_clock::now() - start).count();
+
+    if (r.error) {
+        string hint;
+        if (r.error.code == cpr::ErrorCode::OPERATION_TIMEDOUT)
+            hint = " (no response within 300 s; the worker may be cold-starting or busy)";
+        else if (r.error.code == cpr::ErrorCode::COULDNT_CONNECT || r.error.code == cpr::ErrorCode::COULDNT_RESOLVE_HOST)
+            hint = " (could not reach the host; check the endpoint URL and your network)";
+        else if (r.error.code == cpr::ErrorCode::URL_MALFORMAT || r.error.code == cpr::ErrorCode::UNSUPPORTED_PROTOCOL)
+            hint = " (the endpoint URL is not valid; it must start with https:// or http://)";
+        throw runtime_error("HTTP request to " + endpoint_ + " failed after " + to_string(elapsedMs) + " ms: " +
+                            r.error.message + hint);
+    }
+
+    cout << "Remote: HTTP " << r.status_code << " after " << elapsedMs << " ms (" << r.text.size() << " bytes)\n" << flush;
+
+    if (r.status_code < 200 || r.status_code >= 300) {
+        throw runtime_error("Worker returned HTTP " + to_string(r.status_code) + " (" + statusHint(r.status_code) +
+                            "): " + r.text.substr(0, 400));
+    }
 
     return r.text;
 }

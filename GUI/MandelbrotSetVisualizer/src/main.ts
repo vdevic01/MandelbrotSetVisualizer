@@ -18,6 +18,15 @@ type HighPrecissionBoundary = {
   imEnd: Decimal
 }
 
+// Shows a message in the status line above the canvas (red when it is an error).
+function setRenderStatus(message: string, isError: boolean = false){
+  const element = document.getElementById("render-status");
+  if (!element) return;
+  element.textContent = message;
+  element.classList.toggle("error", isError);
+  element.style.display = "block";
+}
+
 class BoundaryManager{
   private startingBoundary: Boundary;
   private lowPrecissionBoundary: Boundary;
@@ -288,8 +297,7 @@ class BoundaryManager{
       paletteId: this.paletteId,
       samples: this.samples
     };
-    await invoke("generate_mandelbrot", args);
-    this.img = this.p5Client.loadImage(BoundaryManager.imgUrl);
+    await this.render("generate_mandelbrot", args);
   }
   private async generateMandelbrotHighPrecission(){
     const args = {
@@ -303,8 +311,22 @@ class BoundaryManager{
       paletteId: this.paletteId,
       samples: this.samples
     };
-    await invoke("generate_mandelbrot_hp", args);
-    this.img = this.p5Client.loadImage(BoundaryManager.imgUrl);
+    await this.render("generate_mandelbrot_hp", args);
+  }
+
+  // Runs one render and tells the user what is happening: a status line while it runs, the time it took,
+  // or the error message when the renderer fails (otherwise a failed render looks like nothing happened).
+  private async render(command: string, args: Record<string, unknown>){
+    const started = performance.now();
+    setRenderStatus(`Rendering (${this.mode})...`);
+    try {
+      await invoke(command, args);
+      this.img = this.p5Client.loadImage(BoundaryManager.imgUrl);
+      setRenderStatus(`Rendered in ${((performance.now() - started) / 1000).toFixed(1)} s`);
+    } catch (e) {
+      console.error(`Render failed (${command}, mode ${this.mode}):`, e);
+      setRenderStatus(`Render failed (${this.mode}): ${e}`, true);
+    }
   }
 
   public reset(){

@@ -317,17 +317,23 @@ int main(int argc, char* argv[]) {
         config.paletteLength,
         config.samples);
 
-    if (config.mode == Mode::CUDA_REMOTE) {
-        const auto remoteCalc = makeRemoteCalculator();
-        if (!remoteCalc) return 1;
-        createMandelbrotSetRemote(config, colorManager, *remoteCalc);
-    } else {
-        const auto iterCalculator = makeCalculator(config.mode);
-        if (!iterCalculator) return 1;
-        if (config.useHighPrecision)
-            createMandelbrotSet<ComplexHP>(config, colorManager, *iterCalculator);
-        else
-            createMandelbrotSet<Complex>(config, colorManager, *iterCalculator);
+    try {
+        if (config.mode == Mode::CUDA_REMOTE) {
+            const auto remoteCalc = makeRemoteCalculator();
+            if (!remoteCalc) return 1;
+            createMandelbrotSetRemote(config, colorManager, *remoteCalc);
+        } else {
+            const auto iterCalculator = makeCalculator(config.mode);
+            if (!iterCalculator) return 1;
+            if (config.useHighPrecision)
+                createMandelbrotSet<ComplexHP>(config, colorManager, *iterCalculator);
+            else
+                createMandelbrotSet<Complex>(config, colorManager, *iterCalculator);
+        }
+    } catch (const exception& e) {
+        // A clean message and exit code instead of std::terminate, so the GUI can show what went wrong.
+        cerr << "Error: " << e.what() << "\n";
+        return 1;
     }
 
     return 0;
