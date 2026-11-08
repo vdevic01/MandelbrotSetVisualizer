@@ -411,3 +411,8 @@ cmake-build-*/
 # Remote CUDA credentials — contains API key, must never be committed
 remote-settings.json
 runpod-settings.json
+
+# Local benchmark data (timings are only comparable on the machine that produced them)
+benchmarks/results/
+benchmarks/.work/
+benchmarks/.build/
