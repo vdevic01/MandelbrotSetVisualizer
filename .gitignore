@@ -415,6 +415,3 @@ runpod-settings.json
 # Local benchmark data (timings are only comparable on the machine that produced them)
 benchmarks/results/
 benchmarks/charts/
-benchmarks/.bin/
-benchmarks/.work/
-benchmarks/.build/

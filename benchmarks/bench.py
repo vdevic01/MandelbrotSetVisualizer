@@ -10,7 +10,6 @@ iterations: 6232 ms"), and stores a machine-readable report named after the comm
     python benchmarks/bench.py run main             # benchmark any commit / branch / tag
     python benchmarks/bench.py run 8bfd514 --force  # re-run an old commit (overwrites its report)
     python benchmarks/bench.py compare main HEAD    # table + HTML chart of the difference between two reports
-    python benchmarks/bench.py clean                # delete saved executables (keeps reports and charts)
 
 Reports live in benchmarks/results/<full commit hash>.json and charts in benchmarks/charts/ (both git-ignored:
 timings are only comparable between runs on the same machine). Uncommitted changes are NOT benchmarked - commit first.
@@ -22,6 +21,7 @@ the laptop on mains power while benchmarking.
 """
 
 import argparse
+import contextlib
 import datetime
 import glob
 import html
@@ -41,10 +41,7 @@ REPO = Path(__file__).resolve().parent.parent
 BENCH_DIR = REPO / "benchmarks"
 RESULTS_DIR = BENCH_DIR / "results"  # JSON reports, one per commit
 CHARTS_DIR = BENCH_DIR / "charts"    # HTML comparison charts
-BIN_DIR = BENCH_DIR / ".bin"         # the built executable of each benchmarked commit
-WORK_DIR = BENCH_DIR / ".work"       # temporary git worktree, only while a commit is being built
-BUILD_DIR = BENCH_DIR / ".build"     # temporary CMake build folder, only while a commit is being built
-# All of the above are git-ignored.
+# Both are git-ignored. Nothing else is kept: builds happen in a temporary folder that is deleted afterwards.
 
 TARGET = "mandelbrot_visualizer"
 EXE_NAME = TARGET + (".exe" if os.name == "nt" else "")
@@ -101,50 +98,34 @@ def find_tools(cmake_arg):
     return cmake, [p for p in extra if Path(p).exists()]
 
 
-def remove_build_files(commit, dry_run=False):
-    """Removes the temporary worktree and build folder of a commit (not its saved executable)."""
-    for path, kind in ((WORK_DIR / commit, "worktree"), (BUILD_DIR / commit, "build folder")):
-        if not path.exists():
-            continue
-        print("%s %s: %s" % ("would remove" if dry_run else "removing", kind, path.relative_to(REPO)))
-        if dry_run:
-            continue
-        if kind == "worktree":
-            subprocess.run(["git", "worktree", "remove", "--force", str(path)], cwd=REPO, check=False,
-                           capture_output=True)
-        if path.exists():
-            shutil.rmtree(path, ignore_errors=True)
+@contextlib.contextmanager
+def built_executable(commit, cmake, extra_path):
+    """Builds `commit` in Release mode inside a temporary folder and yields the executable.
 
-
-def build(commit, cmake, extra_path, rebuild):
-    """Returns the executable of `commit`, building it in Release mode first if it is not saved yet.
-
-    A commit never changes, so its executable is built once and kept in benchmarks/.bin/<hash>/. The
-    worktree and build folder needed to produce it are deleted right after the build.
+    The commit is checked out into a temporary git worktree (your working folder is never touched). On
+    exit - also on errors and Ctrl+C - the worktree and the whole temporary folder are deleted.
     """
-    exe = BIN_DIR / commit / EXE_NAME
-    if exe.exists() and not rebuild:
-        print("using saved executable of %s (use --rebuild to build it again)" % commit[:10])
-        return exe
-
-    remove_build_files(commit)   # leftovers of an interrupted earlier build
-    src, bld = WORK_DIR / commit, BUILD_DIR / commit
-    WORK_DIR.mkdir(parents=True, exist_ok=True)
-    git("worktree", "add", "--detach", str(src), commit)
-    env = dict(os.environ)
-    env["PATH"] = os.pathsep.join(extra_path + [env.get("PATH", "")])
-    generator = ["-G", "Ninja"] if shutil.which("ninja", path=env["PATH"]) else []
-    print("configuring + building %s (a few minutes the first time) ..." % commit[:10], flush=True)
-    subprocess.run([cmake, "-S", str(src), "-B", str(bld), "-DCMAKE_BUILD_TYPE=Release", *generator],
-                   check=True, env=env, stdout=subprocess.DEVNULL)
-    subprocess.run([cmake, "--build", str(bld), "--target", TARGET], check=True, env=env, stdout=subprocess.DEVNULL)
-    built = next(iter(bld.rglob(EXE_NAME)), None)
-    if not built:
-        sys.exit("built %s but could not find the executable under %s" % (TARGET, bld))
-    exe.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(built, exe)
-    remove_build_files(commit)
-    return exe
+    tmp = Path(tempfile.mkdtemp(prefix="bench-"))
+    src, bld = tmp / "src", tmp / "build"
+    try:
+        git("worktree", "add", "--detach", str(src), commit)
+        env = dict(os.environ)
+        env["PATH"] = os.pathsep.join(extra_path + [env.get("PATH", "")])
+        generator = ["-G", "Ninja"] if shutil.which("ninja", path=env["PATH"]) else []
+        print("configuring + building %s (a few minutes) ..." % commit[:10], flush=True)
+        subprocess.run([cmake, "-S", str(src), "-B", str(bld), "-DCMAKE_BUILD_TYPE=Release", *generator],
+                       check=True, env=env, stdout=subprocess.DEVNULL)
+        subprocess.run([cmake, "--build", str(bld), "--target", TARGET], check=True, env=env,
+                       stdout=subprocess.DEVNULL)
+        exe = next(iter(bld.rglob(EXE_NAME)), None)
+        if not exe:
+            sys.exit("built %s but could not find the executable under %s" % (TARGET, bld))
+        yield exe
+    finally:
+        subprocess.run(["git", "worktree", "remove", "--force", str(src)], cwd=REPO, check=False, capture_output=True)
+        shutil.rmtree(tmp, ignore_errors=True)
+        subprocess.run(["git", "worktree", "prune"], cwd=REPO, check=False, capture_output=True)
+        print("temporary build files deleted")
 
 
 # ----------------------------------------------------------------------------------------------- running
@@ -192,8 +173,6 @@ def cmd_run(args):
         print("note: you have uncommitted changes; they are NOT part of this benchmark (only commit %s)." % commit[:10])
 
     cmake, extra_path = find_tools(args.cmake)
-    exe = build(commit, cmake, extra_path, args.rebuild)
-
     report = {
         "commit": commit,
         "subject": git("log", "-1", "--format=%s", commit),
@@ -203,14 +182,15 @@ def cmd_run(args):
         "settings": {"runs": args.runs, "discarded_runs": args.discard},
         "scenes": {},
     }
-    for scene in args.scenes:
-        print("scene '%s': %d runs (first %d discarded)" % (scene, args.runs, args.discard), flush=True)
-        per_run = []
-        for i in range(args.runs):
-            per_run.append(run_once(exe, scene))
-            print("  run %2d: %s" % (i + 1, ", ".join("%s=%d" % kv for kv in per_run[-1].items() if "Calculating" in kv[0])),
-                  flush=True)
-        report["scenes"][scene] = {"arguments": SCENES[scene], "stages": summarize(per_run, args.discard)}
+    with built_executable(commit, cmake, extra_path) as exe:
+        for scene in args.scenes:
+            print("scene '%s': %d runs (first %d discarded)" % (scene, args.runs, args.discard), flush=True)
+            per_run = []
+            for i in range(args.runs):
+                per_run.append(run_once(exe, scene))
+                print("  run %2d: %s" % (i + 1, ", ".join("%s=%d" % kv for kv in per_run[-1].items() if "Calculating" in kv[0])),
+                      flush=True)
+            report["scenes"][scene] = {"arguments": SCENES[scene], "stages": summarize(per_run, args.discard)}
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     report_path.write_text(json.dumps(report, indent=2) + "\n")
@@ -317,29 +297,6 @@ h1{font-size:20px;margin:0 0 4px}h2{font-size:17px;margin:28px 0 10px}.sub{color
             % (css, head, "".join(rows), note))
 
 
-# ----------------------------------------------------------------------------------------------- clean
-def cmd_clean(args):
-    """Removes saved executables and any leftover worktree/build folders (reports and charts are kept)."""
-    folders = (BIN_DIR, WORK_DIR, BUILD_DIR)
-    commits = [resolve(args.rev)] if args.rev else sorted(
-        {p.name for d in folders if d.exists() for p in d.iterdir() if p.is_dir()})
-    if not commits:
-        print("nothing to clean")
-        return
-    for commit in commits:
-        remove_build_files(commit, args.dry_run)
-        saved = BIN_DIR / commit
-        if saved.exists():
-            print("%s saved executable: %s" % ("would remove" if args.dry_run else "removing", saved.relative_to(REPO)))
-            if not args.dry_run:
-                shutil.rmtree(saved, ignore_errors=True)
-    if not args.dry_run:
-        git("worktree", "prune")
-        for d in folders:   # remove the parent folders once empty
-            if d.exists() and not any(d.iterdir()):
-                d.rmdir()
-
-
 # ----------------------------------------------------------------------------------------------- main
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -352,7 +309,6 @@ def main():
     run.add_argument("--scenes", nargs="+", choices=sorted(SCENES), default=sorted(SCENES))
     run.add_argument("--cmake", help="path to cmake (default: PATH, $CMAKE, then CLion's bundled one)")
     run.add_argument("--force", action="store_true", help="overwrite an existing report for this commit")
-    run.add_argument("--rebuild", action="store_true", help="delete the build directory and build from scratch")
     run.set_defaults(func=cmd_run)
 
     cmp_ = sub.add_parser("compare", help="compare two stored reports")
@@ -361,11 +317,6 @@ def main():
     cmp_.add_argument("--no-chart", action="store_true", help="only print the table")
     cmp_.add_argument("--no-open", action="store_true", help="write the HTML chart but do not open the browser")
     cmp_.set_defaults(func=cmd_compare)
-
-    clean = sub.add_parser("clean", help="delete saved executables (reports and charts are kept)")
-    clean.add_argument("rev", nargs="?", help="only clean this commit (default: all)")
-    clean.add_argument("--dry-run", action="store_true", help="show what would be removed")
-    clean.set_defaults(func=cmd_clean)
 
     args = parser.parse_args()
     args.func(args)
