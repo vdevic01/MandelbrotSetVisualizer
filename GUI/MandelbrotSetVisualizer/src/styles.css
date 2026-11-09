@@ -92,7 +92,7 @@ label{
   width: 100%;
   height: 100%;
 }
-#settings-view {
+.overlay-view {
   position: fixed;
   inset: 0;
   z-index: 10;
@@ -163,6 +163,8 @@ label{
 .settings-status {
   font-size: 0.85rem;
   margin-top: 4px;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
 }
 
 /* Status bar above the canvas. Its height is fixed so the canvas never moves; the window is as much taller than
