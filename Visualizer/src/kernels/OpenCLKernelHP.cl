@@ -114,7 +114,9 @@ void mulCmplFixed(const uint* a, const uint* b, uint c[FP_SIZE]) {
 }
 
 // IN holds, per point, the real words followed by the imaginary words (FP_SIZE words each, most significant first).
-__kernel void calculateIters(__global const uint* IN, __global int* OUT, const unsigned int max_iter)
+// threshold_whole / threshold_fraction: the squared escape radius, as the whole word and the first fraction word.
+__kernel void calculateIters(__global const uint* IN, __global int* OUT, const unsigned int max_iter,
+	const uint threshold_whole, const uint threshold_fraction)
 {
 	int idx = get_global_id(0);
 	__global const uint* c = IN + (size_t)idx * 2 * FP_SIZE;
@@ -133,7 +135,7 @@ __kernel void calculateIters(__global const uint* IN, __global int* OUT, const u
 	uint y[FP_SIZE] = { 0 };
 
 	uint temp[FP_SIZE];
-	uint fourFixed[FP_SIZE] = { 4 };   // 4.0: the whole word is 4, the fraction words are 0
+	uint threshold[FP_SIZE] = { threshold_whole, threshold_fraction };   // R^2; the other fraction words are 0
 
 	int result = -1;
 	for (int i = 0; i < max_iter; i++) {
@@ -153,7 +155,7 @@ __kernel void calculateIters(__global const uint* IN, __global int* OUT, const u
 		//y2 = y * y;
 
 		addFixed(x2, y2, temp);
-		if (gtFixed(temp, fourFixed)) {
+		if (gtFixed(temp, threshold)) {
 			result = i;
 			break;
 		}

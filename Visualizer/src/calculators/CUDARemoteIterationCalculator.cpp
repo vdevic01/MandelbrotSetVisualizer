@@ -105,7 +105,7 @@ void CUDARemoteIterationCalculator::decodeResponse(const string& response, vecto
 
 vector<int> CUDARemoteIterationCalculator::calculate(
     double reStart, double reEnd, double imStart, double imEnd,
-    int width, int height, int samples, unsigned int maxIter) const
+    int width, int height, int samples, unsigned int maxIter, double escapeRadius) const
 {
     ostringstream json;
     json << fixed << setprecision(17)
@@ -118,6 +118,7 @@ vector<int> CUDARemoteIterationCalculator::calculate(
          << ",\"re_end\":" << reEnd
          << ",\"im_start\":" << imStart
          << ",\"im_end\":" << imEnd
+         << ",\"escape_radius\":" << escapeRadius
          << "}";
 
     const string body = json.str();
@@ -133,7 +134,7 @@ vector<int> CUDARemoteIterationCalculator::calculateHP(
     const fpa::uint* reStart, const fpa::uint* reEnd,
     const fpa::uint* imStart, const fpa::uint* imEnd,
     int fractionWords,
-    int width, int height, int samples, unsigned int maxIter) const
+    int width, int height, int samples, unsigned int maxIter, double escapeRadius) const
 {
     const int words = fpa::fpSize(fractionWords);
     ostringstream json;
@@ -142,7 +143,8 @@ vector<int> CUDARemoteIterationCalculator::calculateHP(
          << ",\"samples\":" << samples
          << ",\"width\":" << width
          << ",\"height\":" << height
-         << ",\"fraction_words\":" << fractionWords;
+         << ",\"fraction_words\":" << fractionWords
+         << ",\"escape_radius\":" << setprecision(17) << escapeRadius;
     for (int i = 0; i < words; i++) {
         json << ",\"re_start_" << i << "\":" << reStart[i]
              << ",\"re_end_"   << i << "\":" << reEnd[i]

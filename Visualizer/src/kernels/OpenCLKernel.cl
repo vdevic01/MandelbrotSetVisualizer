@@ -3,7 +3,9 @@ typedef struct {
 	double imag;
 } Complex;
 
-__kernel void calculateIters(__global Complex* IN, __global int* OUT, const unsigned int max_iter)
+// escape_sq: the squared escape radius.
+__kernel void calculateIters(__global Complex* IN, __global int* OUT, const unsigned int max_iter,
+	const double escape_sq)
 {
 	int idx = get_global_id(0);
 	Complex c = IN[idx];
@@ -23,7 +25,7 @@ __kernel void calculateIters(__global Complex* IN, __global int* OUT, const unsi
 		x = x2 - y2 + x0;
 		x2 = x * x;
 		y2 = y * y;
-		if (x2 + y2 > 4) {
+		if (x2 + y2 > escape_sq) {
 			result = i;
 			break;
 		}

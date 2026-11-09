@@ -6,6 +6,7 @@
 //             "re_start":<f>,"re_end":<f>,"im_start":<f>,"im_end":<f>}
 // HP stdin:  {"use_hp":1,"max_iter":<N>,"samples":<S>,"width":<W>,"height":<H>,"fraction_words":<F>,
 //             "re_start_0":<u>,...,"im_end_<F>":<u>}   (F + 1 words per coordinate; fraction_words defaults to 3)
+// Both accept an optional "escape_radius":<f> (default 2).
 // stdout:    {"execution_time_ms":<ms>,"iterations":"<base64-encoded int32[]>"}
 
 #include <cuda_runtime.h>
@@ -57,6 +58,14 @@ static double extractJsonDouble(const string& json, const string& key) {
     return stod(json.substr(pos));
 }
 
+// Optional number field: returns fallback when the key is absent (older clients do not send it).
+static double extractJsonDoubleOr(const string& json, const string& key, double fallback) {
+    const string needle = "\"" + key + "\":";
+    size_t pos = json.find(needle);
+    if (pos == string::npos) return fallback;
+    return stod(json.substr(pos + needle.size()));
+}
+
 int main() {
     try {
         const string jsonInput(istreambuf_iterator<char>(cin), {});
@@ -66,6 +75,9 @@ int main() {
         const int  samples = extractJsonInt(jsonInput, "samples");
         const int  width   = extractJsonInt(jsonInput, "width");
         const int  height  = extractJsonInt(jsonInput, "height");
+        const double escapeRadius = extractJsonDoubleOr(jsonInput, "escape_radius", DEFAULT_ESCAPE_RADIUS);
+        if (!isSupportedEscapeRadius(escapeRadius))
+            throw runtime_error("Unsupported escape_radius: " + to_string(escapeRadius));
 
         CUDAIterationCalculator calc;
 
@@ -103,7 +115,7 @@ int main() {
 
             iters.resize(points.size());
             cudaEventRecord(evStart);
-            calc.calculate(points, iters, static_cast<unsigned int>(maxIter));
+            calc.calculate(points, iters, static_cast<unsigned int>(maxIter), escapeRadius);
             cudaEventRecord(evStop);
         } else {
             const double reStart = extractJsonDouble(jsonInput, "re_start");
@@ -118,7 +130,7 @@ int main() {
 
             iters.resize(points.size());
             cudaEventRecord(evStart);
-            calc.calculate(points, iters, static_cast<unsigned int>(maxIter));
+            calc.calculate(points, iters, static_cast<unsigned int>(maxIter), escapeRadius);
             cudaEventRecord(evStop);
         }
 

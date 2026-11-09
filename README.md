@@ -260,6 +260,7 @@ The C++ binary can be invoked directly without the GUI:
 ```
 mandelbrot_visualizer <MODE> <OUTPUT_FILE> <MAX_ITER> <PALETTE_LENGTH> <PALETTE_ID>
                       <SAMPLES> <USE_HP> <COORDS...> [WIDTH HEIGHT] [--fraction-words N]
+                      [--escape-radius R]
 ```
 
 | Argument | Type | Description |
@@ -273,6 +274,7 @@ mandelbrot_visualizer <MODE> <OUTPUT_FILE> <MAX_ITER> <PALETTE_LENGTH> <PALETTE_
 | `USE_HP` | 0 or 1 | 0 = double precision, 1 = fixed point (size set by `--fraction-words`) |
 | `WIDTH HEIGHT` | int int | Optional. Output image dimensions (default: 900×600) |
 | `--fraction-words N` | 1–6 | Optional flag, may appear anywhere. Number of 32-bit fraction words of the fixed-point format used when `USE_HP=1` (default 3). More words allow deeper zooms but are slower. Ignored for double precision. |
+| `--escape-radius R` | 2–128 | Optional flag, may appear anywhere. Iteration of a point stops once `|z| > R` (default 2). Larger values make the colouring smoother, at the cost of a few extra iterations per point. |
 
 **Standard precision** (`USE_HP=0`) — four doubles follow:
 

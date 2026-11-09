@@ -14,6 +14,9 @@
 
 __constant__ uint32_t deviceMaxIter;
 __constant__ size_t deviceN;
+__constant__ double deviceEscapeSq;            // R^2 (double-precision kernel)
+__constant__ uint32_t deviceThresholdWhole;    // R^2 as fixed-point words (high-precision kernel)
+__constant__ uint32_t deviceThresholdFraction;
 
 __global__ void calculateIters(const Complex* points, int32_t* iterations) {
 	const size_t idx = threadIdx.x + blockIdx.x * blockDim.x;
@@ -35,7 +38,7 @@ __global__ void calculateIters(const Complex* points, int32_t* iterations) {
 		x = x2 - y2 + x0;
 		x2 = x * x;
 		y2 = y * y;
-		if (x2 + y2 > 4) {
+		if (x2 + y2 > deviceEscapeSq) {
 			result = i;
 			break;
 		}
@@ -72,7 +75,7 @@ __global__ void calculateItersHp(const uint32_t* points, int32_t* iterations)
 	uint32_t y[S] = {};
 
 	uint32_t temp[S];
-	uint32_t fourFixed[S] = { 4 };   // 4.0: the whole word is 4, the fraction words are 0
+	uint32_t threshold[S] = { deviceThresholdWhole, deviceThresholdFraction };   // R^2; the other fraction words are 0
 
 	int32_t result = -1;
 	for (size_t i = 0; i < deviceMaxIter; i++) {
@@ -92,7 +95,7 @@ __global__ void calculateItersHp(const uint32_t* points, int32_t* iterations)
 		//y2 = y * y;
 
 		fpa::core::add<F>(x2, y2, temp);
-		if (fpa::core::gt<F>(temp, fourFixed)) {
+		if (fpa::core::gt<F>(temp, threshold)) {
 			result = i;
 			break;
 		}
@@ -104,7 +107,7 @@ __global__ void calculateItersHp(const uint32_t* points, int32_t* iterations)
 }
 
 template<typename T_ComplexType>
-void calculateItersInternal(const T_ComplexType* points, const size_t N, std::vector<int>& iters, const unsigned int maxIter) {
+void calculateItersInternal(const T_ComplexType* points, const size_t N, std::vector<int>& iters, const unsigned int maxIter, const double escapeRadius) {
 
 	T_ComplexType* devicePointsBuffer;
 	int* deviceItersBuffer;
@@ -112,9 +115,11 @@ void calculateItersInternal(const T_ComplexType* points, const size_t N, std::ve
 	cudaMalloc(&devicePointsBuffer, N * sizeof(T_ComplexType));
 	cudaMalloc(&deviceItersBuffer, N * sizeof(int));
 
+	const double escapeSq = escapeRadius * escapeRadius;
 	cudaMemcpy(devicePointsBuffer, points, N * sizeof(T_ComplexType), cudaMemcpyHostToDevice);
 	cudaMemcpyToSymbol(deviceMaxIter, &maxIter, sizeof(unsigned int));
 	cudaMemcpyToSymbol(deviceN, &N, sizeof(size_t));
+	cudaMemcpyToSymbol(deviceEscapeSq, &escapeSq, sizeof(double));
 
 	const int blockSize = 128;
 	int numBlocks = (N + blockSize - 1) / blockSize;
@@ -128,7 +133,7 @@ void calculateItersInternal(const T_ComplexType* points, const size_t N, std::ve
 }
 
 template<int F>
-void calculateItersHpInternal(const HpPoints& points, std::vector<int>& iters, const unsigned int maxIter) {
+void calculateItersHpInternal(const HpPoints& points, std::vector<int>& iters, const unsigned int maxIter, const double escapeRadius) {
 	const size_t N = points.size();
 
 	uint32_t* devicePointsBuffer;
@@ -137,9 +142,14 @@ void calculateItersHpInternal(const HpPoints& points, std::vector<int>& iters, c
 	cudaMalloc(&devicePointsBuffer, points.words.size() * sizeof(uint32_t));
 	cudaMalloc(&deviceItersBuffer, N * sizeof(int));
 
+	unsigned int thresholdWhole, thresholdFraction;
+	escapeThresholdWords(escapeRadius, thresholdWhole, thresholdFraction);
+
 	cudaMemcpy(devicePointsBuffer, points.words.data(), points.words.size() * sizeof(uint32_t), cudaMemcpyHostToDevice);
 	cudaMemcpyToSymbol(deviceMaxIter, &maxIter, sizeof(unsigned int));
 	cudaMemcpyToSymbol(deviceN, &N, sizeof(size_t));
+	cudaMemcpyToSymbol(deviceThresholdWhole, &thresholdWhole, sizeof(unsigned int));
+	cudaMemcpyToSymbol(deviceThresholdFraction, &thresholdFraction, sizeof(unsigned int));
 
 	const int blockSize = 128;
 	int numBlocks = (N + blockSize - 1) / blockSize;
@@ -152,19 +162,19 @@ void calculateItersHpInternal(const HpPoints& points, std::vector<int>& iters, c
 	cudaFree(deviceItersBuffer);
 }
 
-void CUDAIterationCalculator::calculate(const std::vector<Complex>& points, std::vector<int>& iters, unsigned int maxIter) const {
-	calculateItersInternal<Complex>(points.data(), points.size(), iters, maxIter);
+void CUDAIterationCalculator::calculate(const std::vector<Complex>& points, std::vector<int>& iters, unsigned int maxIter, double escapeRadius) const {
+	calculateItersInternal<Complex>(points.data(), points.size(), iters, maxIter, escapeRadius);
 }
 
-void CUDAIterationCalculator::calculate(const HpPoints& points, std::vector<int>& iters, unsigned int maxIter) const {
+void CUDAIterationCalculator::calculate(const HpPoints& points, std::vector<int>& iters, unsigned int maxIter, double escapeRadius) const {
 	// The fraction size is a compile-time constant inside the kernel: pick the matching instantiation once per render.
 	switch (points.fractionWords) {
-		case 1: calculateItersHpInternal<1>(points, iters, maxIter); break;
-		case 2: calculateItersHpInternal<2>(points, iters, maxIter); break;
-		case 3: calculateItersHpInternal<3>(points, iters, maxIter); break;
-		case 4: calculateItersHpInternal<4>(points, iters, maxIter); break;
-		case 5: calculateItersHpInternal<5>(points, iters, maxIter); break;
-		case 6: calculateItersHpInternal<6>(points, iters, maxIter); break;
+		case 1: calculateItersHpInternal<1>(points, iters, maxIter, escapeRadius); break;
+		case 2: calculateItersHpInternal<2>(points, iters, maxIter, escapeRadius); break;
+		case 3: calculateItersHpInternal<3>(points, iters, maxIter, escapeRadius); break;
+		case 4: calculateItersHpInternal<4>(points, iters, maxIter, escapeRadius); break;
+		case 5: calculateItersHpInternal<5>(points, iters, maxIter, escapeRadius); break;
+		case 6: calculateItersHpInternal<6>(points, iters, maxIter, escapeRadius); break;
 		default:
 			throw std::invalid_argument("Unsupported fraction size: " + std::to_string(points.fractionWords) + " words");
 	}
