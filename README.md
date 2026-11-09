@@ -39,7 +39,7 @@ MandelbrotSetVisualizer/
 │       │   └── CUDARemoteIterationCalculator        HTTP client for remote CUDA worker
 │       ├── color/
 │       │   ├── ColorManager.cpp/.h                 Cyclic palette colouring
-│       │   ├── SmoothColoring.cpp/.h               Smooth value from escape iteration and escape value
+│       │   ├── SmoothColoring.h                    Smooth value from escape iteration and escape value
 │       │   └── Palettes.h                          Palette definitions
 │       ├── math/
 │       │   ├── FixedPointArithmetics.cpp/.h        Fixed-point library API (runtime fraction size)
