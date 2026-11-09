@@ -373,16 +373,18 @@ class BoundaryManager{
     return { args, info };
   }
 
-  // Height of an image `width` pixels wide that has the same shape as the view.
-  public exportHeight(width: number): number {
-    return Math.round(width * this.boxSidesRatio[0] / this.boxSidesRatio[1]);
+  // How much taller (or shorter) than the on-screen view an image of `width` x `height` pixels is. The export
+  // keeps the centre and the width of the view, so the visible height is scaled by this factor around the centre.
+  private exportHeightFactor(width: number, height: number): number {
+    return (height / width) * (this.boxSidesRatio[1] / this.boxSidesRatio[0]);
   }
 
-  // Renders the current view at `width` x exportHeight(width) pixels into generated-files/exports/<filename>. This does
-  // not touch the image on screen or the status bar. Returns the full path of the file and a short description.
-  public async exportImage(width: number, filename: string): Promise<{ path: string, precision: string, warning?: string, stages: string }> {
-    const height = this.exportHeight(width);
+  // Renders the current view at `width` x `height` pixels into generated-files/exports/<filename>. The centre of the
+  // image is the centre of the view on screen and the visible width is the same; a different shape shows more or
+  // less above and below. This does not touch the image on screen or the status bar.
+  public async exportImage(width: number, height: number, filename: string): Promise<{ path: string, precision: string, warning?: string, stages: string }> {
     const extra = { outputFilename: filename, width: width, height: height };
+    const factor = this.exportHeightFactor(width, height);
 
     // A larger image has smaller pixels, so a view that is fine for a double at 900 pixels may not be at 8000.
     const low = this.lowPrecissionBoundary;
@@ -393,11 +395,17 @@ class BoundaryManager{
     let precision: string;
     let warning: string | undefined;
     if (needsFixedPoint) {
-      const boundary = this.highPrecission ? this.highPrecissionBoundary! : {
+      const view = this.highPrecission ? this.highPrecissionBoundary! : {
         reStart: new Decimal(low.reStart),
         reEnd: new Decimal(low.reEnd),
         imStart: new Decimal(low.imStart),
         imEnd: new Decimal(low.imEnd)
+      };
+      const centreIm = view.imStart.plus(view.imEnd).div(2);
+      const boundary: HighPrecissionBoundary = {
+        ...view,
+        imStart: centreIm.plus(view.imStart.minus(centreIm).mul(factor)),
+        imEnd: centreIm.plus(view.imEnd.minus(centreIm).mul(factor))
       };
       const request = this.highPrecisionRequest(boundary, width);
       precision = request.info.precision;
@@ -405,9 +413,12 @@ class BoundaryManager{
       output = await invoke<string>("generate_mandelbrot_hp", { ...request.args, ...extra });
     } else {
       precision = "double (64-bit)";
+      const centreIm = (low.imStart + low.imEnd) / 2;
       output = await invoke<string>("generate_mandelbrot", {
         mode: this.mode,
         ...low,
+        imStart: centreIm + (low.imStart - centreIm) * factor,
+        imEnd: centreIm + (low.imEnd - centreIm) * factor,
         maxIter: this.maxIter,
         paletteLength: this.paletteLength,
         paletteId: this.paletteId,
@@ -663,11 +674,11 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   const exportView    = document.getElementById("export-view") as HTMLElement;
   const inputExportW  = document.getElementById("input-export-width") as HTMLInputElement;
-  const exportHeight  = document.getElementById("export-height") as HTMLElement;
+  const inputExportH  = document.getElementById("input-export-height") as HTMLInputElement;
   const btnExport     = document.getElementById("button-export-start") as HTMLButtonElement;
   const exportStatus  = document.getElementById("export-status") as HTMLElement;
-  const EXPORT_MIN_WIDTH = 300;
-  const EXPORT_MAX_WIDTH = 8000;
+  const EXPORT_MIN_SIDE = 100;
+  const EXPORT_MAX_SIDE = 8000;
 
   function showExportStatus(text: string, color: string) {
     exportStatus.textContent   = text;
@@ -675,16 +686,8 @@ window.addEventListener("DOMContentLoaded", async () => {
     exportStatus.style.display = "";
   }
 
-  function updateExportHeight() {
-    const width = parseInt(inputExportW.value);
-    exportHeight.textContent = isNaN(width)
-      ? "Height: -"
-      : `Height: ${boundaryManager.exportHeight(width)} px (same shape as the view)`;
-  }
-
   document.getElementById("button-export")?.addEventListener("click", () => {
     exportStatus.style.display = "none";
-    updateExportHeight();
     exportView.style.display = "flex";
     settingsOpen = true;
   });
@@ -693,12 +696,13 @@ window.addEventListener("DOMContentLoaded", async () => {
     settingsOpen = false;
     isPressed = false;
   });
-  inputExportW.addEventListener("input", updateExportHeight);
 
   btnExport.addEventListener("click", async () => {
     const width = parseInt(inputExportW.value);
-    if (isNaN(width) || width < EXPORT_MIN_WIDTH || width > EXPORT_MAX_WIDTH) {
-      showExportStatus(`Width must be between ${EXPORT_MIN_WIDTH} and ${EXPORT_MAX_WIDTH}.`, "#eb5757");
+    const height = parseInt(inputExportH.value);
+    const sideOk = (n: number) => !isNaN(n) && n >= EXPORT_MIN_SIDE && n <= EXPORT_MAX_SIDE;
+    if (!sideOk(width) || !sideOk(height)) {
+      showExportStatus(`Width and height must each be between ${EXPORT_MIN_SIDE} and ${EXPORT_MAX_SIDE}.`, "#eb5757");
       return;
     }
     btnExport.disabled = true;
@@ -706,10 +710,10 @@ window.addEventListener("DOMContentLoaded", async () => {
     showExportStatus("Rendering, this can take a while for large images...", "#aaa");
     const started = performance.now();
     try {
-      const result = await boundaryManager.exportImage(width, `export_${Date.now()}.png`);
+      const result = await boundaryManager.exportImage(width, height, `export_${Date.now()}.png`);
       const seconds = ((performance.now() - started) / 1000).toFixed(1);
       showExportStatus(
-        `Saved ${result.path}\n${width} x ${boundaryManager.exportHeight(width)} px, ${result.precision}, ${seconds} s` +
+        `Saved ${result.path}\n${width} x ${height} px, ${result.precision}, ${seconds} s` +
         (result.warning ? `\n${result.warning}` : ""),
         result.warning ? "#ffe08a" : "#6fcf97");
     } catch (e) {

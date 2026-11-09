@@ -112,10 +112,11 @@
       <div class="settings-body">
         <div class="settings-section">
           <h3>Current view</h3>
-          <p class="settings-desc">Renders the view you are looking at at a larger size, with the current mode, iterations, samples and palette. The image is saved in <code>generated-files/exports</code>.</p>
+          <p class="settings-desc">Renders the view you are looking at at any size and shape. The centre and the width of the view stay the same; a taller or wider image shows more above and below. It uses the current mode, iterations, samples and palette. The image is saved in <code>generated-files/exports</code>.</p>
           <label for="input-export-width">Width (px)</label>
-          <input type="number" id="input-export-width" class="form-field" value="1800" min="300" max="8000" step="3">
-          <p id="export-height" class="settings-desc">Height: 1200 px (same shape as the view)</p>
+          <input type="number" id="input-export-width" class="form-field" value="1800" min="100" max="8000">
+          <label for="input-export-height">Height (px)</label>
+          <input type="number" id="input-export-height" class="form-field" value="1200" min="100" max="8000">
           <div class="button-row">
             <button id="button-export-start">Export</button>
           </div>
