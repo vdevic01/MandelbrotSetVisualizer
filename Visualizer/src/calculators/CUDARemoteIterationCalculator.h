@@ -17,9 +17,11 @@ public:
         double reStart, double reEnd, double imStart, double imEnd,
         int width, int height, int samples, unsigned int maxIter) const;
 
+    // The boundaries are numbers of fpa::fpSize(fractionWords) words each.
     std::vector<int> calculateHP(
-        const fpa::uint reStart[fpa::FP_SIZE], const fpa::uint reEnd[fpa::FP_SIZE],
-        const fpa::uint imStart[fpa::FP_SIZE], const fpa::uint imEnd[fpa::FP_SIZE],
+        const fpa::uint* reStart, const fpa::uint* reEnd,
+        const fpa::uint* imStart, const fpa::uint* imEnd,
+        int fractionWords,
         int width, int height, int samples, unsigned int maxIter) const;
 
 private:

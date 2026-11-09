@@ -2,41 +2,15 @@
 #include <device_launch_parameters.h>
 #include <cstdint>
 #include <iostream>
+#include <stdexcept>
+#include <string>
 
 #include "CUDAIterationCalculator.h"
 #include "FixedPointShared.h"
 
-#pragma region Fixed Point Arithmetics
+// The fixed-point arithmetic itself (add, sub, compare, multiply) is shared with the CPU build:
+// fpa::core in FixedPointShared.h, so it is tested once by the unit tests.
 
-// The arithmetic itself is shared with the CPU build (FixedPointShared.h), so it is tested once by the
-// unit tests. These thin wrappers keep the kernel code below unchanged.
-constexpr uint32_t FP_SIZE = fpa::FP_SIZE;   // 1 whole word + 3 fraction words
-
-__device__ __forceinline__ void addFixed(const uint32_t* a, const uint32_t* b, uint32_t* c) {
-	fpa::core::add<fpa::FRACTION_PART>(a, b, c);
-}
-
-__device__ __forceinline__ void incFixed(const uint32_t* a, uint32_t* c) {
-	fpa::core::inc<fpa::FRACTION_PART>(a, c);
-}
-
-__device__ __forceinline__ void cmplFixed(const uint32_t* a, uint32_t* c) {
-	fpa::core::cmpl<fpa::FRACTION_PART>(a, c);
-}
-
-__device__ __forceinline__ void subFixed(const uint32_t* a, const uint32_t* b, uint32_t* c) {
-	fpa::core::sub<fpa::FRACTION_PART>(a, b, c);
-}
-
-__device__ __forceinline__ bool gtFixed(const uint32_t* a, const uint32_t* b) {
-	return fpa::core::gt<fpa::FRACTION_PART>(a, b);
-}
-
-__device__ __forceinline__ void mulCmplFixed(const uint32_t* a, const uint32_t* b, uint32_t* c) {
-	fpa::core::mul<fpa::FRACTION_PART>(a, b, c);
-}
-
-#pragma endregion
 
 __constant__ uint32_t deviceMaxIter;
 __constant__ size_t deviceN;
@@ -71,49 +45,54 @@ __global__ void calculateIters(const Complex* points, int32_t* iterations) {
 	return;
 }
 
-__global__ void calculateIters(const ComplexHP* points, int32_t* iterations)
+// High-precision kernel for F fraction words. `points` holds, per point, the real words followed by the
+// imaginary words (1 + F words each, most significant first).
+template<int F>
+__global__ void calculateItersHp(const uint32_t* points, int32_t* iterations)
 {
+	constexpr int S = fpa::WHOLE_PART + F;   // words per number
+
 	const size_t idx = threadIdx.x + blockIdx.x * blockDim.x;
 	if (idx >= deviceN)
 		return;
 
-	ComplexHP c = points[idx];
+	const uint32_t* c = points + idx * 2 * S;
 
-	uint32_t x0[FP_SIZE];
-	uint32_t y0[FP_SIZE];
-	for (size_t i = 0; i < FP_SIZE; i++) {
-		x0[i] = c.real[i];
-		y0[i] = c.imag[i];
+	uint32_t x0[S];
+	uint32_t y0[S];
+	for (int i = 0; i < S; i++) {
+		x0[i] = c[i];
+		y0[i] = c[S + i];
 	}
 
-	uint32_t x2[FP_SIZE] = { 0,0,0,0 };
-	uint32_t y2[FP_SIZE] = { 0,0,0,0 };
+	uint32_t x2[S] = {};
+	uint32_t y2[S] = {};
 
-	uint32_t x[FP_SIZE] = { 0,0,0,0 };
-	uint32_t y[FP_SIZE] = { 0,0,0,0 };
+	uint32_t x[S] = {};
+	uint32_t y[S] = {};
 
-	uint32_t temp[FP_SIZE];
-	uint32_t fourFixed[FP_SIZE] = { 4, 0, 0, 0 };
+	uint32_t temp[S];
+	uint32_t fourFixed[S] = { 4 };   // 4.0: the whole word is 4, the fraction words are 0
 
 	int32_t result = -1;
 	for (size_t i = 0; i < deviceMaxIter; i++) {
-		addFixed(x, x, temp);
-		mulCmplFixed(temp, y, temp);
-		addFixed(temp, y0, y);
+		fpa::core::add<F>(x, x, temp);
+		fpa::core::mul<F>(temp, y, temp);
+		fpa::core::add<F>(temp, y0, y);
 		//y = (x + x) * y + y0;
 
-		subFixed(x2, y2, temp);
-		addFixed(temp, x0, x);
+		fpa::core::sub<F>(x2, y2, temp);
+		fpa::core::add<F>(temp, x0, x);
 		//x = x2 - y2 + x0;
 
-		mulCmplFixed(x, x, x2);
+		fpa::core::mul<F>(x, x, x2);
 		//x2 = x * x;
 
-		mulCmplFixed(y, y, y2);
+		fpa::core::mul<F>(y, y, y2);
 		//y2 = y * y;
 
-		addFixed(x2, y2, temp);
-		if (gtFixed(temp, fourFixed)) {
+		fpa::core::add<F>(x2, y2, temp);
+		if (fpa::core::gt<F>(temp, fourFixed)) {
 			result = i;
 			break;
 		}
@@ -124,10 +103,8 @@ __global__ void calculateIters(const ComplexHP* points, int32_t* iterations)
 	return;
 }
 
-
 template<typename T_ComplexType>
-void calculateItersInternal(const std::vector<T_ComplexType>& points, std::vector<int>& iters, const unsigned int maxIter) {
-	const size_t N = points.size();
+void calculateItersInternal(const T_ComplexType* points, const size_t N, std::vector<int>& iters, const unsigned int maxIter) {
 
 	T_ComplexType* devicePointsBuffer;
 	int* deviceItersBuffer;
@@ -135,7 +112,7 @@ void calculateItersInternal(const std::vector<T_ComplexType>& points, std::vecto
 	cudaMalloc(&devicePointsBuffer, N * sizeof(T_ComplexType));
 	cudaMalloc(&deviceItersBuffer, N * sizeof(int));
 
-	cudaMemcpy(devicePointsBuffer, points.data(), N * sizeof(T_ComplexType), cudaMemcpyHostToDevice);
+	cudaMemcpy(devicePointsBuffer, points, N * sizeof(T_ComplexType), cudaMemcpyHostToDevice);
 	cudaMemcpyToSymbol(deviceMaxIter, &maxIter, sizeof(unsigned int));
 	cudaMemcpyToSymbol(deviceN, &N, sizeof(size_t));
 
@@ -150,10 +127,45 @@ void calculateItersInternal(const std::vector<T_ComplexType>& points, std::vecto
 	cudaFree(deviceItersBuffer);
 }
 
-void CUDAIterationCalculator::calculate(const std::vector<Complex>& points, std::vector<int>& iters, unsigned int maxIter) const {
-	calculateItersInternal<Complex>(points, iters, maxIter);
+template<int F>
+void calculateItersHpInternal(const HpPoints& points, std::vector<int>& iters, const unsigned int maxIter) {
+	const size_t N = points.size();
+
+	uint32_t* devicePointsBuffer;
+	int* deviceItersBuffer;
+
+	cudaMalloc(&devicePointsBuffer, points.words.size() * sizeof(uint32_t));
+	cudaMalloc(&deviceItersBuffer, N * sizeof(int));
+
+	cudaMemcpy(devicePointsBuffer, points.words.data(), points.words.size() * sizeof(uint32_t), cudaMemcpyHostToDevice);
+	cudaMemcpyToSymbol(deviceMaxIter, &maxIter, sizeof(unsigned int));
+	cudaMemcpyToSymbol(deviceN, &N, sizeof(size_t));
+
+	const int blockSize = 128;
+	int numBlocks = (N + blockSize - 1) / blockSize;
+
+	calculateItersHp<F><<<numBlocks, blockSize>>>(devicePointsBuffer, deviceItersBuffer);
+
+	cudaMemcpy(iters.data(), deviceItersBuffer, N * sizeof(int), cudaMemcpyDeviceToHost);
+
+	cudaFree(devicePointsBuffer);
+	cudaFree(deviceItersBuffer);
 }
 
-void CUDAIterationCalculator::calculate(const std::vector<ComplexHP>& points, std::vector<int>& iters, unsigned int maxIter) const {
-	calculateItersInternal<ComplexHP>(points, iters, maxIter);
+void CUDAIterationCalculator::calculate(const std::vector<Complex>& points, std::vector<int>& iters, unsigned int maxIter) const {
+	calculateItersInternal<Complex>(points.data(), points.size(), iters, maxIter);
+}
+
+void CUDAIterationCalculator::calculate(const HpPoints& points, std::vector<int>& iters, unsigned int maxIter) const {
+	// The fraction size is a compile-time constant inside the kernel: pick the matching instantiation once per render.
+	switch (points.fractionWords) {
+		case 1: calculateItersHpInternal<1>(points, iters, maxIter); break;
+		case 2: calculateItersHpInternal<2>(points, iters, maxIter); break;
+		case 3: calculateItersHpInternal<3>(points, iters, maxIter); break;
+		case 4: calculateItersHpInternal<4>(points, iters, maxIter); break;
+		case 5: calculateItersHpInternal<5>(points, iters, maxIter); break;
+		case 6: calculateItersHpInternal<6>(points, iters, maxIter); break;
+		default:
+			throw std::invalid_argument("Unsupported fraction size: " + std::to_string(points.fractionWords) + " words");
+	}
 }

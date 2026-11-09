@@ -85,12 +85,18 @@ async fn run_sidecar(args: Vec<String>, env: HashMap<String, String>) -> Result<
             format!("Failed to start the renderer: {}", e)
         })?;
 
-    // Keep what the renderer wrote to stderr, so a failure can be reported to the UI.
+    // Keep what the renderer wrote: stderr explains a failure, and stdout (stage timings, the remote worker's
+    // answer) is handed to the UI on success.
     let mut stderr_lines: Vec<String> = Vec::new();
+    let mut stdout_text = String::new();
 
     while let Some(event) = rx.recv().await {
         match event {
-            CommandEvent::Stdout(line) => print!("{}", line),
+            CommandEvent::Stdout(line) => {
+                println!("{}", line.trim_end());
+                stdout_text.push_str(line.trim_end());
+                stdout_text.push('\n');
+            }
             CommandEvent::Stderr(line) => {
                 eprint!("{}", line);
                 stderr_lines.push(line.trim_end().to_string());
@@ -102,7 +108,7 @@ async fn run_sidecar(args: Vec<String>, env: HashMap<String, String>) -> Result<
             CommandEvent::Terminated(p) => {
                 eprintln!("[renderer] finished with exit code {:?}", p.code);
                 return match p.code {
-                    Some(0) => Ok("0".to_string()),
+                    Some(0) => Ok(stdout_text),
                     code => {
                         let details = stderr_lines.join("\n");
                         let code_text = code.map(|c| c.to_string()).unwrap_or_else(|| "unknown".to_string());
@@ -155,11 +161,23 @@ async fn generate_mandelbrot(
 #[tauri::command]
 async fn generate_mandelbrot_hp(
     mode: String,
-    re_start: [u32; 4], re_end: [u32; 4],
-    im_start: [u32; 4], im_end: [u32; 4],
+    re_start: Vec<u32>, re_end: Vec<u32>,
+    im_start: Vec<u32>, im_end: Vec<u32>,
+    fraction_words: u32,
     max_iter: i32, palette_length: i32,
     palette_id: i32, samples: i32,
 ) -> Result<String, String> {
+    // Every coordinate has one whole word plus `fraction_words` fraction words.
+    let words = fraction_words as usize + 1;
+    for (name, coordinate) in [("re_start", &re_start), ("re_end", &re_end), ("im_start", &im_start), ("im_end", &im_end)] {
+        if coordinate.len() != words {
+            return Err(format!(
+                "{} has {} words but {} fraction words need {}",
+                name, coordinate.len(), fraction_words, words
+            ));
+        }
+    }
+
     let env = remote_env(&mode);
     let mut args = vec![
         mode,
@@ -168,10 +186,11 @@ async fn generate_mandelbrot_hp(
         palette_id.to_string(), samples.to_string(),
         "1".to_string(),
     ];
-    args.extend(re_start.iter().map(|x| x.to_string()));
-    args.extend(re_end.iter().map(|x| x.to_string()));
-    args.extend(im_start.iter().map(|x| x.to_string()));
-    args.extend(im_end.iter().map(|x| x.to_string()));
+    for coordinate in [&re_start, &re_end, &im_start, &im_end] {
+        args.extend(coordinate.iter().map(|x| x.to_string()));
+    }
+    args.push("--fraction-words".to_string());
+    args.push(fraction_words.to_string());
     run_sidecar(args, env).await
 }
 

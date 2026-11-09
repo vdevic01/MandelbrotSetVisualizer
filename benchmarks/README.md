@@ -64,3 +64,11 @@ CMake is taken from `--cmake`, then `$CMAKE`, then `PATH`, then CLion's bundled 
 - Look at `stdev_ms` before trusting a small difference; a change within the noise is not a real change.
 - Compare reports only from the same machine and the same settings.
 - To get historical data, rerun old commits with `run <hash>`; the report is named after the hash.
+
+## Precision calibration
+
+`precision_calibration.py` is a separate tool. It measures how many pixels of an image are wrong for each fixed-point size at a given number of resolution steps per pixel, which is where the app's zoom-level switch points come from (see the "High-precision mode" section of the main README). It needs numpy:
+
+```bash
+python benchmarks/precision_calibration.py --exe path/to/mandelbrot_visualizer
+```

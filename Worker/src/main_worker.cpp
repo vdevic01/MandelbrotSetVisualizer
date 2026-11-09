@@ -4,8 +4,8 @@
 //
 // LP stdin:  {"use_hp":0,"max_iter":<N>,"samples":<S>,"width":<W>,"height":<H>,
 //             "re_start":<f>,"re_end":<f>,"im_start":<f>,"im_end":<f>}
-// HP stdin:  {"use_hp":1,"max_iter":<N>,"samples":<S>,"width":<W>,"height":<H>,
-//             "re_start_0":<u>,...,"im_end_3":<u>}
+// HP stdin:  {"use_hp":1,"max_iter":<N>,"samples":<S>,"width":<W>,"height":<H>,"fraction_words":<F>,
+//             "re_start_0":<u>,...,"im_end_<F>":<u>}   (F + 1 words per coordinate; fraction_words defaults to 3)
 // stdout:    {"execution_time_ms":<ms>,"iterations":"<base64-encoded int32[]>"}
 
 #include <cuda_runtime.h>
@@ -41,6 +41,14 @@ static unsigned int extractJsonUint(const string& json, const string& key) {
     return static_cast<unsigned int>(stoul(json.substr(pos)));
 }
 
+// Optional integer field: returns fallback when the key is absent (older clients do not send it).
+static int extractJsonIntOr(const string& json, const string& key, int fallback) {
+    const string needle = "\"" + key + "\":";
+    size_t pos = json.find(needle);
+    if (pos == string::npos) return fallback;
+    return stoi(json.substr(pos + needle.size()));
+}
+
 static double extractJsonDouble(const string& json, const string& key) {
     const string needle = "\"" + key + "\":";
     size_t pos = json.find(needle);
@@ -73,9 +81,15 @@ int main() {
         double samplingMs = 0.0;
 
         if (useHp) {
-            fpa::uint reStart[fpa::FP_SIZE], reEnd[fpa::FP_SIZE];
-            fpa::uint imStart[fpa::FP_SIZE], imEnd[fpa::FP_SIZE];
-            for (int i = 0; i < fpa::FP_SIZE; i++) {
+            // Number format of the coordinates: 1 whole word + fraction_words fraction words (default 3).
+            const int fractionWords = extractJsonIntOr(jsonInput, "fraction_words", fpa::FRACTION_PART);
+            if (!fpa::isSupportedFractionPart(fractionWords))
+                throw runtime_error("Unsupported fraction_words: " + to_string(fractionWords));
+            const int words = fpa::fpSize(fractionWords);
+
+            fpa::uint reStart[fpa::MAX_FP_SIZE], reEnd[fpa::MAX_FP_SIZE];
+            fpa::uint imStart[fpa::MAX_FP_SIZE], imEnd[fpa::MAX_FP_SIZE];
+            for (int i = 0; i < words; i++) {
                 reStart[i] = extractJsonUint(jsonInput, "re_start_" + to_string(i));
                 reEnd[i]   = extractJsonUint(jsonInput, "re_end_"   + to_string(i));
                 imStart[i] = extractJsonUint(jsonInput, "im_start_" + to_string(i));
@@ -84,7 +98,7 @@ int main() {
 
             auto t0 = clock::now();
             const auto points = samplePointsFromComplexPlane(
-                height, width, imStart, imEnd, reStart, reEnd, samples);
+                height, width, imStart, imEnd, reStart, reEnd, samples, fractionWords);
             samplingMs = chrono::duration<double, milli>(clock::now() - t0).count();
 
             iters.resize(points.size());
