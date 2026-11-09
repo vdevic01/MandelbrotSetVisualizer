@@ -39,6 +39,18 @@ constexpr bool isSupportedEscapeRadius(double radius) {
     return radius >= MIN_ESCAPE_RADIUS && radius <= MAX_ESCAPE_RADIUS;
 }
 
+// What the escape-time calculation returns, one entry per sample point.
+struct EscapeResult {
+    std::vector<int> iters;      // iteration at which the point escaped, or -1 if it never did
+    std::vector<float> magSq;    // the escape value: |z|^2 at that iteration (0 if the point never escaped)
+
+    EscapeResult() = default;
+    explicit EscapeResult(size_t count) : iters(count), magSq(count) {}
+
+    size_t size() const { return iters.size(); }
+    void resize(size_t count) { iters.resize(count); magSq.resize(count); }
+};
+
 // The escape threshold R^2 for the fixed-point kernels, as the whole word and the first fraction word of a
 // fixed-point number (the remaining fraction words are 0).
 inline void escapeThresholdWords(double escapeRadius, unsigned int& whole, unsigned int& fraction) {
@@ -51,9 +63,9 @@ class IterationCalculator {
 public:
     virtual ~IterationCalculator() = default;
 
-    // `iters` must already have one entry per point.
-    virtual void calculate(const std::vector<Complex>& points, std::vector<int>& iters, unsigned int maxIter, double escapeRadius) const = 0;
-    virtual void calculate(const HpPoints& points, std::vector<int>& iters, unsigned int maxIter, double escapeRadius) const = 0;
+    // `result` must already have one entry per point.
+    virtual void calculate(const std::vector<Complex>& points, EscapeResult& result, unsigned int maxIter, double escapeRadius) const = 0;
+    virtual void calculate(const HpPoints& points, EscapeResult& result, unsigned int maxIter, double escapeRadius) const = 0;
 };
 
 #endif // ITERATION_CALCULATOR_H

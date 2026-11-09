@@ -72,16 +72,16 @@ void createMandelbrotSet(const MandelbrotConfig& config, const ColorManager& col
     }
 
     const int totalPoints = imageSize * config.samples;
-    vector<int> iters(totalPoints);
+    EscapeResult escape(totalPoints);
     {
         ScopedTimer timer("Calculating escape iterations");
-        iterCalculator.calculate(points, iters, config.maxIter, config.escapeRadius);
+        iterCalculator.calculate(points, escape, config.maxIter, config.escapeRadius);
     }
 
     vector<Color> pixels;
     {
         ScopedTimer timer("Coloring");
-        pixels = colorManager.paint(iters);
+        pixels = colorManager.paint(escape.iters);
     }
 
     {
@@ -151,18 +151,18 @@ static void createMandelbrotSetRemote(
     cout << "=====================================================\n";
     ScopedTimer total_timer("Total generation time");
 
-    vector<int> iters;
+    EscapeResult escape;
     {
         ScopedTimer timer("Remote execution (sampling + iterations)");
         if (config.useHighPrecision) {
-            iters = calc.calculateHP(
+            escape = calc.calculateHP(
                 config.reStartHP, config.reEndHP,
                 config.imStartHP, config.imEndHP,
                 config.fractionWords,
                 config.imageWidth, config.imageHeight,
                 config.samples, static_cast<unsigned int>(config.maxIter), config.escapeRadius);
         } else {
-            iters = calc.calculate(
+            escape = calc.calculate(
                 config.reStart, config.reEnd,
                 config.imStart, config.imEnd,
                 config.imageWidth, config.imageHeight,
@@ -173,7 +173,7 @@ static void createMandelbrotSetRemote(
     vector<Color> pixels;
     {
         ScopedTimer timer("Coloring");
-        pixels = colorManager.paint(iters);
+        pixels = colorManager.paint(escape.iters);
     }
 
     {
