@@ -17,6 +17,7 @@
 #include "FixedPointArithmetics.h"
 #include "ColorManager.h"
 #include "Palettes.h"
+#include "SmoothColoring.h"
 #include "Sampler.h"
 #include "ScopedTimer.h"
 #include "ImageWriter.h"
@@ -81,7 +82,7 @@ void createMandelbrotSet(const MandelbrotConfig& config, const ColorManager& col
     vector<Color> pixels;
     {
         ScopedTimer timer("Coloring");
-        pixels = colorManager.paint(escape.iters);
+        pixels = colorManager.paint(computeSmoothValues(escape, config.escapeRadius));
     }
 
     {
@@ -173,7 +174,7 @@ static void createMandelbrotSetRemote(
     vector<Color> pixels;
     {
         ScopedTimer timer("Coloring");
-        pixels = colorManager.paint(escape.iters);
+        pixels = colorManager.paint(computeSmoothValues(escape, config.escapeRadius));
     }
 
     {

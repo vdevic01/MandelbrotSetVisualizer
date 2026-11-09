@@ -11,6 +11,7 @@ An interactive Mandelbrot set explorer with a Tauri/TypeScript GUI and a high-pe
 - **OpenMP parallelism** — CPU rendering uses all available cores
 - **Anti-aliasing** — configurable samples-per-pixel with random sub-pixel jitter
 - **8 colour palettes** — cyclic palettes with configurable cycle length
+- **Smooth colouring** — colours follow a continuous escape-time value instead of the whole iteration count, so there are no colour bands
 - **Multiple compute backends** — CPU (default), OpenCL, CUDA local, and CUDA remote (optional, see below)
 - **Remote GPU rendering** — offload CUDA execution to a remote GPU worker over HTTP; no local NVIDIA GPU required
 - **Headless CLI** — the C++ binary can be used standalone without the GUI
@@ -38,6 +39,7 @@ MandelbrotSetVisualizer/
 │       │   └── CUDARemoteIterationCalculator        HTTP client for remote CUDA worker
 │       ├── color/
 │       │   ├── ColorManager.cpp/.h                 Cyclic palette colouring
+│       │   ├── SmoothColoring.cpp/.h               Smooth value from escape iteration and escape value
 │       │   └── Palettes.h                          Palette definitions
 │       ├── math/
 │       │   ├── FixedPointArithmetics.cpp/.h        Fixed-point library API (runtime fraction size)

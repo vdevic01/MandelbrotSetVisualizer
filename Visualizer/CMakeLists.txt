@@ -30,6 +30,8 @@ set(SOURCES
     src/color/ColorManager.cpp
     src/color/ColorManager.h
     src/color/Palettes.h
+    src/color/SmoothColoring.cpp
+    src/color/SmoothColoring.h
     src/util/fpng.cpp
     src/util/fpng.h
     src/util/errors.h
