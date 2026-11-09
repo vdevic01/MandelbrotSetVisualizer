@@ -170,6 +170,7 @@ The tests run automatically on every pull request to `main` (GitHub Actions work
 | Mode | CPU Parallel | Compute backend. Options are populated at startup by querying the binary. |
 | Max Iterations | 700 | Upper bound on escape iterations per point. Higher values reveal more detail at deep zoom but are slower. |
 | Palette Length | 250 | Number of steps before the colour palette repeats. Shorter lengths produce tighter colour bands. |
+| Escape Radius | 2 | Iteration of a point stops once `|z|` is above this value. Range 2 to 128. Larger values make the colouring smoother. |
 | Samples | 1 | Anti-aliasing samples per pixel. Each sample is a random sub-pixel jitter. Values above 4 noticeably reduce noise; values above 16 have diminishing returns. |
 | Palette | Navy | Colour palette (see list below). |
 
