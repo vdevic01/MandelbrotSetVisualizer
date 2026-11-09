@@ -138,9 +138,12 @@ fn remote_env(mode: &str) -> HashMap<String, String> {
 }
 
 // Where a render is written: the file shown in the app by default, or `output_filename` (a plain file name, no
-// folders) inside generated-files for an export.
+// folders) inside generated-files/exports for an export.
 fn output_path(output_filename: Option<String>) -> Result<String, String> {
-    let folder = project_dir().join("generated-files");
+    let mut folder = project_dir().join("generated-files");
+    if output_filename.is_some() {
+        folder = folder.join("exports");
+    }
     let name = output_filename.unwrap_or_else(|| "mandelbrot_set.png".to_string());
     if Path::new(&name).file_name().map(|n| n.to_string_lossy() != name).unwrap_or(true) {
         return Err(format!("Invalid output file name: {}", name));

@@ -378,7 +378,7 @@ class BoundaryManager{
     return Math.round(width * this.boxSidesRatio[0] / this.boxSidesRatio[1]);
   }
 
-  // Renders the current view at `width` x exportHeight(width) pixels into generated-files/<filename>. This does
+  // Renders the current view at `width` x exportHeight(width) pixels into generated-files/exports/<filename>. This does
   // not touch the image on screen or the status bar. Returns the full path of the file and a short description.
   public async exportImage(width: number, filename: string): Promise<{ path: string, precision: string, warning?: string, stages: string }> {
     const height = this.exportHeight(width);
@@ -418,7 +418,7 @@ class BoundaryManager{
     }
 
     const projectDir: string = await invoke("get_project_dir");
-    const path = await join(projectDir, "generated-files", filename);
+    const path = await join(projectDir, "generated-files", "exports", filename);
     return { path, precision, warning, stages: parseRendererOutput(output).stages };
   }
 
