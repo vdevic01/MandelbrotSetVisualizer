@@ -4,6 +4,7 @@
 #include <stdexcept>
 #include <string>
 #include <fstream>
+#include <functional>
 #include <vector>
 
 #include <CL/cl.h>
@@ -260,7 +261,10 @@ void printError(const cl_program& program, const cl_device_id& device) { // Memb
 
 // points / inputBytes: the input buffer as raw bytes (double-precision points, or the flat fixed-point words).
 // buildOptions: extra options for the OpenCL compiler (for example -DFRACTION_PART=4), or NULL.
-void calculateItersInternal(const void* points, const size_t count, const size_t inputBytes, std::vector<int>& iters, const unsigned int maxIter, const char* kernelFilename, const char* buildOptions) {
+// setThresholdArgs: sets the kernel arguments that carry the escape threshold, starting at the given index
+// (they differ between the double-precision and the fixed-point kernel).
+void calculateItersInternal(const void* points, const size_t count, const size_t inputBytes, EscapeResult& result, const unsigned int maxIter, const char* kernelFilename, const char* buildOptions,
+                            const std::function<cl_int(cl_kernel, cl_uint)>& setThresholdArgs) {
 	const unsigned int size = static_cast<unsigned int>(count);
 	OpenclDeviceSetupInfo deviceInfo = setupOpenclDevices();
 	cl_int err = deviceInfo.err;
@@ -270,6 +274,7 @@ void calculateItersInternal(const void* points, const size_t count, const size_t
 
 	cl_mem device_buffer_input;
 	cl_mem device_buffer_output;
+	cl_mem device_buffer_mag;
 
 	device_buffer_input = clCreateBuffer(
 		deviceInfo.context,         /* context */
@@ -285,6 +290,17 @@ void calculateItersInternal(const void* points, const size_t count, const size_t
 		deviceInfo.context,
 		CL_MEM_WRITE_ONLY,
 		sizeof(int) * size,
+		NULL,
+		&err
+	);
+
+	SIMPLE_CHECK_ERRORS(err);
+
+	// |z|^2 at escape, one float per point
+	device_buffer_mag = clCreateBuffer(
+		deviceInfo.context,
+		CL_MEM_WRITE_ONLY,
+		sizeof(float) * size,
 		NULL,
 		&err
 	);
@@ -378,6 +394,17 @@ void calculateItersInternal(const void* points, const size_t count, const size_t
 	);
 	SIMPLE_CHECK_ERRORS(err);
 
+	err = clSetKernelArg(
+		kernel,
+		3,
+		sizeof(cl_mem),
+		&device_buffer_mag
+	);
+	SIMPLE_CHECK_ERRORS(err);
+
+	err = setThresholdArgs(kernel, 4);
+	SIMPLE_CHECK_ERRORS(err);
+
 	// -----------------------------------------------------------------------    
 	// 13. Define work-item and work-group
 
@@ -410,17 +437,32 @@ void calculateItersInternal(const void* points, const size_t count, const size_t
 		CL_TRUE,                /* blocking_read */
 		0,                      /* offset */
 		sizeof(int) * size,     /* size */
-		iters.data(),           /* ptr */
+		result.iters.data(),    /* ptr */
 		NULL,                   /* num_events_in_wait_list */
 		NULL,                   /* event_wait_list */
 		NULL                    /* event */
 	);
+	SIMPLE_CHECK_ERRORS(err);
+
+	err = clEnqueueReadBuffer(
+		deviceInfo.cmd_queue,
+		device_buffer_mag,
+		CL_TRUE,
+		0,
+		sizeof(float) * size,
+		result.magSq.data(),
+		NULL,
+		NULL,
+		NULL
+	);
+	SIMPLE_CHECK_ERRORS(err);
 
 
 	// -----------------------------------------------------------------------
 	// 16. Clean up OpenCL resources
 	err = clReleaseMemObject(device_buffer_input); SIMPLE_CHECK_ERRORS(err);
 	err = clReleaseMemObject(device_buffer_output); SIMPLE_CHECK_ERRORS(err);
+	err = clReleaseMemObject(device_buffer_mag); SIMPLE_CHECK_ERRORS(err);
 	err = clReleaseKernel(kernel); SIMPLE_CHECK_ERRORS(err);
 	err = clReleaseProgram(program); SIMPLE_CHECK_ERRORS(err);
 	err = clReleaseCommandQueue(deviceInfo.cmd_queue); SIMPLE_CHECK_ERRORS(err);
@@ -430,16 +472,28 @@ void calculateItersInternal(const void* points, const size_t count, const size_t
 }
 
 
-void OpenCLIterationCalculator::calculate(const std::vector<Complex>& points, std::vector<int>& iters, const unsigned int maxIter) const {
-	calculateItersInternal(points.data(), points.size(), points.size() * sizeof(Complex), iters, maxIter, "OpenCLKernel.cl", NULL);
+void OpenCLIterationCalculator::calculate(const std::vector<Complex>& points, EscapeResult& result, const unsigned int maxIter, const double escapeRadius) const {
+	const cl_double escapeSq = escapeRadius * escapeRadius;
+	calculateItersInternal(points.data(), points.size(), points.size() * sizeof(Complex), result, maxIter, "OpenCLKernel.cl", NULL,
+		[&](cl_kernel kernel, cl_uint index) {
+			return clSetKernelArg(kernel, index, sizeof(cl_double), &escapeSq);
+		});
 }
 
-void OpenCLIterationCalculator::calculate(const HpPoints& points, std::vector<int>& iters, const unsigned int maxIter) const {
+void OpenCLIterationCalculator::calculate(const HpPoints& points, EscapeResult& result, const unsigned int maxIter, const double escapeRadius) const {
 	if (!fpa::isSupportedFractionPart(points.fractionWords))
 		throw std::invalid_argument("Unsupported fraction size: " + std::to_string(points.fractionWords) + " words");
 
 	// The kernel is compiled for the fraction size of this render.
 	const std::string buildOptions = "-DFRACTION_PART=" + std::to_string(points.fractionWords);
-	calculateItersInternal(points.words.data(), points.size(), points.words.size() * sizeof(unsigned int), iters, maxIter,
-	                       "OpenCLKernelHP.cl", buildOptions.c_str());
+	unsigned int thresholdWhole, thresholdFraction;
+	escapeThresholdWords(escapeRadius, thresholdWhole, thresholdFraction);
+	const cl_uint whole = thresholdWhole, fraction = thresholdFraction;
+	calculateItersInternal(points.words.data(), points.size(), points.words.size() * sizeof(unsigned int), result, maxIter,
+	                       "OpenCLKernelHP.cl", buildOptions.c_str(),
+		[&](cl_kernel kernel, cl_uint index) {
+			const cl_int err = clSetKernelArg(kernel, index, sizeof(cl_uint), &whole);
+			if (err != CL_SUCCESS) return err;
+			return clSetKernelArg(kernel, index + 1, sizeof(cl_uint), &fraction);
+		});
 }

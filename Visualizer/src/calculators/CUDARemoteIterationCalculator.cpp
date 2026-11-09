@@ -1,6 +1,7 @@
 #include "CUDARemoteIterationCalculator.h"
 
 #include <cpr/cpr.h>
+#include <algorithm>
 #include <chrono>
 #include <cstring>
 #include <iomanip>
@@ -77,7 +78,8 @@ string CUDARemoteIterationCalculator::httpPost(const string& body) const {
     return r.text;
 }
 
-void CUDARemoteIterationCalculator::decodeResponse(const string& response, vector<int>& iters) {
+void CUDARemoteIterationCalculator::decodeResponse(const string& response, EscapeResult& result, const double escapeRadius) {
+    vector<int>& iters = result.iters;
     const double samplingMs = extractJsonDouble(response, "sampling_time_ms");
     const double kernelMs   = extractJsonDouble(response, "execution_time_ms");
     if (samplingMs > 0.0 || kernelMs > 0.0)
@@ -101,11 +103,30 @@ void CUDARemoteIterationCalculator::decodeResponse(const string& response, vecto
     }
 
     memcpy(iters.data(), raw.data(), raw.size());
+
+    // |z|^2 at escape, one float32 per sample.
+    const string magB64 = extractJsonString(response, "escape_values");
+    if (magB64.empty()) {
+        // A worker built before smooth colouring: it sends no escape values (and always uses radius 2).
+        // R^2 as the escape value makes the smooth value a whole number, so the image is banded as before.
+        cerr << "Warning: the worker did not return escape values; smooth colouring is off for this render. "
+                "Update the remote worker.\n";
+        fill(result.magSq.begin(), result.magSq.end(), static_cast<float>(escapeRadius * escapeRadius));
+        return;
+    }
+    const vector<uint8_t> rawMag = base64::decode(magB64);
+    const size_t expectedMagBytes = result.magSq.size() * sizeof(float);
+    if (rawMag.size() != expectedMagBytes) {
+        throw runtime_error(
+            "Escape values size mismatch: expected " + to_string(expectedMagBytes) +
+            " bytes, got " + to_string(rawMag.size()));
+    }
+    memcpy(result.magSq.data(), rawMag.data(), rawMag.size());
 }
 
-vector<int> CUDARemoteIterationCalculator::calculate(
+EscapeResult CUDARemoteIterationCalculator::calculate(
     double reStart, double reEnd, double imStart, double imEnd,
-    int width, int height, int samples, unsigned int maxIter) const
+    int width, int height, int samples, unsigned int maxIter, double escapeRadius) const
 {
     ostringstream json;
     json << fixed << setprecision(17)
@@ -118,22 +139,23 @@ vector<int> CUDARemoteIterationCalculator::calculate(
          << ",\"re_end\":" << reEnd
          << ",\"im_start\":" << imStart
          << ",\"im_end\":" << imEnd
+         << ",\"escape_radius\":" << escapeRadius
          << "}";
 
     const string body = json.str();
     cout << "Sending LP boundary to RunPod...\n";
 
     const string response = httpPost(body);
-    vector<int> iters(static_cast<size_t>(width) * height * samples);
-    decodeResponse(response, iters);
-    return iters;
+    EscapeResult result(static_cast<size_t>(width) * height * samples);
+    decodeResponse(response, result, escapeRadius);
+    return result;
 }
 
-vector<int> CUDARemoteIterationCalculator::calculateHP(
+EscapeResult CUDARemoteIterationCalculator::calculateHP(
     const fpa::uint* reStart, const fpa::uint* reEnd,
     const fpa::uint* imStart, const fpa::uint* imEnd,
     int fractionWords,
-    int width, int height, int samples, unsigned int maxIter) const
+    int width, int height, int samples, unsigned int maxIter, double escapeRadius) const
 {
     const int words = fpa::fpSize(fractionWords);
     ostringstream json;
@@ -142,7 +164,8 @@ vector<int> CUDARemoteIterationCalculator::calculateHP(
          << ",\"samples\":" << samples
          << ",\"width\":" << width
          << ",\"height\":" << height
-         << ",\"fraction_words\":" << fractionWords;
+         << ",\"fraction_words\":" << fractionWords
+         << ",\"escape_radius\":" << setprecision(17) << escapeRadius;
     for (int i = 0; i < words; i++) {
         json << ",\"re_start_" << i << "\":" << reStart[i]
              << ",\"re_end_"   << i << "\":" << reEnd[i]
@@ -155,7 +178,7 @@ vector<int> CUDARemoteIterationCalculator::calculateHP(
     cout << "Sending HP boundary to RunPod...\n";
 
     const string response = httpPost(body);
-    vector<int> iters(static_cast<size_t>(width) * height * samples);
-    decodeResponse(response, iters);
-    return iters;
+    EscapeResult result(static_cast<size_t>(width) * height * samples);
+    decodeResponse(response, result, escapeRadius);
+    return result;
 }

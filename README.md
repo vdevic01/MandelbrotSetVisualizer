@@ -11,6 +11,7 @@ An interactive Mandelbrot set explorer with a Tauri/TypeScript GUI and a high-pe
 - **OpenMP parallelism** — CPU rendering uses all available cores
 - **Anti-aliasing** — configurable samples-per-pixel with random sub-pixel jitter
 - **8 colour palettes** — cyclic palettes with configurable cycle length
+- **Smooth colouring** — colours follow a continuous escape-time value instead of the whole iteration count, so there are no colour bands
 - **Multiple compute backends** — CPU (default), OpenCL, CUDA local, and CUDA remote (optional, see below)
 - **Remote GPU rendering** — offload CUDA execution to a remote GPU worker over HTTP; no local NVIDIA GPU required
 - **Headless CLI** — the C++ binary can be used standalone without the GUI
@@ -38,6 +39,7 @@ MandelbrotSetVisualizer/
 │       │   └── CUDARemoteIterationCalculator        HTTP client for remote CUDA worker
 │       ├── color/
 │       │   ├── ColorManager.cpp/.h                 Cyclic palette colouring
+│       │   ├── SmoothColoring.h                    Smooth value from escape iteration and escape value
 │       │   └── Palettes.h                          Palette definitions
 │       ├── math/
 │       │   ├── FixedPointArithmetics.cpp/.h        Fixed-point library API (runtime fraction size)
@@ -168,6 +170,7 @@ The tests run automatically on every pull request to `main` (GitHub Actions work
 | Mode | CPU Parallel | Compute backend. Options are populated at startup by querying the binary. |
 | Max Iterations | 700 | Upper bound on escape iterations per point. Higher values reveal more detail at deep zoom but are slower. |
 | Palette Length | 250 | Number of steps before the colour palette repeats. Shorter lengths produce tighter colour bands. |
+| Escape Radius | 2 | Iteration of a point stops once `|z|` is above this value. Range 2 to 128. Larger values make the colouring smoother. |
 | Samples | 1 | Anti-aliasing samples per pixel. Each sample is a random sub-pixel jitter. Values above 4 noticeably reduce noise; values above 16 have diminishing returns. |
 | Palette | Navy | Colour palette (see list below). |
 
@@ -260,6 +263,7 @@ The C++ binary can be invoked directly without the GUI:
 ```
 mandelbrot_visualizer <MODE> <OUTPUT_FILE> <MAX_ITER> <PALETTE_LENGTH> <PALETTE_ID>
                       <SAMPLES> <USE_HP> <COORDS...> [WIDTH HEIGHT] [--fraction-words N]
+                      [--escape-radius R]
 ```
 
 | Argument | Type | Description |
@@ -273,6 +277,7 @@ mandelbrot_visualizer <MODE> <OUTPUT_FILE> <MAX_ITER> <PALETTE_LENGTH> <PALETTE_
 | `USE_HP` | 0 or 1 | 0 = double precision, 1 = fixed point (size set by `--fraction-words`) |
 | `WIDTH HEIGHT` | int int | Optional. Output image dimensions (default: 900×600) |
 | `--fraction-words N` | 1–6 | Optional flag, may appear anywhere. Number of 32-bit fraction words of the fixed-point format used when `USE_HP=1` (default 3). More words allow deeper zooms but are slower. Ignored for double precision. |
+| `--escape-radius R` | 2–128 | Optional flag, may appear anywhere. Iteration of a point stops once `|z| > R` (default 2). Larger values make the colouring smoother, at the cost of a few extra iterations per point. |
 
 **Standard precision** (`USE_HP=0`) — four doubles follow:
 

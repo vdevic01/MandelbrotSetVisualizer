@@ -6,7 +6,9 @@
 //             "re_start":<f>,"re_end":<f>,"im_start":<f>,"im_end":<f>}
 // HP stdin:  {"use_hp":1,"max_iter":<N>,"samples":<S>,"width":<W>,"height":<H>,"fraction_words":<F>,
 //             "re_start_0":<u>,...,"im_end_<F>":<u>}   (F + 1 words per coordinate; fraction_words defaults to 3)
-// stdout:    {"execution_time_ms":<ms>,"iterations":"<base64-encoded int32[]>"}
+// Both accept an optional "escape_radius":<f> (default 2).
+// stdout:    {"execution_time_ms":<ms>,"iterations":"<base64-encoded int32[]>",
+//             "escape_values":"<base64-encoded float32[]>"}   (escape_values: |z|^2 at escape, per sample)
 
 #include <cuda_runtime.h>
 
@@ -57,6 +59,14 @@ static double extractJsonDouble(const string& json, const string& key) {
     return stod(json.substr(pos));
 }
 
+// Optional number field: returns fallback when the key is absent (older clients do not send it).
+static double extractJsonDoubleOr(const string& json, const string& key, double fallback) {
+    const string needle = "\"" + key + "\":";
+    size_t pos = json.find(needle);
+    if (pos == string::npos) return fallback;
+    return stod(json.substr(pos + needle.size()));
+}
+
 int main() {
     try {
         const string jsonInput(istreambuf_iterator<char>(cin), {});
@@ -66,6 +76,9 @@ int main() {
         const int  samples = extractJsonInt(jsonInput, "samples");
         const int  width   = extractJsonInt(jsonInput, "width");
         const int  height  = extractJsonInt(jsonInput, "height");
+        const double escapeRadius = extractJsonDoubleOr(jsonInput, "escape_radius", DEFAULT_ESCAPE_RADIUS);
+        if (!isSupportedEscapeRadius(escapeRadius))
+            throw runtime_error("Unsupported escape_radius: " + to_string(escapeRadius));
 
         CUDAIterationCalculator calc;
 
@@ -77,7 +90,7 @@ int main() {
 
         using clock = chrono::steady_clock;
 
-        vector<int> iters;
+        EscapeResult result;
         double samplingMs = 0.0;
 
         if (useHp) {
@@ -101,9 +114,9 @@ int main() {
                 height, width, imStart, imEnd, reStart, reEnd, samples, fractionWords);
             samplingMs = chrono::duration<double, milli>(clock::now() - t0).count();
 
-            iters.resize(points.size());
+            result.resize(points.size());
             cudaEventRecord(evStart);
-            calc.calculate(points, iters, static_cast<unsigned int>(maxIter));
+            calc.calculate(points, result, static_cast<unsigned int>(maxIter), escapeRadius);
             cudaEventRecord(evStop);
         } else {
             const double reStart = extractJsonDouble(jsonInput, "re_start");
@@ -116,14 +129,16 @@ int main() {
                 height, width, imStart, imEnd, reStart, reEnd, samples);
             samplingMs = chrono::duration<double, milli>(clock::now() - t0).count();
 
-            iters.resize(points.size());
+            result.resize(points.size());
             cudaEventRecord(evStart);
-            calc.calculate(points, iters, static_cast<unsigned int>(maxIter));
+            calc.calculate(points, result, static_cast<unsigned int>(maxIter), escapeRadius);
             cudaEventRecord(evStop);
         }
 
-        const auto* raw = reinterpret_cast<const uint8_t*>(iters.data());
-        iterB64 = base64::encode(raw, iters.size() * sizeof(int32_t));
+        const auto* raw = reinterpret_cast<const uint8_t*>(result.iters.data());
+        iterB64 = base64::encode(raw, result.iters.size() * sizeof(int32_t));
+        const auto* rawMag = reinterpret_cast<const uint8_t*>(result.magSq.data());
+        const string magB64 = base64::encode(rawMag, result.magSq.size() * sizeof(float));
 
         cudaEventSynchronize(evStop);
         float kernelMs = 0.0f;
@@ -133,7 +148,8 @@ int main() {
 
         cout << "{\"sampling_time_ms\":" << fixed << setprecision(3) << samplingMs
              << ",\"execution_time_ms\":" << kernelMs
-             << ",\"iterations\":\"" << iterB64 << "\"}" << endl;
+             << ",\"iterations\":\"" << iterB64 << "\""
+             << ",\"escape_values\":\"" << magB64 << "\"}" << endl;
 
     } catch (const exception& e) {
         cerr << "Worker error: " << e.what() << "\n";

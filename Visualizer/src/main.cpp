@@ -42,6 +42,7 @@ struct MandelbrotConfig {
     string outputFilename = "./mandelbrot_set.png";
     int paletteLength = 256;
     int paletteId     = 0;
+    double escapeRadius = DEFAULT_ESCAPE_RADIUS;   // iteration stops once |z| is above this (--escape-radius)
 };
 
 // T_Points is vector<Complex> (double precision) or HpPoints (fixed point).
@@ -71,16 +72,16 @@ void createMandelbrotSet(const MandelbrotConfig& config, const ColorManager& col
     }
 
     const int totalPoints = imageSize * config.samples;
-    vector<int> iters(totalPoints);
+    EscapeResult escape(totalPoints);
     {
         ScopedTimer timer("Calculating escape iterations");
-        iterCalculator.calculate(points, iters, config.maxIter);
+        iterCalculator.calculate(points, escape, config.maxIter, config.escapeRadius);
     }
 
     vector<Color> pixels;
     {
         ScopedTimer timer("Coloring");
-        pixels = colorManager.paint(iters);
+        pixels = colorManager.paint(escape, config.escapeRadius);
     }
 
     {
@@ -150,29 +151,29 @@ static void createMandelbrotSetRemote(
     cout << "=====================================================\n";
     ScopedTimer total_timer("Total generation time");
 
-    vector<int> iters;
+    EscapeResult escape;
     {
         ScopedTimer timer("Remote execution (sampling + iterations)");
         if (config.useHighPrecision) {
-            iters = calc.calculateHP(
+            escape = calc.calculateHP(
                 config.reStartHP, config.reEndHP,
                 config.imStartHP, config.imEndHP,
                 config.fractionWords,
                 config.imageWidth, config.imageHeight,
-                config.samples, static_cast<unsigned int>(config.maxIter));
+                config.samples, static_cast<unsigned int>(config.maxIter), config.escapeRadius);
         } else {
-            iters = calc.calculate(
+            escape = calc.calculate(
                 config.reStart, config.reEnd,
                 config.imStart, config.imEnd,
                 config.imageWidth, config.imageHeight,
-                config.samples, static_cast<unsigned int>(config.maxIter));
+                config.samples, static_cast<unsigned int>(config.maxIter), config.escapeRadius);
         }
     }
 
     vector<Color> pixels;
     {
         ScopedTimer timer("Coloring");
-        pixels = colorManager.paint(iters);
+        pixels = colorManager.paint(escape, config.escapeRadius);
     }
 
     {
@@ -181,22 +182,26 @@ static void createMandelbrotSetRemote(
     }
 }
 
-// Parses the command line. The only flag is --fraction-words N (or --fraction-words=N), which may appear
-// anywhere; everything else is positional (see the usage message).
+// Parses the command line. The flags are --fraction-words N and --escape-radius R (also as --flag=value);
+// they may appear anywhere. Everything else is positional (see the usage message).
 optional<MandelbrotConfig> parseCommandLine(int argcIn, char* argvIn[]) {
     int fractionWords = fpa::FRACTION_PART;
+    double escapeRadius = DEFAULT_ESCAPE_RADIUS;
     vector<char*> positional;
     for (int i = 0; i < argcIn; i++) {
         const string arg = argvIn[i];
-        const string flag = "--fraction-words";
-        if (arg != flag && arg.rfind(flag + "=", 0) != 0) {
+        string flag;
+        for (const char* known : {"--fraction-words", "--escape-radius"}) {
+            if (arg == known || arg.rfind(string(known) + "=", 0) == 0) flag = known;
+        }
+        if (flag.empty()) {
             positional.push_back(argvIn[i]);
             continue;
         }
         string value;
         if (arg == flag) {
             if (i + 1 >= argcIn) {
-                cerr << "Error: --fraction-words needs a value.\n";
+                cerr << "Error: " << flag << " needs a value.\n";
                 return nullopt;
             }
             value = argvIn[++i];
@@ -205,15 +210,21 @@ optional<MandelbrotConfig> parseCommandLine(int argcIn, char* argvIn[]) {
         }
         try {
             size_t parsed = 0;
-            fractionWords = stoi(value, &parsed);
+            if (flag == "--fraction-words") fractionWords = stoi(value, &parsed);
+            else                            escapeRadius  = stod(value, &parsed);
             if (parsed != value.size()) throw invalid_argument("not a number");
         } catch (const exception&) {
-            cerr << "Error: --fraction-words must be an integer, got '" << value << "'.\n";
+            cerr << "Error: " << flag << " must be a number, got '" << value << "'.\n";
             return nullopt;
         }
         if (!fpa::isSupportedFractionPart(fractionWords)) {
             cerr << "Error: --fraction-words must be between " << fpa::MIN_FRACTION_PART << " and "
                  << fpa::MAX_FRACTION_PART << ", got " << fractionWords << ".\n";
+            return nullopt;
+        }
+        if (!isSupportedEscapeRadius(escapeRadius)) {   // also rejects NaN
+            cerr << "Error: --escape-radius must be between " << MIN_ESCAPE_RADIUS << " and "
+                 << MAX_ESCAPE_RADIUS << ", got " << value << ".\n";
             return nullopt;
         }
     }
@@ -222,6 +233,7 @@ optional<MandelbrotConfig> parseCommandLine(int argcIn, char* argvIn[]) {
 
     MandelbrotConfig config;
     config.fractionWords = fractionWords;
+    config.escapeRadius = escapeRadius;
     if (argc > 1) {
         try {
             constexpr int W = 36;
@@ -321,14 +333,17 @@ optional<MandelbrotConfig> parseCommandLine(int argcIn, char* argvIn[]) {
                 }
             }
             cout << left << setw(W) << "Image size:" << config.imageWidth << "x" << config.imageHeight << "\n";
+            cout << left << setw(W) << "Escape radius:" << config.escapeRadius << "\n";
         }
         catch (const exception& e) {
             cerr << "Error parsing arguments: " << e.what() << "\n";
             cerr << "Usage: " << argv[0]
                  << " <MODE> <OUTPUT_FILE> <MAX_ITER> <PALETTE_LENGTH> <PALETTE_ID>"
                     " <SAMPLES> <USE_HP(0/1)> <RE_START> <RE_END> <IM_START> <IM_END>"
-                    " [WIDTH HEIGHT] [--fraction-words N]\n"
+                    " [WIDTH HEIGHT] [--fraction-words N] [--escape-radius R]\n"
                  << "  MODE: CPU_PARALLEL | OPENCL_LOCAL | CUDA_LOCAL | CUDA_REMOTE\n"
+                 << "  --escape-radius R: stop iterating once |z| > R (default " << DEFAULT_ESCAPE_RADIUS << ", range "
+                 << MIN_ESCAPE_RADIUS << ".." << MAX_ESCAPE_RADIUS << "). Larger values give smoother colours.\n"
                  << "  High precision takes 4 x (1 + N) coordinate numbers (N = fraction words, default "
                  << fpa::FRACTION_PART << ", range " << fpa::MIN_FRACTION_PART << ".." << fpa::MAX_FRACTION_PART << ").\n";
             return nullopt;
@@ -344,6 +359,7 @@ optional<MandelbrotConfig> parseCommandLine(int argcIn, char* argvIn[]) {
  * Usage:
  *   mandelbrot_visualizer <MODE> <OUTPUT_FILE> <MAX_ITER> <PALETTE_LENGTH> <PALETTE_ID>
  *                         <SAMPLES> <USE_HP> <COORDS...> [WIDTH HEIGHT]
+ *                         [--fraction-words N] [--escape-radius R]
  *
  * Arguments:
  *   MODE           CPU_PARALLEL | OPENCL_LOCAL | CUDA_LOCAL | CUDA_REMOTE
@@ -362,6 +378,9 @@ optional<MandelbrotConfig> parseCommandLine(int argcIn, char* argvIn[]) {
  *     RE_START[0..3] RE_END[0..3] IM_START[0..3] IM_END[0..3]
  *
  *   WIDTH HEIGHT   Optional. Image dimensions in pixels. Default: 900x600.
+ *
+ *   --escape-radius R  Optional. Iteration stops once |z| > R. Default: 2, range 2..128.
+ *                      Larger values give smoother colours.
  *
  * Examples:
  *   mandelbrot_visualizer CPU_PARALLEL ./out.png 2000 512 0 4 0 \

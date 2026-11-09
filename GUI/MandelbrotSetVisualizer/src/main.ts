@@ -131,6 +131,7 @@ class BoundaryManager{
   private maxIter: number = 700;
   private paletteId: number = 0;
   private samples: number = 1;
+  private escapeRadius: number = 2;
   private mode: string = 'CPU_PARALLEL';
   private static imgUrl: string;
 
@@ -171,6 +172,17 @@ class BoundaryManager{
   }
   public getSamples(): number{
     return this.samples;
+  }
+  public setEscapeRadius(escapeRadius: number){
+    this.escapeRadius = escapeRadius;
+    if(this.highPrecission){
+      this.generateMandelbrotHighPrecission();
+    }else{
+      this.generateMandelbrot();
+    }
+  }
+  public getEscapeRadius(): number{
+    return this.escapeRadius;
   }
   public getMaxIter(): number{
     return this.maxIter;
@@ -317,7 +329,8 @@ class BoundaryManager{
       maxIter: this.maxIter,
       paletteLength: this.paletteLength,
       paletteId: this.paletteId,
-      samples: this.samples
+      samples: this.samples,
+      escapeRadius: this.escapeRadius
     };
     const width = Math.abs(this.lowPrecissionBoundary.reEnd - this.lowPrecissionBoundary.reStart);
     await this.render("generate_mandelbrot", args, {
@@ -341,7 +354,8 @@ class BoundaryManager{
       maxIter: this.maxIter,
       paletteLength: this.paletteLength,
       paletteId: this.paletteId,
-      samples: this.samples
+      samples: this.samples,
+      escapeRadius: this.escapeRadius
     };
     const precision = `fixed point · ${fractionWords} words (~${fractionDigits(fractionWords)} digits)`;
     await this.render("generate_mandelbrot_hp", args, {
@@ -389,6 +403,7 @@ class BoundaryManager{
   public reset(){
     this.maxIter = 700;
     this.paletteLength = 250;
+    this.escapeRadius = 2;
     this.highPrecission = false;
     this.lowPrecissionBoundary = {...this.startingBoundary};
     this.generateMandelbrot();
@@ -480,6 +495,8 @@ window.addEventListener("DOMContentLoaded", async () => {
   const inputPaletteLength: HTMLInputElement = document.getElementById("input-palette-length") as HTMLInputElement;
   const inputMaxIter: HTMLInputElement = document.getElementById("input-max-iter") as HTMLInputElement;
   const inputSamples: HTMLInputElement = document.getElementById("input-samples") as HTMLInputElement;
+  const inputEscapeRadius: HTMLInputElement = document.getElementById("input-escape-radius") as HTMLInputElement;
+  const buttonEscapeRadiusCancel: HTMLButtonElement = document.getElementById("button-escape-radius-cancel") as HTMLButtonElement;
   const buttonPaletteLengthCancel: HTMLButtonElement = document.getElementById("button-palette-length-cancel") as HTMLButtonElement;
   const buttonSamplesCancel: HTMLButtonElement = document.getElementById("button-samples-cancel") as HTMLButtonElement;
   const buttonMaxIterCancel: HTMLButtonElement = document.getElementById("button-max-iter-cancel") as HTMLButtonElement;
@@ -487,6 +504,23 @@ window.addEventListener("DOMContentLoaded", async () => {
     boundaryManager.reset();
     inputMaxIter.value = "700";
     inputPaletteLength.value = "250";
+    inputEscapeRadius.value = "2";
+    buttonEscapeRadiusCancel.disabled = true;
+  });
+  document.getElementById("button-escape-radius")?.addEventListener("click", () => {
+    // The renderer accepts 2 to 128 (see the README); keep the field in that range.
+    const parsed: number = parseFloat(inputEscapeRadius.value);
+    const escapeRadius: number = Number.isFinite(parsed) ? Math.min(128, Math.max(2, parsed)) : boundaryManager.getEscapeRadius();
+    inputEscapeRadius.value = escapeRadius.toString();
+    buttonEscapeRadiusCancel.disabled = true;
+    boundaryManager.setEscapeRadius(escapeRadius);
+  });
+  buttonEscapeRadiusCancel.addEventListener("click", () => {
+    inputEscapeRadius.value = boundaryManager.getEscapeRadius().toString();
+    buttonEscapeRadiusCancel.disabled = true;
+  });
+  inputEscapeRadius.addEventListener("input", () => {
+    buttonEscapeRadiusCancel.disabled = false;
   });
   document.getElementById("button-palette-length")?.addEventListener("click", () => {
     const paletteLength: number = parseInt(inputPaletteLength.value);

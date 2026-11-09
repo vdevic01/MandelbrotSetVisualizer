@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "FixedPointArithmetics.h"
+#include "IterationCalculator.h"
 
 // Sends boundary coordinates and image dimensions to a RunPod serverless
 // worker. Sampling and kernel execution happen remotely — only the small
@@ -13,21 +14,21 @@ public:
     CUDARemoteIterationCalculator(std::string endpoint, std::string apiKey)
         : endpoint_(std::move(endpoint)), apiKey_(std::move(apiKey)) {}
 
-    std::vector<int> calculate(
+    EscapeResult calculate(
         double reStart, double reEnd, double imStart, double imEnd,
-        int width, int height, int samples, unsigned int maxIter) const;
+        int width, int height, int samples, unsigned int maxIter, double escapeRadius) const;
 
     // The boundaries are numbers of fpa::fpSize(fractionWords) words each.
-    std::vector<int> calculateHP(
+    EscapeResult calculateHP(
         const fpa::uint* reStart, const fpa::uint* reEnd,
         const fpa::uint* imStart, const fpa::uint* imEnd,
         int fractionWords,
-        int width, int height, int samples, unsigned int maxIter) const;
+        int width, int height, int samples, unsigned int maxIter, double escapeRadius) const;
 
 private:
     std::string endpoint_;
     std::string apiKey_;
 
     [[nodiscard]] std::string httpPost(const std::string& body) const;
-    static void decodeResponse(const std::string& response, std::vector<int>& iters);
+    static void decodeResponse(const std::string& response, EscapeResult& result, double escapeRadius);
 };

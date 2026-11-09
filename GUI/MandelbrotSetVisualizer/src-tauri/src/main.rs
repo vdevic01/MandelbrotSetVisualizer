@@ -144,9 +144,10 @@ async fn generate_mandelbrot(
     im_start: f64, im_end: f64,
     max_iter: i32, palette_length: i32,
     palette_id: i32, samples: i32,
+    escape_radius: f64,
 ) -> Result<String, String> {
     let env = remote_env(&mode);
-    let args = vec![
+    let mut args = vec![
         mode,
         project_dir().join("generated-files").join("mandelbrot_set.png").to_string_lossy().into_owned(),
         max_iter.to_string(), palette_length.to_string(),
@@ -155,6 +156,8 @@ async fn generate_mandelbrot(
         re_start.to_string(), re_end.to_string(),
         im_start.to_string(), im_end.to_string(),
     ];
+    args.push("--escape-radius".to_string());
+    args.push(escape_radius.to_string());
     run_sidecar(args, env).await
 }
 
@@ -166,6 +169,7 @@ async fn generate_mandelbrot_hp(
     fraction_words: u32,
     max_iter: i32, palette_length: i32,
     palette_id: i32, samples: i32,
+    escape_radius: f64,
 ) -> Result<String, String> {
     // Every coordinate has one whole word plus `fraction_words` fraction words.
     let words = fraction_words as usize + 1;
@@ -191,6 +195,8 @@ async fn generate_mandelbrot_hp(
     }
     args.push("--fraction-words".to_string());
     args.push(fraction_words.to_string());
+    args.push("--escape-radius".to_string());
+    args.push(escape_radius.to_string());
     run_sidecar(args, env).await
 }
 

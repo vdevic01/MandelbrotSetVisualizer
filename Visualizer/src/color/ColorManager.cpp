@@ -1,4 +1,5 @@
 #include "ColorManager.h"
+#include "SmoothColoring.h"
 
 #include <cmath>
 #include <stdexcept>
@@ -6,8 +7,11 @@
 CyclicColorPalette::CyclicColorPalette(int imageSize, std::vector<Color> colors, int length, int samples)
     : ColorManager(imageSize, samples), colors(std::move(colors)), length(length) {}
 
-static Color getColorFromPalette(int val, const std::vector<Color>& colors, double length) {
-    auto valAdj = static_cast<double>(val % static_cast<int>(length));
+// val is a position along the palette cycle. It does not have to be a whole number: the colour is
+// interpolated between the two nearest palette entries.
+static Color getColorFromPalette(double val, const std::vector<Color>& colors, double length) {
+    double valAdj = std::fmod(val, length);
+    if (valAdj < 0) valAdj = 0;
     const auto N = static_cast<int>(colors.size());
     const double STEP = length / (N - 1);
     const Color* left = nullptr;
@@ -31,15 +35,18 @@ static Color getColorFromPalette(int val, const std::vector<Color>& colors, doub
     };
 }
 
-std::vector<Color> CyclicColorPalette::paint(const std::vector<int>& iters) const {
+std::vector<Color> CyclicColorPalette::paint(const EscapeResult& escape, const double escapeRadius) const {
     std::vector<Color> pixels(this->imageSize);
-    #pragma omp parallel for default(none) shared(iters, pixels)
+    const std::vector<int>& iters = escape.iters;
+    const std::vector<float>& magSq = escape.magSq;
+    const float offset = smoothOffset(escapeRadius);
+    #pragma omp parallel for default(none) shared(iters, magSq, pixels, offset)
     for (int i = 0; i < this->imageSize; i++) {
         const int idx = i * this->samples;
         double r = 0, g = 0, b = 0;
         for (int k = 0; k < this->samples; k++) {
-            if (iters[idx + k] != -1) {
-                const Color c = getColorFromPalette(iters[idx + k], this->colors, this->length);
+            if (iters[idx + k] >= 0) {   // negative: the sample never escaped and stays black
+                const Color c = getColorFromPalette(smoothValue(iters[idx + k], magSq[idx + k], offset), this->colors, this->length);
                 r += c.red;
                 g += c.green;
                 b += c.blue;
@@ -64,7 +71,10 @@ Color HistogramColorPalette::interpolateColor(Color& lCol, Color& rCol, double v
     };
 }
 
-std::vector<Color> HistogramColorPalette::paint(const std::vector<int>& iters) const {
+std::vector<Color> HistogramColorPalette::paint(const EscapeResult& escape, double /*escapeRadius*/) const {
+    // The histogram works on whole iterations.
+    const std::vector<int>& iters = escape.iters;
+
     std::vector<Color> pixels(this->imageSize);
     std::vector<int> numItersPerPixel(this->maxIter + 1, 0);
     #pragma omp parallel for default(none) shared(iters, numItersPerPixel)
