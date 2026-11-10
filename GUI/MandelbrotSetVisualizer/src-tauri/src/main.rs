@@ -169,6 +169,7 @@ async fn generate_mandelbrot(
     max_iter: i32, palette_length: i32,
     palette_id: i32, samples: i32,
     escape_radius: f64,
+    color_spread: f64,
     output_filename: Option<String>,
     width: Option<i32>, height: Option<i32>,
 ) -> Result<String, String> {
@@ -185,6 +186,8 @@ async fn generate_mandelbrot(
     args.extend(size_args(width, height)?);
     args.push("--escape-radius".to_string());
     args.push(escape_radius.to_string());
+    args.push("--color-spread".to_string());
+    args.push(color_spread.to_string());
     run_sidecar(args, env).await
 }
 
@@ -197,6 +200,7 @@ async fn generate_mandelbrot_hp(
     max_iter: i32, palette_length: i32,
     palette_id: i32, samples: i32,
     escape_radius: f64,
+    color_spread: f64,
     output_filename: Option<String>,
     width: Option<i32>, height: Option<i32>,
 ) -> Result<String, String> {
@@ -227,6 +231,8 @@ async fn generate_mandelbrot_hp(
     args.push(fraction_words.to_string());
     args.push("--escape-radius".to_string());
     args.push(escape_radius.to_string());
+    args.push("--color-spread".to_string());
+    args.push(color_spread.to_string());
     run_sidecar(args, env).await
 }
 

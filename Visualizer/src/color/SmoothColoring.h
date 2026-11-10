@@ -18,6 +18,20 @@ constexpr float SMOOTH_NOT_ESCAPED = -1.0f;
 // log2(a / b) == log2(a) - log2(b), where log2(ln(R^2)) is the same for every sample (smoothOffset).
 // That leaves two logarithms per sample and no division.
 
+// Spreads the colours of a smooth value: near the set the values are packed into a narrow range, so most of
+// the pixels would get the same few colours. Values up to a knee are left alone (they are already spread
+// well); above it the value is compressed with a logarithm,
+//
+//     spread(v) = v                                  for v <= knee
+//     spread(v) = knee + ln(1 + s * (v - knee)) / s  for v >  knee
+//
+// The two parts meet with the same slope at the knee, so there is no visible seam. s = 0 leaves the value
+// unchanged; a larger s compresses the high values more.
+inline float spreadValue(float value, float strength, float knee) {
+    if (strength <= 0.0f || value <= knee) return value;
+    return knee + std::log1p(strength * (value - knee)) / strength;
+}
+
 // The part of the formula that depends only on the escape radius. Compute it once per render.
 inline float smoothOffset(double escapeRadius) {
     return static_cast<float>(std::log2(std::log(escapeRadius * escapeRadius)));

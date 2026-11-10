@@ -43,7 +43,10 @@ struct MandelbrotConfig {
     int paletteLength = 256;
     int paletteId     = 0;
     double escapeRadius = DEFAULT_ESCAPE_RADIUS;   // iteration stops once |z| is above this (--escape-radius)
+    double colorSpread  = 0.0;                     // logarithmic spread of the colours, 0 = linear (--color-spread)
 };
+
+constexpr double MAX_COLOR_SPREAD = 10.0;
 
 // T_Points is vector<Complex> (double precision) or HpPoints (fixed point).
 template<typename T_Points>
@@ -187,11 +190,12 @@ static void createMandelbrotSetRemote(
 optional<MandelbrotConfig> parseCommandLine(int argcIn, char* argvIn[]) {
     int fractionWords = fpa::FRACTION_PART;
     double escapeRadius = DEFAULT_ESCAPE_RADIUS;
+    double colorSpread = 0.0;
     vector<char*> positional;
     for (int i = 0; i < argcIn; i++) {
         const string arg = argvIn[i];
         string flag;
-        for (const char* known : {"--fraction-words", "--escape-radius"}) {
+        for (const char* known : {"--fraction-words", "--escape-radius", "--color-spread"}) {
             if (arg == known || arg.rfind(string(known) + "=", 0) == 0) flag = known;
         }
         if (flag.empty()) {
@@ -211,6 +215,7 @@ optional<MandelbrotConfig> parseCommandLine(int argcIn, char* argvIn[]) {
         try {
             size_t parsed = 0;
             if (flag == "--fraction-words") fractionWords = stoi(value, &parsed);
+            else if (flag == "--color-spread") colorSpread = stod(value, &parsed);
             else                            escapeRadius  = stod(value, &parsed);
             if (parsed != value.size()) throw invalid_argument("not a number");
         } catch (const exception&) {
@@ -227,6 +232,10 @@ optional<MandelbrotConfig> parseCommandLine(int argcIn, char* argvIn[]) {
                  << MAX_ESCAPE_RADIUS << ", got " << value << ".\n";
             return nullopt;
         }
+        if (!(colorSpread >= 0.0 && colorSpread <= MAX_COLOR_SPREAD)) {   // also rejects NaN
+            cerr << "Error: --color-spread must be between 0 and " << MAX_COLOR_SPREAD << ", got " << value << ".\n";
+            return nullopt;
+        }
     }
     int argc = static_cast<int>(positional.size());
     char** argv = positional.data();
@@ -234,6 +243,7 @@ optional<MandelbrotConfig> parseCommandLine(int argcIn, char* argvIn[]) {
     MandelbrotConfig config;
     config.fractionWords = fractionWords;
     config.escapeRadius = escapeRadius;
+    config.colorSpread = colorSpread;
     if (argc > 1) {
         try {
             constexpr int W = 36;
@@ -334,13 +344,15 @@ optional<MandelbrotConfig> parseCommandLine(int argcIn, char* argvIn[]) {
             }
             cout << left << setw(W) << "Image size:" << config.imageWidth << "x" << config.imageHeight << "\n";
             cout << left << setw(W) << "Escape radius:" << config.escapeRadius << "\n";
+            cout << left << setw(W) << "Color spread:" << config.colorSpread << "\n";
         }
         catch (const exception& e) {
             cerr << "Error parsing arguments: " << e.what() << "\n";
             cerr << "Usage: " << argv[0]
                  << " <MODE> <OUTPUT_FILE> <MAX_ITER> <PALETTE_LENGTH> <PALETTE_ID>"
                     " <SAMPLES> <USE_HP(0/1)> <RE_START> <RE_END> <IM_START> <IM_END>"
-                    " [WIDTH HEIGHT] [--fraction-words N] [--escape-radius R]\n"
+                    " [WIDTH HEIGHT] [--fraction-words N] [--escape-radius R] [--color-spread S]\n"
+                 << "  --color-spread S: spread the colours with a logarithm (default 0 = off, range 0.." << MAX_COLOR_SPREAD << ").\n"
                  << "  MODE: CPU_PARALLEL | OPENCL_LOCAL | CUDA_LOCAL | CUDA_REMOTE\n"
                  << "  --escape-radius R: stop iterating once |z| > R (default " << DEFAULT_ESCAPE_RADIUS << ", range "
                  << MIN_ESCAPE_RADIUS << ".." << MAX_ESCAPE_RADIUS << "). Larger values give smoother colours.\n"
@@ -359,7 +371,7 @@ optional<MandelbrotConfig> parseCommandLine(int argcIn, char* argvIn[]) {
  * Usage:
  *   mandelbrot_visualizer <MODE> <OUTPUT_FILE> <MAX_ITER> <PALETTE_LENGTH> <PALETTE_ID>
  *                         <SAMPLES> <USE_HP> <COORDS...> [WIDTH HEIGHT]
- *                         [--fraction-words N] [--escape-radius R]
+ *                         [--fraction-words N] [--escape-radius R] [--color-spread S]
  *
  * Arguments:
  *   MODE           CPU_PARALLEL | OPENCL_LOCAL | CUDA_LOCAL | CUDA_REMOTE
@@ -381,6 +393,9 @@ optional<MandelbrotConfig> parseCommandLine(int argcIn, char* argvIn[]) {
  *
  *   --escape-radius R  Optional. Iteration stops once |z| > R. Default: 2, range 2..128.
  *                      Larger values give smoother colours.
+ *
+ *   --color-spread S   Optional. Spreads the colours with a logarithm above a knee (a tenth of the palette length), so the colours packed near the
+ *                      set cover more of the palette. Default: 0 (off), range 0..10.
  *
  * Examples:
  *   mandelbrot_visualizer CPU_PARALLEL ./out.png 2000 512 0 4 0 \
@@ -407,7 +422,8 @@ int main(int argc, char* argv[]) {
         config.imageHeight * config.imageWidth,
         palettes[config.paletteId],
         config.paletteLength,
-        config.samples);
+        config.samples,
+        config.colorSpread);
 
     try {
         if (config.mode == Mode::CUDA_REMOTE) {

@@ -4,8 +4,9 @@
 #include <cmath>
 #include <stdexcept>
 
-CyclicColorPalette::CyclicColorPalette(int imageSize, std::vector<Color> colors, int length, int samples)
-    : ColorManager(imageSize, samples), colors(std::move(colors)), length(length) {}
+CyclicColorPalette::CyclicColorPalette(int imageSize, std::vector<Color> colors, int length, int samples, double colorSpread)
+    : ColorManager(imageSize, samples), colors(std::move(colors)), length(length),
+      colorSpread(static_cast<float>(colorSpread)) {}
 
 // val is a position along the palette cycle. It does not have to be a whole number: the colour is
 // interpolated between the two nearest palette entries.
@@ -40,13 +41,17 @@ std::vector<Color> CyclicColorPalette::paint(const EscapeResult& escape, const d
     const std::vector<int>& iters = escape.iters;
     const std::vector<float>& magSq = escape.magSq;
     const float offset = smoothOffset(escapeRadius);
-    #pragma omp parallel for default(none) shared(iters, magSq, pixels, offset)
+    const float spread = this->colorSpread;
+    // Values below a tenth of the palette cycle are not stacked yet; leave them as they are.
+    const float knee = static_cast<float>(this->length) * 0.1f;
+    #pragma omp parallel for default(none) shared(iters, magSq, pixels, offset, spread, knee)
     for (int i = 0; i < this->imageSize; i++) {
         const int idx = i * this->samples;
         double r = 0, g = 0, b = 0;
         for (int k = 0; k < this->samples; k++) {
             if (iters[idx + k] >= 0) {   // negative: the sample never escaped and stays black
-                const Color c = getColorFromPalette(smoothValue(iters[idx + k], magSq[idx + k], offset), this->colors, this->length);
+                const float value = spreadValue(smoothValue(iters[idx + k], magSq[idx + k], offset), spread, knee);
+                const Color c = getColorFromPalette(value, this->colors, this->length);
                 r += c.red;
                 g += c.green;
                 b += c.blue;

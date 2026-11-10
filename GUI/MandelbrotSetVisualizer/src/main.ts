@@ -132,6 +132,7 @@ class BoundaryManager{
   private paletteId: number = 0;
   private samples: number = 1;
   private escapeRadius: number = 2;
+  private colorSpread: number = 0.05;
   private mode: string = 'CPU_PARALLEL';
   private static imgUrl: string;
 
@@ -183,6 +184,17 @@ class BoundaryManager{
   }
   public getEscapeRadius(): number{
     return this.escapeRadius;
+  }
+  public setColorSpread(colorSpread: number){
+    this.colorSpread = colorSpread;
+    if(this.highPrecission){
+      this.generateMandelbrotHighPrecission();
+    }else{
+      this.generateMandelbrot();
+    }
+  }
+  public getColorSpread(): number{
+    return this.colorSpread;
   }
   public getMaxIter(): number{
     return this.maxIter;
@@ -330,7 +342,8 @@ class BoundaryManager{
       paletteLength: this.paletteLength,
       paletteId: this.paletteId,
       samples: this.samples,
-      escapeRadius: this.escapeRadius
+      escapeRadius: this.escapeRadius,
+      colorSpread: this.colorSpread
     };
     const width = Math.abs(this.lowPrecissionBoundary.reEnd - this.lowPrecissionBoundary.reStart);
     await this.render("generate_mandelbrot", args, {
@@ -361,7 +374,8 @@ class BoundaryManager{
       paletteLength: this.paletteLength,
       paletteId: this.paletteId,
       samples: this.samples,
-      escapeRadius: this.escapeRadius
+      escapeRadius: this.escapeRadius,
+      colorSpread: this.colorSpread
     };
     const info: RenderInfo = {
       precision: `fixed point · ${fractionWords} words (~${fractionDigits(fractionWords)} digits)`,
@@ -424,6 +438,7 @@ class BoundaryManager{
         paletteId: this.paletteId,
         samples: this.samples,
         escapeRadius: this.escapeRadius,
+        colorSpread: this.colorSpread,
         ...extra
       });
     }
@@ -470,6 +485,7 @@ class BoundaryManager{
     this.maxIter = 700;
     this.paletteLength = 250;
     this.escapeRadius = 2;
+    this.colorSpread = 0.05;
     this.highPrecission = false;
     this.lowPrecissionBoundary = {...this.startingBoundary};
     this.generateMandelbrot();
@@ -562,6 +578,8 @@ window.addEventListener("DOMContentLoaded", async () => {
   const inputMaxIter: HTMLInputElement = document.getElementById("input-max-iter") as HTMLInputElement;
   const inputSamples: HTMLInputElement = document.getElementById("input-samples") as HTMLInputElement;
   const inputEscapeRadius: HTMLInputElement = document.getElementById("input-escape-radius") as HTMLInputElement;
+  const inputColorSpread: HTMLInputElement = document.getElementById("input-color-spread") as HTMLInputElement;
+  const buttonColorSpreadCancel: HTMLButtonElement = document.getElementById("button-color-spread-cancel") as HTMLButtonElement;
   const buttonEscapeRadiusCancel: HTMLButtonElement = document.getElementById("button-escape-radius-cancel") as HTMLButtonElement;
   const buttonPaletteLengthCancel: HTMLButtonElement = document.getElementById("button-palette-length-cancel") as HTMLButtonElement;
   const buttonSamplesCancel: HTMLButtonElement = document.getElementById("button-samples-cancel") as HTMLButtonElement;
@@ -572,6 +590,23 @@ window.addEventListener("DOMContentLoaded", async () => {
     inputPaletteLength.value = "250";
     inputEscapeRadius.value = "2";
     buttonEscapeRadiusCancel.disabled = true;
+    inputColorSpread.value = "0.05";
+    buttonColorSpreadCancel.disabled = true;
+  });
+  document.getElementById("button-color-spread")?.addEventListener("click", () => {
+    // The renderer accepts 0 to 10 (see the README); keep the field in that range.
+    const parsed: number = parseFloat(inputColorSpread.value);
+    const colorSpread: number = Number.isFinite(parsed) ? Math.min(10, Math.max(0, parsed)) : boundaryManager.getColorSpread();
+    inputColorSpread.value = colorSpread.toString();
+    buttonColorSpreadCancel.disabled = true;
+    boundaryManager.setColorSpread(colorSpread);
+  });
+  buttonColorSpreadCancel.addEventListener("click", () => {
+    inputColorSpread.value = boundaryManager.getColorSpread().toString();
+    buttonColorSpreadCancel.disabled = true;
+  });
+  inputColorSpread.addEventListener("input", () => {
+    buttonColorSpreadCancel.disabled = false;
   });
   document.getElementById("button-escape-radius")?.addEventListener("click", () => {
     // The renderer accepts 2 to 128 (see the README); keep the field in that range.
