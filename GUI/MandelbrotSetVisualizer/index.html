@@ -12,81 +12,90 @@
     <!-- Main app view -->
     <div id="app-view">
       <div class="sidebar">
-        <div class="section">
-          <label for="select-mode">Mode:</label>
-          <select class="form-field" id="select-mode">
-            <option value="CPU_PARALLEL">CPU Parallel</option>
-            <option value="OPENCL_LOCAL">OpenCL</option>
-            <option value="CUDA_LOCAL">CUDA Local</option>
-            <option value="CUDA_REMOTE">CUDA Remote</option>
-          </select>
-        </div>
-        <hr>
-        <div class="section">
-          <label for="input-max-iter">Max Iterations:</label>
-          <input value="700" class="form-field" type="number" id="input-max-iter">
-          <div class="button-row">
-            <button style="margin-right: 5px;" id="button-max-iter">Apply</button>
-            <button style="margin-left: 5px;" id="button-max-iter-cancel" disabled>Cancel</button>
+        <div class="sidebar-columns">
+          <!-- General settings -->
+          <div class="sidebar-column">
+            <h3 class="column-title">General</h3>
+          <div class="section">
+            <label for="select-mode">Mode:</label>
+            <select class="form-field" id="select-mode">
+              <option value="CPU_PARALLEL">CPU Parallel</option>
+              <option value="OPENCL_LOCAL">OpenCL</option>
+              <option value="CUDA_LOCAL">CUDA Local</option>
+              <option value="CUDA_REMOTE">CUDA Remote</option>
+            </select>
           </div>
-        </div>
-        <hr>
-        <div class="section">
-          <label for="input-palette-length">Palette Length:</label>
-          <input value="250" class="form-field" type="number" id="input-palette-length">
-          <div class="button-row">
-            <button style="margin-right: 5px;" id="button-palette-length">Apply</button>
-            <button style="margin-left: 5px;" id="button-palette-length-cancel" disabled>Cancel</button>
+          <hr>
+          <div class="section">
+            <label for="input-max-iter">Max Iterations:</label>
+            <input value="700" class="form-field" type="number" id="input-max-iter">
+            <div class="button-row">
+              <button id="button-max-iter">Apply</button>
+              <button id="button-max-iter-cancel" disabled>Cancel</button>
+            </div>
           </div>
-        </div>
-        <hr>
-        <div class="section">
-          <label for="input-escape-radius">Escape Radius:</label>
-          <input value="2" class="form-field" type="number" id="input-escape-radius" min="2" max="128" step="any">
-          <div class="button-row">
-            <button style="margin-right: 5px;" id="button-escape-radius">Apply</button>
-            <button style="margin-left: 5px;" id="button-escape-radius-cancel" disabled>Cancel</button>
+          <hr>
+          <div class="section">
+            <label for="input-samples">Samples:</label>
+            <input value="1" class="form-field" type="number" id="input-samples">
+            <div class="button-row">
+              <button id="button-samples">Apply</button>
+              <button id="button-samples-cancel" disabled>Cancel</button>
+            </div>
           </div>
-        </div>
-        <hr>
-        <div class="section">
-          <label for="input-color-spread">Color Spread:</label>
-          <input value="0" class="form-field" type="number" id="input-color-spread" min="0" max="10" step="any">
-          <div class="button-row">
-            <button style="margin-right: 5px;" id="button-color-spread">Apply</button>
-            <button style="margin-left: 5px;" id="button-color-spread-cancel" disabled>Cancel</button>
+          <hr>
+          <div class="section">
+            <label for="input-escape-radius">Escape Radius:</label>
+            <input value="2" class="form-field" type="number" id="input-escape-radius" min="2" max="128" step="any">
+            <div class="button-row">
+              <button id="button-escape-radius">Apply</button>
+              <button id="button-escape-radius-cancel" disabled>Cancel</button>
+            </div>
           </div>
-        </div>
-        <hr>
-        <div class="section">
-          <label><input type="checkbox" id="input-histogram"> Histogram coloring (test)</label>
-          <label for="input-histogram-phase">Phase:</label>
-          <input value="0" class="form-field" type="range" id="input-histogram-phase" min="0" max="1" step="0.01" disabled>
-          <label for="input-histogram-cycles">Cycles:</label>
-          <input value="1" class="form-field" type="range" id="input-histogram-cycles" min="1" max="20" step="0.5" disabled>
-        </div>
-        <hr>
-        <div class="section">
-          <label for="input-samples">Samples:</label>
-          <input value="1" class="form-field" type="number" id="input-samples">
-          <div class="button-row">
-            <button style="margin-right: 5px;" id="button-samples">Apply</button>
-            <button style="margin-left: 5px;" id="button-samples-cancel" disabled>Cancel</button>
           </div>
-        </div>
-        <hr>
-        <div class="section">
-          <label for="select-color-palette">Palette:</label>
-          <select class="form-field" id="select-color-palette">
-            <option value="0">Navy</option>
-            <option value="1">Sunset</option>
-            <option value="2">Ocean</option>
-            <option value="3">Fire and Ash</option>
-            <option value="4">Twilight</option>
-            <option value="5">Garden</option>
-            <option value="6">Pomegranate</option>
-            <option value="7">Greyscale</option>
-          </select>
+          <!-- Color settings -->
+          <div class="sidebar-column">
+            <h3 class="column-title">Color</h3>
+          <div class="section">
+            <label for="select-color-palette">Palette:</label>
+            <select class="form-field" id="select-color-palette">
+              <option value="0">Navy</option>
+              <option value="1">Sunset</option>
+              <option value="2">Ocean</option>
+              <option value="3">Fire and Ash</option>
+              <option value="4">Twilight</option>
+              <option value="5">Garden</option>
+              <option value="6">Pomegranate</option>
+              <option value="7">Greyscale</option>
+            </select>
+          </div>
+          <hr>
+          <div class="section">
+            <label for="input-palette-length">Palette Length:</label>
+            <input value="250" class="form-field" type="number" id="input-palette-length">
+            <div class="button-row">
+              <button id="button-palette-length">Apply</button>
+              <button id="button-palette-length-cancel" disabled>Cancel</button>
+            </div>
+          </div>
+          <hr>
+          <div class="section">
+            <label for="input-color-spread">Color Spread:</label>
+            <input value="0" class="form-field" type="number" id="input-color-spread" min="0" max="10" step="any">
+            <div class="button-row">
+              <button id="button-color-spread">Apply</button>
+              <button id="button-color-spread-cancel" disabled>Cancel</button>
+            </div>
+          </div>
+          <hr>
+          <div class="section">
+            <label class="checkbox-label"><input type="checkbox" id="input-histogram"> Histogram coloring</label>
+            <label for="input-histogram-phase">Phase:</label>
+            <input value="0" class="form-field" type="range" id="input-histogram-phase" min="0" max="1" step="0.01" disabled>
+            <label for="input-histogram-cycles">Cycles:</label>
+            <input value="1" class="form-field" type="range" id="input-histogram-cycles" min="1" max="20" step="0.5" disabled>
+          </div>
+          </div>
         </div>
         <div class="sidebar-footer">
           <button id="button-settings">Settings</button>

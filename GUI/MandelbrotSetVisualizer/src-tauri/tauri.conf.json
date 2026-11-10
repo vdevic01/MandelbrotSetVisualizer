@@ -34,7 +34,7 @@
     "windows": [
       {
         "title": "Mandelbrot Set Visualizer",
-        "width": 1200,
+        "width": 1380,
         "height": 664,
         "resizable": false
       }
