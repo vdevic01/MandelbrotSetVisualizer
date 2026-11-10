@@ -4,6 +4,7 @@
 #define FIXED_POINT_H
 
 #include <climits>
+#include <string>
 
 namespace fpa {
 
@@ -57,6 +58,10 @@ namespace fpa {
 	// quotient is outside [min, max]; the output is left untouched in both cases.
 	void divFixed(const uint* a, const uint* b, uint* c, int fractionWords = FRACTION_PART);
 
+	// Exact conversion of a decimal text ("-0.153004885", "12", "1.5e-7") to fixed point, truncating toward zero.
+	// Unlike floatingToFixedPoint it keeps every digit, so deep zoom coordinates survive. Throws
+	// std::invalid_argument for text that is not a decimal number and std::out_of_range when the value does not fit.
+	void decimalToFixedPoint(const std::string& text, uint* out, int fractionWords = FRACTION_PART);
 	void floatingToFixedPoint(double decimal, uint* out, int fractionWords = FRACTION_PART);
 	double fixedToFloatingPoint(const uint* fpNum, int fractionWords = FRACTION_PART);
 

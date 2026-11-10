@@ -32,6 +32,7 @@ add_executable(fpa_tests
     test_cross_format.cpp
     test_random_range.cpp
     test_known_bugs.cpp
+    test_decimal.cpp
 )
 target_link_libraries(fpa_tests PRIVATE fpa GTest::gtest_main)
 target_compile_definitions(fpa_tests PRIVATE FPA_VECTOR_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/vectors\")
