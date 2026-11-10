@@ -1,6 +1,7 @@
 #include "ColorManager.h"
 #include "SmoothColoring.h"
 
+#include <algorithm>
 #include <cmath>
 #include <stdexcept>
 
@@ -65,41 +66,66 @@ std::vector<Color> CyclicColorPalette::paint(const EscapeResult& escape, const d
     return pixels;
 }
 
-HistogramColorPalette::HistogramColorPalette(int imageSize, int maxIter, std::vector<Color> colors, int samples)
-    : ColorManager(imageSize, samples), maxIter(maxIter), colors(std::move(colors)) {}
+HistogramColorPalette::HistogramColorPalette(int imageSize, std::vector<Color> colors, int length, int samples, double phase, double cycles)
+    : ColorManager(imageSize, samples), colors(std::move(colors)), length(length), phase(phase), cycles(cycles) {}
 
-Color HistogramColorPalette::interpolateColor(Color& lCol, Color& rCol, double val) {
-    return Color{
-        static_cast<unsigned char>(lCol.red   + (rCol.red   - lCol.red)   * val),
-        static_cast<unsigned char>(lCol.green + (rCol.green - lCol.green) * val),
-        static_cast<unsigned char>(lCol.blue  + (rCol.blue  - lCol.blue)  * val)
-    };
-}
-
-std::vector<Color> HistogramColorPalette::paint(const EscapeResult& escape, double /*escapeRadius*/) const {
-    // The histogram works on whole iterations.
+// Histogram equalisation of the smooth values. Every escaped sample gets the share of all escaped samples
+// that have a smaller smooth value (0..1); that share, and not the value itself, picks the colour. A range of
+// values that holds many samples, such as the crowded area near the set, is stretched over a large part of the
+// palette, and a range with few samples is squeezed. The palette is walked once from start to end; the phase
+// shifts where that walk starts (the palette wraps around), which changes which colour goes where without
+// shortening the palette. With several cycles the palette repeats that many times over the range.
+std::vector<Color> HistogramColorPalette::paint(const EscapeResult& escape, const double escapeRadius) const {
     const std::vector<int>& iters = escape.iters;
+    const std::vector<float>& magSq = escape.magSq;
+    const float offset = smoothOffset(escapeRadius);
+    const int total = this->imageSize * this->samples;
 
-    std::vector<Color> pixels(this->imageSize);
-    std::vector<int> numItersPerPixel(this->maxIter + 1, 0);
-    #pragma omp parallel for default(none) shared(iters, numItersPerPixel)
-    for (int i = 0; i < this->imageSize; i++) {
-        int val = iters[i] == -1 ? this->maxIter : iters[i];
-        numItersPerPixel[val]++;
+    std::vector<float> values(total);
+    #pragma omp parallel for default(none) shared(iters, magSq, values, offset, total)
+    for (int i = 0; i < total; i++) {
+        values[i] = smoothValue(iters[i], magSq[i], offset);
     }
-    std::vector<double> hues(this->imageSize, 0);
-    #pragma omp parallel for default(none) shared(iters, pixels, numItersPerPixel, hues)
+
+    float maxValue = 0.0f;
+    for (const float v : values) maxValue = std::max(maxValue, v);
+
+    // cdf[b] is the share of the escaped samples that are below the start of bin b (cdf[0] = 0, cdf[BINS] = 1).
+    constexpr int BINS = 8192;
+    const float binScale = maxValue > 0.0f ? static_cast<float>(BINS) / maxValue : 0.0f;
+    std::vector<double> cdf(BINS + 1, 0.0);
+    double escaped = 0;
+    for (const float v : values) {
+        if (v < 0.0f) continue;   // never escaped
+        cdf[std::min(static_cast<int>(v * binScale), BINS - 1) + 1] += 1.0;
+        escaped += 1.0;
+    }
+    for (int b = 0; b < BINS; b++) cdf[b + 1] += cdf[b];
+    if (escaped > 0) for (double& c : cdf) c /= escaped;
+
+    // Just below the palette length: a position equal to it would wrap around to the first colour.
+    const double span = this->length * 0.9999;
+    std::vector<Color> pixels(this->imageSize);
+    #pragma omp parallel for default(none) shared(values, pixels, cdf, binScale, span)
     for (int i = 0; i < this->imageSize; i++) {
-        double hue = 0;
-        for (int j = 0; j < iters[i]; j++) {
-            hue += numItersPerPixel[j] * 1.0 / this->imageSize;
+        const int idx = i * this->samples;
+        double r = 0, g = 0, b = 0;
+        for (int k = 0; k < this->samples; k++) {
+            const float v = values[idx + k];
+            if (v < 0.0f) continue;   // never escaped: black
+            const float x = v * binScale;
+            const int bin = std::min(static_cast<int>(x), BINS - 1);
+            // Linear between the edges of the bin, so the colour changes continuously with the value.
+            const double share = cdf[bin] + (cdf[bin + 1] - cdf[bin]) * std::min(static_cast<double>(x - bin), 1.0);
+            const Color c = getColorFromPalette(std::fmod(share * this->cycles + this->phase, 1.0) * span, this->colors, this->length);
+            r += c.red;
+            g += c.green;
+            b += c.blue;
         }
-        if (iters[i] == -1) {
-            pixels[i] = Color{ 0, 0, 0 };
-        } else {
-            constexpr int length = 1000;
-            pixels[i] = getColorFromPalette(static_cast<int>(hue * length), this->colors, length);
-        }
+        pixels[i] = {
+            static_cast<unsigned char>(r / this->samples),
+            static_cast<unsigned char>(g / this->samples),
+            static_cast<unsigned char>(b / this->samples) };
     }
     return pixels;
 }
