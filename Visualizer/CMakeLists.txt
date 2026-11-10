@@ -15,6 +15,8 @@ target_compile_features(fpa PUBLIC cxx_std_17)
 
 set(SOURCES
     src/main.cpp
+    src/Request.cpp
+    src/Request.h
     src/Mode.h
     src/Sampler.cpp
     src/Sampler.h
@@ -183,6 +185,14 @@ set(CPR_USE_SYSTEM_CURL OFF CACHE BOOL "" FORCE)
 set(BUILD_SHARED_LIBS   OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(cpr)
 target_link_libraries(mandelbrot_visualizer cpr::cpr)
+
+# JSON, for the render request (see src/Request.cpp). Header-only.
+FetchContent_Declare(
+    json
+    URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
+)
+FetchContent_MakeAvailable(json)
+target_link_libraries(mandelbrot_visualizer nlohmann_json::nlohmann_json)
 target_link_libraries(mandelbrot_visualizer fpa)
 
 if(BUILD_FPA_TESTS)

@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "mode": "CPU_PARALLEL",
+  "output": "./mandelbrot_set.png",
+  "image": { "width": 1800, "height": 1200, "samples": 4 },
+  "view": {
+    "re": ["-0.153004885037500013708", "-0.152809695287500013708"],
+    "im": ["1.039611370300000000002", "1.039757762612500000002"]
+  },
+  "precision": "double",
+  "iteration": { "maxIter": 2000 },
+  "color": { "method": "cyclic", "palette": "Navy", "length": 512 }
+}

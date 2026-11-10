@@ -1,5 +1,6 @@
 #pragma once
 
+#include<string>
 #include<vector>
 
 #include "ColorManager.h"
@@ -22,3 +23,6 @@ const std::vector<std::vector<Color>> palettes = {
     // Greyscale
     {{255, 255, 255}, {0, 0, 0}, {255, 255, 255}}
 };
+
+// Names of the palettes above, in the same order. A request may select a palette by id or by name.
+const std::vector<std::string> paletteNames = {"Navy", "Sunset", "Ocean", "Fire and Ash", "Twilight", "Garden", "Pomegranate", "Greyscale"};
