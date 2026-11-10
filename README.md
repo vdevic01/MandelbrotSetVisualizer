@@ -66,7 +66,7 @@ MandelbrotSetVisualizer/
     └── MandelbrotSetVisualizer/ Tauri application
         ├── src/
         │   ├── main.ts          Frontend logic (p5.js canvas, BoundaryManager)
-        │   ├── precision.ts     Number format for a zoom level, Decimal to fixed-point words
+        │   ├── precision.ts     Number format for a zoom level
         │   └── styles.css
         ├── index.html
         └── src-tauri/
@@ -256,79 +256,102 @@ The fixed-point library (`Visualizer/src/math/`) implements addition, subtractio
 
 The arithmetic the GPU needs (add, subtract, compare, multiply) lives in `FixedPointShared.h`, which the CPU build and the CUDA kernel both use, so it is tested once by the unit tests. The OpenCL high-precision kernel has its own copy, which the host compiles for the size of each render. All backends (CPU, CUDA local and remote, OpenCL) support sizes 1 to 6.
 
-The frontend uses `decimal.js` for the viewport coordinates, configured for 100 significant digits (its default of 20 would cap the zoom depth far below what the formats can represent). `precision.ts` converts them to fixed-point words with `decimalToFixedWords()`, and the C++ side converts doubles with `fpa::floatingToFixedPoint()` / `fpa::fixedToFloatingPoint()`.
+The frontend uses `decimal.js` for the viewport coordinates, configured for 100 significant digits (its default of 20 would cap the zoom depth far below what the formats can represent). The app sends them to the renderer as decimal text, which the C++ side converts to fixed-point words exactly with `fpa::decimalToFixedPoint()`; it converts doubles with `fpa::floatingToFixedPoint()` / `fpa::fixedToFloatingPoint()`.
 
 ---
 
 ## CLI usage
 
-The C++ binary can be invoked directly without the GUI:
+The C++ binary can be invoked directly without the GUI. Every option is named, so the order does not matter:
 
 ```
-mandelbrot_visualizer <MODE> <OUTPUT_FILE> <MAX_ITER> <PALETTE_LENGTH> <PALETTE_ID>
-                      <SAMPLES> <USE_HP> <COORDS...> [WIDTH HEIGHT] [--fraction-words N]
-                      [--escape-radius R] [--color-spread S]
-                      [--histogram [--histogram-phase P] [--histogram-cycles C]]
+mandelbrot_visualizer --output FILE --re START:END --im START:END [options]
+mandelbrot_visualizer --request FILE|-  [options]
+mandelbrot_visualizer --list-modes | --help
 ```
 
-| Argument | Type | Description |
+Only the view (`--re` and `--im`) is required; everything else has a default. `--help` prints the full list.
+
+| Option | Default | Description |
 |---|---|---|
-| `MODE` | string | `CPU_PARALLEL`, `OPENCL_LOCAL`, `CUDA_LOCAL`, or `CUDA_REMOTE` |
-| `OUTPUT_FILE` | path | Output PNG path |
-| `MAX_ITER` | int | Maximum escape iterations |
-| `PALETTE_LENGTH` | int | Colour cycle length |
-| `PALETTE_ID` | int | Palette index (0–7) |
-| `SAMPLES` | int | Anti-aliasing samples per pixel (≥ 1) |
-| `USE_HP` | 0 or 1 | 0 = double precision, 1 = fixed point (size set by `--fraction-words`) |
-| `WIDTH HEIGHT` | int int | Optional. Output image dimensions (default: 900×600) |
-| `--fraction-words N` | 1–6 | Optional flag, may appear anywhere. Number of 32-bit fraction words of the fixed-point format used when `USE_HP=1` (default 3). More words allow deeper zooms but are slower. Ignored for double precision. |
-| `--escape-radius R` | 2–128 | Optional flag, may appear anywhere. Iteration of a point stops once `|z| > R` (default 2). Larger values make the colouring smoother, at the cost of a few extra iterations per point. |
-| `--color-spread S` | 0–10 | Optional flag, may appear anywhere. Spreads the colours that are packed near the set: smooth iteration values `v` above a tenth of the palette length are compressed with `knee + ln(1 + S·(v − knee)) / S`, lower values are left alone (default 0 = off). |
-| `--histogram` | – | Optional flag. Colours by histogram equalisation instead of the cyclic palette: a sample gets the share of samples with a smaller smooth value, so crowded value ranges (near the set) are stretched over more of the palette. `PALETTE_LENGTH`, `--escape-radius` and `--color-spread` have no visible effect in this mode. |
-| `--histogram-phase P` | 0–1 | Optional, with `--histogram` (default 0). Where in the palette the colouring starts; the palette wraps around, so this changes which colour goes where without shortening it. |
-| `--histogram-cycles C` | 0–1000 | Optional, with `--histogram` (default 1). How many times the palette repeats from the lowest to the highest value. |
+| `--mode M` | `CPU_PARALLEL` | `CPU_PARALLEL`, `OPENCL_LOCAL`, `CUDA_LOCAL`, or `CUDA_REMOTE` |
+| `--output FILE` | `./mandelbrot_set.png` | Output PNG path |
+| `--size WxH` | `900x600` | Image size in pixels |
+| `--samples N` | 10 | Anti-aliasing samples per pixel (≥ 1) |
+| `--re START:END`, `--im START:END` | required | The view, as decimal numbers. Write a negative start as `--re=-2:1` |
+| `--precision P` | `double` | `double` or `fixed` (fixed point) |
+| `--fraction-words N` | 3 | 1–6. Number of 32-bit fraction words of the fixed-point format; more words allow deeper zooms but are slower. Implies `--precision fixed`. |
+| `--max-iter N` | 1000 | Maximum escape iterations |
+| `--escape-radius R` | 2 | 2–128. Iteration of a point stops once `|z| > R`. Larger values make the colouring smoother, at the cost of a few extra iterations per point. |
+| `--color METHOD` | `cyclic` | `cyclic` or `histogram` (see below) |
+| `--palette P` | 0 | Palette id (0–7) or name (`Navy`, `Sunset`, `Ocean`, `Fire and Ash`, `Twilight`, `Garden`, `Pomegranate`, `Greyscale`) |
 
-**Standard precision** (`USE_HP=0`) — four doubles follow:
+Options of the **cyclic** color method (the default):
 
+| Option | Default | Description |
+|---|---|---|
+| `--palette-length N` | 256 | Iterations per palette cycle |
+| `--color-spread S` | 0 | 0–10. Spreads the colours that are packed near the set: smooth iteration values `v` above a tenth of the palette length are compressed with `knee + ln(1 + S·(v − knee)) / S`, lower values are left alone. 0 turns it off. |
+
+Options of the **histogram** color method. It colours by histogram equalisation: a sample gets the share of samples with a smaller smooth value, so crowded value ranges (near the set) are stretched over more of the palette. The options of the cyclic method are rejected with it, and the other way round.
+
+| Option | Default | Description |
+|---|---|---|
+| `--histogram-phase P` | 0 | 0–1. Where in the palette the colouring starts. The palette wraps around, so this changes which colour goes where without shortening it. |
+| `--histogram-cycles C` | 1 | 0–1000. How many times the palette repeats from the lowest to the highest value. |
+
+### Coordinates and precision
+
+Coordinates are decimal text. With `--precision fixed` the renderer converts every digit exactly to fixed point (truncating toward zero), so a deep zoom just needs its coordinates written out in full. A double only holds about 16 digits; use `--precision fixed` once the view is narrower than about 6×10⁻¹³.
+
+### JSON request
+
+The same options can be given as a JSON file (`--request FILE`, or `--request -` to read standard input). Flags given on the command line override the file. Unknown options, wrong types, values out of range and options that do not belong to the chosen color method are errors that name the option, for example `color.spread: only applies to the cyclic color method, not histogram`.
+
+```json
+{
+  "version": 1,
+  "mode": "CPU_PARALLEL",
+  "output": "out.png",
+  "image": { "width": 1800, "height": 1200, "samples": 4 },
+  "view": {
+    "re": ["-0.153004885037500013708", "-0.152809695287500013708"],
+    "im": ["1.039611370300000000002", "1.039757762612500000002"]
+  },
+  "precision": "double",
+  "iteration": { "maxIter": 2000, "escapeRadius": 2 },
+  "color": { "method": "cyclic", "palette": "Navy", "length": 512, "spread": 0 }
+}
 ```
-RE_START  RE_END  IM_START  IM_END
-```
 
-**High precision** (`USE_HP=1`) — unsigned 32-bit integers follow: four coordinates of `1 + N` words each, where `N` is the fraction size (`--fraction-words`, default 3, so 16 numbers). Words are big-endian two's-complement fixed-point, most significant (whole) word first:
-
-```
-RE_START[0..N]  RE_END[0..N]  IM_START[0..N]  IM_END[0..N]
-```
-
-The number of coordinate words must match `N`; a mismatch is reported as an error.
+`precision` is `"double"` or `{ "type": "fixed", "fractionWords": 3 }`. The `color` object for the histogram method is `{ "method": "histogram", "palette": "Navy", "phase": 0, "cycles": 1 }`. Coordinates can be numbers or strings; use strings for deep zooms so that no digit is lost. Ready-made requests are in `Visualizer/examples/`; `sequential-hp.json` has the exact decimal values of a set of fixed-point words, so it renders the same image as the raw-word command line this format replaced.
 
 ### Examples
 
 Standard precision, full set:
 
 ```bash
-mandelbrot_visualizer CPU_PARALLEL out.png 1000 256 0 4 0 \
-  -2.0 1.0 -1.0 1.0
+mandelbrot_visualizer --output out.png --re=-2:1 --im=-1:1 --max-iter 1000
 ```
 
 Standard precision, deep zoom, large output:
 
 ```bash
-mandelbrot_visualizer CPU_PARALLEL out.png 2000 512 0 4 0 \
-  -0.153004885037500013708 -0.152809695287500013708 \
-  1.039611370300000000002  1.039757762612500000002 \
-  1800 1200
+mandelbrot_visualizer --output out.png --max-iter 2000 --palette-length 512 --samples 4 --size 1800x1200 \
+  --re=-0.153004885037500013708:-0.152809695287500013708 \
+  --im=1.039611370300000000002:1.039757762612500000002
 ```
 
-High precision:
+High precision, from a request file:
 
 ```bash
-mandelbrot_visualizer CPU_PARALLEL out.png 2000 512 0 4 1 \
-  4294967295 3637816318 2730300863 4039731417 \
-  4294967295 3638654652 981237348  3835888558 \
-  1 170129539 4244482999 3226762018 \
-  1 170758290 785201715  2000138050 \
-  1800 1200
+mandelbrot_visualizer --request Visualizer/examples/sequential-hp.json --output out.png
+```
+
+Histogram colouring, palette repeated three times:
+
+```bash
+mandelbrot_visualizer --output out.png --re=-2.2:0.8 --im=-1:1 --color histogram --histogram-cycles 3
 ```
 
 List available compute modes at runtime:
