@@ -187,6 +187,10 @@ FetchContent_MakeAvailable(cpr)
 target_link_libraries(mandelbrot_visualizer cpr::cpr)
 
 # JSON, for the render request (see src/Request.cpp). Header-only.
+# A URL download: give the extracted files the time of extraction, not the archive's (policy CMP0135, CMake 3.24+).
+if(POLICY CMP0135)
+    cmake_policy(SET CMP0135 NEW)
+endif()
 FetchContent_Declare(
     json
     URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
