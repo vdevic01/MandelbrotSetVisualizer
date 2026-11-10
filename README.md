@@ -187,6 +187,10 @@ The bar above the canvas shows, for the last render:
 
 A line below shows warnings (such as reaching the maximum precision) and errors, including errors from the remote worker; hover it for the full text. The window is taller than the canvas by the height of the bar, so the bar never covers part of the image.
 
+### Exporting an image
+
+**Export image** (bottom of the sidebar) renders the view you are looking at at a larger size. You choose the width and the height (100 to 8000 px each). The centre of the image is the centre of the view on screen and the visible width stays the same, so a taller or wider shape shows more above and below (or less). It uses the current mode, iterations, samples and palette, picks the number format for the larger image (a bigger image has smaller pixels, so it may need more fraction words than the on-screen render), and saves `generated-files/exports/export_<timestamp>.png` (separate from the image shown in the app). The image on screen and the status bar are not affected.
+
 ---
 
 ## Colour palettes

@@ -340,9 +340,15 @@ class BoundaryManager{
   }
 
   private async generateMandelbrotHighPrecission(){
-    // Use the smallest fixed-point size that is precise enough for the current zoom level.
-    const boundary = this.highPrecissionBoundary!;
-    const choice = chooseFractionWords(boundary.reEnd.minus(boundary.reStart), this.p5Client.width);
+    const request = this.highPrecisionRequest(this.highPrecissionBoundary!, this.p5Client.width);
+    await this.render("generate_mandelbrot_hp", request.args, request.info);
+  }
+
+  // The arguments of a fixed-point render of `boundary` on an image `imageWidthPx` pixels wide. It uses the
+  // smallest fixed-point size that is precise enough for that zoom level and image width.
+  private highPrecisionRequest(boundary: HighPrecissionBoundary, imageWidthPx: number){
+    const viewWidth = boundary.reEnd.minus(boundary.reStart);
+    const choice = chooseFractionWords(viewWidth, imageWidthPx);
     const fractionWords = choice.fractionWords;
     const args = {
       mode: this.mode,
@@ -357,14 +363,74 @@ class BoundaryManager{
       samples: this.samples,
       escapeRadius: this.escapeRadius
     };
-    const precision = `fixed point · ${fractionWords} words (~${fractionDigits(fractionWords)} digits)`;
-    await this.render("generate_mandelbrot_hp", args, {
-      precision: precision,
-      scaleLog10: boundary.reEnd.minus(boundary.reStart).abs().log(10).toNumber(),
+    const info: RenderInfo = {
+      precision: `fixed point · ${fractionWords} words (~${fractionDigits(fractionWords)} digits)`,
+      scaleLog10: viewWidth.abs().log(10).toNumber(),
       warning: choice.limitReached
         ? "Maximum precision reached: zooming in further produces an inaccurate image."
         : undefined
-    });
+    };
+    return { args, info };
+  }
+
+  // How much taller (or shorter) than the on-screen view an image of `width` x `height` pixels is. The export
+  // keeps the centre and the width of the view, so the visible height is scaled by this factor around the centre.
+  private exportHeightFactor(width: number, height: number): number {
+    return (height / width) * (this.boxSidesRatio[1] / this.boxSidesRatio[0]);
+  }
+
+  // Renders the current view at `width` x `height` pixels into generated-files/exports/<filename>. The centre of the
+  // image is the centre of the view on screen and the visible width is the same; a different shape shows more or
+  // less above and below. This does not touch the image on screen or the status bar.
+  public async exportImage(width: number, height: number, filename: string): Promise<{ path: string, precision: string, warning?: string, stages: string }> {
+    const extra = { outputFilename: filename, width: width, height: height };
+    const factor = this.exportHeightFactor(width, height);
+
+    // A larger image has smaller pixels, so a view that is fine for a double at 900 pixels may not be at 8000.
+    const low = this.lowPrecissionBoundary;
+    const needsFixedPoint = this.highPrecission
+      || Math.abs(low.reEnd - low.reStart) < DOUBLE_PRECISION_MIN_WIDTH * width / this.p5Client.width;
+
+    let output: string;
+    let precision: string;
+    let warning: string | undefined;
+    if (needsFixedPoint) {
+      const view = this.highPrecission ? this.highPrecissionBoundary! : {
+        reStart: new Decimal(low.reStart),
+        reEnd: new Decimal(low.reEnd),
+        imStart: new Decimal(low.imStart),
+        imEnd: new Decimal(low.imEnd)
+      };
+      const centreIm = view.imStart.plus(view.imEnd).div(2);
+      const boundary: HighPrecissionBoundary = {
+        ...view,
+        imStart: centreIm.plus(view.imStart.minus(centreIm).mul(factor)),
+        imEnd: centreIm.plus(view.imEnd.minus(centreIm).mul(factor))
+      };
+      const request = this.highPrecisionRequest(boundary, width);
+      precision = request.info.precision;
+      warning = request.info.warning;
+      output = await invoke<string>("generate_mandelbrot_hp", { ...request.args, ...extra });
+    } else {
+      precision = "double (64-bit)";
+      const centreIm = (low.imStart + low.imEnd) / 2;
+      output = await invoke<string>("generate_mandelbrot", {
+        mode: this.mode,
+        ...low,
+        imStart: centreIm + (low.imStart - centreIm) * factor,
+        imEnd: centreIm + (low.imEnd - centreIm) * factor,
+        maxIter: this.maxIter,
+        paletteLength: this.paletteLength,
+        paletteId: this.paletteId,
+        samples: this.samples,
+        escapeRadius: this.escapeRadius,
+        ...extra
+      });
+    }
+
+    const projectDir: string = await invoke("get_project_dir");
+    const path = await join(projectDir, "generated-files", "exports", filename);
+    return { path, precision, warning, stages: parseRendererOutput(output).stages };
   }
 
   // Runs one render and keeps the status bar up to date: what it is rendering with, how long it took, what the
@@ -423,7 +489,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   let pressY = -1;
   const boxRatio = [2, 3];
   let isPressed = false;
-  let settingsOpen = false;
+  let settingsOpen = false;   // true while the settings or the export screen covers the canvas
   let boundaryManager: BoundaryManager;
 
   const sketch = (p5: P5) => {
@@ -603,6 +669,61 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   document.getElementById("button-settings")?.addEventListener("click", openSettings);
   document.getElementById("button-settings-back")?.addEventListener("click", closeSettings);
+
+  // ── Export view ────────────────────────────────────────────────────────────
+
+  const exportView    = document.getElementById("export-view") as HTMLElement;
+  const inputExportW  = document.getElementById("input-export-width") as HTMLInputElement;
+  const inputExportH  = document.getElementById("input-export-height") as HTMLInputElement;
+  const btnExport     = document.getElementById("button-export-start") as HTMLButtonElement;
+  const exportStatus  = document.getElementById("export-status") as HTMLElement;
+  const EXPORT_MIN_SIDE = 100;
+  const EXPORT_MAX_SIDE = 8000;
+
+  function showExportStatus(text: string, color: string) {
+    exportStatus.textContent   = text;
+    exportStatus.style.color   = color;
+    exportStatus.style.display = "";
+  }
+
+  document.getElementById("button-export")?.addEventListener("click", () => {
+    exportStatus.style.display = "none";
+    exportView.style.display = "flex";
+    settingsOpen = true;
+  });
+  document.getElementById("button-export-back")?.addEventListener("click", () => {
+    exportView.style.display = "none";
+    settingsOpen = false;
+    isPressed = false;
+  });
+
+  btnExport.addEventListener("click", async () => {
+    const width = parseInt(inputExportW.value);
+    const height = parseInt(inputExportH.value);
+    const sideOk = (n: number) => !isNaN(n) && n >= EXPORT_MIN_SIDE && n <= EXPORT_MAX_SIDE;
+    if (!sideOk(width) || !sideOk(height)) {
+      showExportStatus(`Width and height must each be between ${EXPORT_MIN_SIDE} and ${EXPORT_MAX_SIDE}.`, "#eb5757");
+      return;
+    }
+    btnExport.disabled = true;
+    btnExport.textContent = "Exporting...";
+    showExportStatus("Rendering, this can take a while for large images...", "#aaa");
+    const started = performance.now();
+    try {
+      const result = await boundaryManager.exportImage(width, height, `export_${Date.now()}.png`);
+      const seconds = ((performance.now() - started) / 1000).toFixed(1);
+      showExportStatus(
+        `Saved ${result.path}\n${width} x ${height} px, ${result.precision}, ${seconds} s` +
+        (result.warning ? `\n${result.warning}` : ""),
+        result.warning ? "#ffe08a" : "#6fcf97");
+    } catch (e) {
+      console.error("Export failed:", e);
+      showExportStatus("Export failed: " + e, "#eb5757");
+    } finally {
+      btnExport.disabled = false;
+      btnExport.textContent = "Export";
+    }
+  });
 
   btnRemoteSave.addEventListener("click", async () => {
     const endpoint = inputEndpoint.value.trim();

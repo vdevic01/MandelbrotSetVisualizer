@@ -4,8 +4,7 @@
     <meta charset="UTF-8" />
     <link rel="stylesheet" href="/src/styles.css" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Mandelbrot set visualizer</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.3/p5.js"></script>
+    <title>Mandelbrot set visualizer</title>    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.3/p5.js"></script>
     <script type="module" src="/src/main.ts" defer></script>
   </head>
 
@@ -75,6 +74,7 @@
         <div class="sidebar-footer">
           <button id="button-settings">Settings</button>
           <button id="button-reset">Reset</button>
+          <button id="button-export">Export image</button>
         </div>
       </div>
       <div class="canvas-wrapper">
@@ -103,8 +103,30 @@
       </div>
     </div>
 
+    <!-- Export view -->
+    <div id="export-view" class="overlay-view" style="display:none;">
+      <div class="settings-header">
+        <button id="button-export-back">← Back</button>
+        <h2>Export image</h2>
+      </div>
+      <div class="settings-body">
+        <div class="settings-section">
+          <h3>Current view</h3>
+          <p class="settings-desc">Renders the view you are looking at at any size and shape. The centre and the width of the view stay the same; a taller or wider image shows more above and below. It uses the current mode, iterations, samples and palette. The image is saved in <code>generated-files/exports</code>.</p>
+          <label for="input-export-width">Width (px)</label>
+          <input type="number" id="input-export-width" class="form-field" value="1800" min="100" max="8000">
+          <label for="input-export-height">Height (px)</label>
+          <input type="number" id="input-export-height" class="form-field" value="1200" min="100" max="8000">
+          <div class="button-row">
+            <button id="button-export-start">Export</button>
+          </div>
+          <p id="export-status" class="settings-status" style="display:none;"></p>
+        </div>
+      </div>
+    </div>
+
     <!-- Settings view -->
-    <div id="settings-view" style="display:none;">
+    <div id="settings-view" class="overlay-view" style="display:none;">
       <div class="settings-header">
         <button id="button-settings-back">← Back</button>
         <h2>Settings</h2>

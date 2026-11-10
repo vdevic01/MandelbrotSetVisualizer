@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use tauri::api::process::{Command, CommandEvent};
 
@@ -137,6 +137,30 @@ fn remote_env(mode: &str) -> HashMap<String, String> {
     env
 }
 
+// Where a render is written: the file shown in the app by default, or `output_filename` (a plain file name, no
+// folders) inside generated-files/exports for an export.
+fn output_path(output_filename: Option<String>) -> Result<String, String> {
+    let mut folder = project_dir().join("generated-files");
+    if output_filename.is_some() {
+        folder = folder.join("exports");
+    }
+    let name = output_filename.unwrap_or_else(|| "mandelbrot_set.png".to_string());
+    if Path::new(&name).file_name().map(|n| n.to_string_lossy() != name).unwrap_or(true) {
+        return Err(format!("Invalid output file name: {}", name));
+    }
+    fs::create_dir_all(&folder).map_err(|e| e.to_string())?;
+    Ok(folder.join(name).to_string_lossy().into_owned())
+}
+
+// The renderer draws 900 x 600 unless it is given an explicit size.
+fn size_args(width: Option<i32>, height: Option<i32>) -> Result<Vec<String>, String> {
+    match (width, height) {
+        (None, None) => Ok(Vec::new()),
+        (Some(w), Some(h)) if w > 0 && h > 0 => Ok(vec![w.to_string(), h.to_string()]),
+        _ => Err("Width and height must be given together and be positive.".to_string()),
+    }
+}
+
 #[tauri::command]
 async fn generate_mandelbrot(
     mode: String,
@@ -145,17 +169,20 @@ async fn generate_mandelbrot(
     max_iter: i32, palette_length: i32,
     palette_id: i32, samples: i32,
     escape_radius: f64,
+    output_filename: Option<String>,
+    width: Option<i32>, height: Option<i32>,
 ) -> Result<String, String> {
     let env = remote_env(&mode);
     let mut args = vec![
         mode,
-        project_dir().join("generated-files").join("mandelbrot_set.png").to_string_lossy().into_owned(),
+        output_path(output_filename)?,
         max_iter.to_string(), palette_length.to_string(),
         palette_id.to_string(), samples.to_string(),
         "0".to_string(),
         re_start.to_string(), re_end.to_string(),
         im_start.to_string(), im_end.to_string(),
     ];
+    args.extend(size_args(width, height)?);
     args.push("--escape-radius".to_string());
     args.push(escape_radius.to_string());
     run_sidecar(args, env).await
@@ -170,6 +197,8 @@ async fn generate_mandelbrot_hp(
     max_iter: i32, palette_length: i32,
     palette_id: i32, samples: i32,
     escape_radius: f64,
+    output_filename: Option<String>,
+    width: Option<i32>, height: Option<i32>,
 ) -> Result<String, String> {
     // Every coordinate has one whole word plus `fraction_words` fraction words.
     let words = fraction_words as usize + 1;
@@ -185,7 +214,7 @@ async fn generate_mandelbrot_hp(
     let env = remote_env(&mode);
     let mut args = vec![
         mode,
-        project_dir().join("generated-files").join("mandelbrot_set.png").to_string_lossy().into_owned(),
+        output_path(output_filename)?,
         max_iter.to_string(), palette_length.to_string(),
         palette_id.to_string(), samples.to_string(),
         "1".to_string(),
@@ -193,6 +222,7 @@ async fn generate_mandelbrot_hp(
     for coordinate in [&re_start, &re_end, &im_start, &im_end] {
         args.extend(coordinate.iter().map(|x| x.to_string()));
     }
+    args.extend(size_args(width, height)?);
     args.push("--fraction-words".to_string());
     args.push(fraction_words.to_string());
     args.push("--escape-radius".to_string());
