@@ -68,8 +68,7 @@ async fn get_available_modes() -> Result<Vec<String>, String> {
     Ok(modes)
 }
 
-async fn run_sidecar(args: Vec<String>, env: HashMap<String, String>) -> Result<String, String> {
-    let mode = args.first().cloned().unwrap_or_default();
+async fn run_sidecar(mode: String, args: Vec<String>, env: HashMap<String, String>) -> Result<String, String> {
     eprintln!("[renderer] starting, mode {}", mode);
 
     let (mut rx, _child) = Command::new_sidecar("mandelbrot_visualizer")
@@ -152,13 +151,46 @@ fn output_path(output_filename: Option<String>) -> Result<String, String> {
     Ok(folder.join(name).to_string_lossy().into_owned())
 }
 
+// The renderer is driven by named flags (run `mandelbrot_visualizer --help` for the list). These helpers build
+// the groups of flags the app uses.
+
 // The renderer draws 900 x 600 unless it is given an explicit size.
 fn size_args(width: Option<i32>, height: Option<i32>) -> Result<Vec<String>, String> {
     match (width, height) {
         (None, None) => Ok(Vec::new()),
-        (Some(w), Some(h)) if w > 0 && h > 0 => Ok(vec![w.to_string(), h.to_string()]),
+        (Some(w), Some(h)) if w > 0 && h > 0 => Ok(vec!["--size".to_string(), format!("{}x{}", w, h)]),
         _ => Err("Width and height must be given together and be positive.".to_string()),
     }
+}
+
+// The view as `--re` and `--im` ranges. Coordinates are decimal text, so no digit is lost on the way.
+fn view_args(re_start: &str, re_end: &str, im_start: &str, im_end: &str) -> Vec<String> {
+    vec![
+        format!("--re={}:{}", re_start, re_end),
+        format!("--im={}:{}", im_start, im_end),
+    ]
+}
+
+// The colour method and the settings that belong to it (the renderer rejects settings of the other method).
+fn color_args(
+    palette_id: i32, palette_length: i32, color_spread: f64,
+    histogram: bool, histogram_phase: f64, histogram_cycles: f64,
+) -> Vec<String> {
+    let mut args = vec!["--palette".to_string(), palette_id.to_string()];
+    if histogram {
+        args.extend([
+            "--color".to_string(), "histogram".to_string(),
+            "--histogram-phase".to_string(), histogram_phase.to_string(),
+            "--histogram-cycles".to_string(), histogram_cycles.to_string(),
+        ]);
+    } else {
+        args.extend([
+            "--color".to_string(), "cyclic".to_string(),
+            "--palette-length".to_string(), palette_length.to_string(),
+            "--color-spread".to_string(), color_spread.to_string(),
+        ]);
+    }
+    args
 }
 
 #[tauri::command]
@@ -178,34 +210,27 @@ async fn generate_mandelbrot(
 ) -> Result<String, String> {
     let env = remote_env(&mode);
     let mut args = vec![
-        mode,
-        output_path(output_filename)?,
-        max_iter.to_string(), palette_length.to_string(),
-        palette_id.to_string(), samples.to_string(),
-        "0".to_string(),
-        re_start.to_string(), re_end.to_string(),
-        im_start.to_string(), im_end.to_string(),
+        "--mode".to_string(), mode.clone(),
+        "--output".to_string(), output_path(output_filename)?,
+        "--precision".to_string(), "double".to_string(),
+        "--max-iter".to_string(), max_iter.to_string(),
+        "--samples".to_string(), samples.to_string(),
+        "--escape-radius".to_string(), escape_radius.to_string(),
     ];
+    args.extend(view_args(
+        &re_start.to_string(), &re_end.to_string(),
+        &im_start.to_string(), &im_end.to_string(),
+    ));
+    args.extend(color_args(palette_id, palette_length, color_spread, histogram, histogram_phase, histogram_cycles));
     args.extend(size_args(width, height)?);
-    args.push("--escape-radius".to_string());
-    args.push(escape_radius.to_string());
-    args.push("--color-spread".to_string());
-    args.push(color_spread.to_string());
-    if histogram {
-        args.push("--histogram".to_string());
-        args.push("--histogram-phase".to_string());
-        args.push(histogram_phase.to_string());
-        args.push("--histogram-cycles".to_string());
-        args.push(histogram_cycles.to_string());
-    }
-    run_sidecar(args, env).await
+    run_sidecar(mode, args, env).await
 }
 
 #[tauri::command]
 async fn generate_mandelbrot_hp(
     mode: String,
-    re_start: Vec<u32>, re_end: Vec<u32>,
-    im_start: Vec<u32>, im_end: Vec<u32>,
+    re_start: String, re_end: String,
+    im_start: String, im_end: String,
     fraction_words: u32,
     max_iter: i32, palette_length: i32,
     palette_id: i32, samples: i32,
@@ -217,43 +242,20 @@ async fn generate_mandelbrot_hp(
     output_filename: Option<String>,
     width: Option<i32>, height: Option<i32>,
 ) -> Result<String, String> {
-    // Every coordinate has one whole word plus `fraction_words` fraction words.
-    let words = fraction_words as usize + 1;
-    for (name, coordinate) in [("re_start", &re_start), ("re_end", &re_end), ("im_start", &im_start), ("im_end", &im_end)] {
-        if coordinate.len() != words {
-            return Err(format!(
-                "{} has {} words but {} fraction words need {}",
-                name, coordinate.len(), fraction_words, words
-            ));
-        }
-    }
-
     let env = remote_env(&mode);
     let mut args = vec![
-        mode,
-        output_path(output_filename)?,
-        max_iter.to_string(), palette_length.to_string(),
-        palette_id.to_string(), samples.to_string(),
-        "1".to_string(),
+        "--mode".to_string(), mode.clone(),
+        "--output".to_string(), output_path(output_filename)?,
+        "--precision".to_string(), "fixed".to_string(),
+        "--fraction-words".to_string(), fraction_words.to_string(),
+        "--max-iter".to_string(), max_iter.to_string(),
+        "--samples".to_string(), samples.to_string(),
+        "--escape-radius".to_string(), escape_radius.to_string(),
     ];
-    for coordinate in [&re_start, &re_end, &im_start, &im_end] {
-        args.extend(coordinate.iter().map(|x| x.to_string()));
-    }
+    args.extend(view_args(&re_start, &re_end, &im_start, &im_end));
+    args.extend(color_args(palette_id, palette_length, color_spread, histogram, histogram_phase, histogram_cycles));
     args.extend(size_args(width, height)?);
-    args.push("--fraction-words".to_string());
-    args.push(fraction_words.to_string());
-    args.push("--escape-radius".to_string());
-    args.push(escape_radius.to_string());
-    args.push("--color-spread".to_string());
-    args.push(color_spread.to_string());
-    if histogram {
-        args.push("--histogram".to_string());
-        args.push("--histogram-phase".to_string());
-        args.push(histogram_phase.to_string());
-        args.push("--histogram-cycles".to_string());
-        args.push(histogram_cycles.to_string());
-    }
-    run_sidecar(args, env).await
+    run_sidecar(mode, args, env).await
 }
 
 fn main() {

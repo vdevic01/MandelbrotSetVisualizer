@@ -6,7 +6,6 @@ import { convertFileSrc } from '@tauri-apps/api/tauri';
 import {
   DOUBLE_PRECISION_MIN_WIDTH,
   chooseFractionWords,
-  decimalToFixedWords,
   fractionDigits
 } from "./precision";
 
@@ -395,10 +394,11 @@ class BoundaryManager{
     const fractionWords = choice.fractionWords;
     const args = {
       mode: this.mode,
-      reStart: decimalToFixedWords(boundary.reStart, fractionWords),
-      reEnd: decimalToFixedWords(boundary.reEnd, fractionWords),
-      imStart: decimalToFixedWords(boundary.imStart, fractionWords),
-      imEnd: decimalToFixedWords(boundary.imEnd, fractionWords),
+      // Decimal text keeps every digit; the renderer converts it to fixed point exactly.
+      reStart: boundary.reStart.toFixed(),
+      reEnd: boundary.reEnd.toFixed(),
+      imStart: boundary.imStart.toFixed(),
+      imEnd: boundary.imEnd.toFixed(),
       fractionWords: fractionWords,
       maxIter: this.maxIter,
       paletteLength: this.paletteLength,

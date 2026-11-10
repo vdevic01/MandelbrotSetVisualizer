@@ -29,7 +29,7 @@ Only **committed** code is benchmarked. Commit first, then run.
 
 Nothing is kept except the report (and the chart, if you run `compare`).
 
-Scenes (the exact command lines are in `bench.py`):
+Scenes (the exact command lines are in `bench.py`; they are converted to the named flags for commits that understand them, and older commits get the old positional arguments, so every commit renders the same image):
 - `sp`: single precision.
 - `hp`: high precision (fixed-point).
 

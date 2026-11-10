@@ -60,25 +60,3 @@ export function chooseFractionWords(viewportWidth: Decimal, canvasWidthPx: numbe
 export function minViewportWidth(fractionWords: number, canvasWidthPx: number): Decimal {
   return resolution(fractionWords).mul(SAFETY_STEPS_PER_PIXEL).mul(canvasWidthPx);
 }
-
-// ---------------------------------------------------------------------------------------------------------
-// Conversion between Decimal and the backend's fixed-point words: 1 whole word followed by `fractionWords`
-// fraction words, most significant first, 32 bits each, two's complement (the same layout as the C++ library).
-// ---------------------------------------------------------------------------------------------------------
-
-// Converts to fixed point, truncating toward zero like the C++ conversion does.
-export function decimalToFixedWords(value: Decimal, fractionWords: number): number[] {
-  const totalBits = BigInt(32 * (fractionWords + 1));
-  const scaled = value.abs().mul(Decimal.pow(2, 32 * fractionWords)).trunc();
-  let raw = BigInt(scaled.toFixed(0));
-  if (value.isNegative()) {
-    raw = -raw;
-  }
-  raw &= (1n << totalBits) - 1n;   // two's complement within the format's width
-
-  const words: number[] = [];
-  for (let i = fractionWords; i >= 0; i--) {
-    words.push(Number((raw >> BigInt(32 * i)) & 0xFFFFFFFFn));
-  }
-  return words;
-}

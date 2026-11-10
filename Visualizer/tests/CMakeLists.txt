@@ -32,6 +32,7 @@ add_executable(fpa_tests
     test_cross_format.cpp
     test_random_range.cpp
     test_known_bugs.cpp
+    test_decimal.cpp
 )
 target_link_libraries(fpa_tests PRIVATE fpa GTest::gtest_main)
 target_compile_definitions(fpa_tests PRIVATE FPA_VECTOR_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/vectors\")
@@ -39,5 +40,24 @@ if(NOT MSVC)
     target_compile_options(fpa_tests PRIVATE -Wall -Wextra)
 endif()
 
+# Tests of the render request (parsing and validation of the JSON request and the command-line flags). They
+# compile src/Request.cpp directly, so they need neither the GPU backends nor the HTTP client.
+add_executable(request_tests
+    test_request.cpp
+    ../src/Request.cpp
+)
+target_include_directories(request_tests PRIVATE
+    ../src
+    ../src/calculators
+    ../src/color
+    ../src/math
+)
+target_link_libraries(request_tests PRIVATE fpa nlohmann_json::nlohmann_json GTest::gtest_main)
+target_compile_features(request_tests PRIVATE cxx_std_17)
+if(NOT MSVC)
+    target_compile_options(request_tests PRIVATE -Wall -Wextra)
+endif()
+
 include(GoogleTest)
 gtest_discover_tests(fpa_tests DISCOVERY_TIMEOUT 120)
+gtest_discover_tests(request_tests DISCOVERY_TIMEOUT 120)

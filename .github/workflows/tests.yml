@@ -49,7 +49,7 @@ jobs:
           -DFPA_SANITIZE=${{ matrix.sanitize }}
 
       - name: Build tests
-        run: cmake --build build --target fpa_tests --parallel
+        run: cmake --build build --target fpa_tests request_tests --parallel
 
       - name: Run tests
         run: ctest --test-dir build --output-on-failure --parallel
