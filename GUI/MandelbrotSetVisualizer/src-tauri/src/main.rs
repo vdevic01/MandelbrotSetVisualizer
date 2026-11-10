@@ -170,6 +170,9 @@ async fn generate_mandelbrot(
     palette_id: i32, samples: i32,
     escape_radius: f64,
     color_spread: f64,
+    histogram: bool,
+    histogram_phase: f64,
+    histogram_cycles: f64,
     output_filename: Option<String>,
     width: Option<i32>, height: Option<i32>,
 ) -> Result<String, String> {
@@ -188,6 +191,13 @@ async fn generate_mandelbrot(
     args.push(escape_radius.to_string());
     args.push("--color-spread".to_string());
     args.push(color_spread.to_string());
+    if histogram {
+        args.push("--histogram".to_string());
+        args.push("--histogram-phase".to_string());
+        args.push(histogram_phase.to_string());
+        args.push("--histogram-cycles".to_string());
+        args.push(histogram_cycles.to_string());
+    }
     run_sidecar(args, env).await
 }
 
@@ -201,6 +211,9 @@ async fn generate_mandelbrot_hp(
     palette_id: i32, samples: i32,
     escape_radius: f64,
     color_spread: f64,
+    histogram: bool,
+    histogram_phase: f64,
+    histogram_cycles: f64,
     output_filename: Option<String>,
     width: Option<i32>, height: Option<i32>,
 ) -> Result<String, String> {
@@ -233,6 +246,13 @@ async fn generate_mandelbrot_hp(
     args.push(escape_radius.to_string());
     args.push("--color-spread".to_string());
     args.push(color_spread.to_string());
+    if histogram {
+        args.push("--histogram".to_string());
+        args.push("--histogram-phase".to_string());
+        args.push(histogram_phase.to_string());
+        args.push("--histogram-cycles".to_string());
+        args.push(histogram_cycles.to_string());
+    }
     run_sidecar(args, env).await
 }
 

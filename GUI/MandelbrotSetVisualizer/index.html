@@ -59,6 +59,14 @@
         </div>
         <hr>
         <div class="section">
+          <label><input type="checkbox" id="input-histogram"> Histogram coloring (test)</label>
+          <label for="input-histogram-phase">Phase:</label>
+          <input value="0" class="form-field" type="range" id="input-histogram-phase" min="0" max="1" step="0.01" disabled>
+          <label for="input-histogram-cycles">Cycles:</label>
+          <input value="1" class="form-field" type="range" id="input-histogram-cycles" min="1" max="20" step="0.5" disabled>
+        </div>
+        <hr>
+        <div class="section">
           <label for="input-samples">Samples:</label>
           <input value="1" class="form-field" type="number" id="input-samples">
           <div class="button-row">
