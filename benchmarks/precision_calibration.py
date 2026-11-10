@@ -92,14 +92,6 @@ def read_png(path):
     return out.reshape(height, width, channels)
 
 
-def to_words(x, fraction_words):
-    """Exact two's-complement fixed-point words (most significant first) of a Fraction."""
-    n = fraction_words + 1
-    raw = (x.numerator * (1 << (32 * fraction_words))) // x.denominator
-    raw &= (1 << (32 * n)) - 1
-    return [str((raw >> (32 * i)) & 0xFFFFFFFF) for i in reversed(range(n))]
-
-
 def decimal_text(x):
     return str(Decimal(x.numerator) / Decimal(x.denominator))
 
@@ -114,13 +106,12 @@ class Renderer:
         bounds = (cx - half_w, cx + half_w, cy - half_h, cy + half_h)
         with tempfile.TemporaryDirectory() as tmp:
             png = os.path.join(tmp, "out.png")
-            args = [self.exe, "CPU_PARALLEL", png, str(self.max_iter), "512", "0", "1",
-                    "0" if fraction_words is None else "1"]
-            for v in bounds:
-                args += [decimal_text(v)] if fraction_words is None else to_words(v, fraction_words)
-            args += [str(self.w), str(self.h)]
-            if fraction_words is not None:
-                args += ["--fraction-words", str(fraction_words)]
+            # The bounds go in as decimal text: the renderer converts them to fixed point exactly.
+            args = [self.exe, "--mode", "CPU_PARALLEL", "--output", png, "--max-iter", str(self.max_iter),
+                    "--palette-length", "512", "--samples", "1", "--size", "%dx%d" % (self.w, self.h),
+                    "--re=%s:%s" % (decimal_text(bounds[0]), decimal_text(bounds[1])),
+                    "--im=%s:%s" % (decimal_text(bounds[2]), decimal_text(bounds[3]))]
+            args += ["--precision", "double"] if fraction_words is None else ["--precision", "fixed", "--fraction-words", str(fraction_words)]
             run = subprocess.run(args, capture_output=True, text=True)
             if run.returncode != 0:
                 sys.exit("renderer failed: " + (run.stdout + run.stderr)[-300:])

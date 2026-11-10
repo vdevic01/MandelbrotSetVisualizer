@@ -23,6 +23,7 @@ the laptop on mains power while benchmarking.
 import argparse
 import contextlib
 import datetime
+import decimal
 import glob
 import html
 import json
@@ -49,9 +50,11 @@ EXE_NAME = TARGET + (".exe" if os.name == "nt" else "")
 STAGE_LINE = re.compile(r"^(.+?):\s+(\d+) ms\s*$")
 
 # ----------------------------------------------------------------------------------------------- scenes
-# Fixed command lines, so every commit renders exactly the same thing. "{out}" is replaced by a
-# temporary output file. Argument order: MODE OUTPUT MAX_ITER PALETTE_LENGTH PALETTE_ID SAMPLES USE_HP
-# RE_START RE_END IM_START IM_END WIDTH HEIGHT (high precision bounds are 4 words each).
+# Fixed scenes, so every commit renders exactly the same thing. They are written in the positional format that
+# older commits understand: "{out}" is replaced by a temporary output file, and the order is
+# MODE OUTPUT MAX_ITER PALETTE_LENGTH PALETTE_ID SAMPLES USE_HP RE_START RE_END IM_START IM_END WIDTH HEIGHT
+# (high precision bounds are 4 words each). Newer commits take named flags instead (--help); scene_args()
+# converts a scene to them, so both formats render the same image.
 SCENES = {
     "sp": ["CPU_PARALLEL", "{out}", "2000", "512", "0", "4", "0",
            "-0.153004885037500013708", "-0.152809695287500013708",
@@ -64,7 +67,38 @@ SCENES = {
 }
 
 
-def scene_args(scene, output_png):
+def words_to_decimal(words):
+    """Exact decimal text of 1 whole + 3 fraction words of 32 bits (two's complement, most significant first)."""
+    raw = 0
+    for w in words:
+        raw = (raw << 32) | int(w)
+    if raw >> (32 * len(words) - 1):
+        raw -= 1 << (32 * len(words))
+    with decimal.localcontext() as ctx:
+        ctx.prec = 200
+        return format(decimal.Decimal(raw) / decimal.Decimal(2 ** (32 * (len(words) - 1))), "f")
+
+
+def named_scene_args(positional, output_png):
+    """The same scene as named flags."""
+    mode, _out, max_iter, palette_length, palette, samples, use_hp, *rest = positional
+    if use_hp == "0":
+        re_start, re_end, im_start, im_end, width, height = rest
+        precision = ["--precision", "double"]
+    else:
+        coordinates = [words_to_decimal(rest[i:i + 4]) for i in range(0, 16, 4)]
+        re_start, re_end, im_start, im_end = coordinates
+        width, height = rest[16:18]
+        precision = ["--precision", "fixed", "--fraction-words", "3"]
+    return ["--mode", mode, "--output", str(output_png), "--max-iter", max_iter, "--palette-length", palette_length,
+            "--palette", palette, "--samples", samples, *precision,
+            "--re=%s:%s" % (re_start, re_end), "--im=%s:%s" % (im_start, im_end), "--size", "%sx%s" % (width, height)]
+
+
+def scene_args(scene, output_png, named_flags):
+    """The command line of a scene for an executable that takes named flags (new) or positional arguments (old)."""
+    if named_flags:
+        return named_scene_args(SCENES[scene], output_png)
     return [str(output_png) if a == "{out}" else a for a in SCENES[scene]]
 
 
@@ -113,7 +147,7 @@ def remove_tree(path):
 
 @contextlib.contextmanager
 def built_executable(commit, cmake, extra_path):
-    """Builds `commit` in Release mode inside a temporary folder and yields the executable.
+    """Builds `commit` in Release mode inside a temporary folder and yields (executable, takes_named_flags).
 
     The commit is checked out into a temporary git worktree (your working folder is never touched). On
     exit - also on errors and Ctrl+C - the worktree and the whole temporary folder are deleted.
@@ -133,7 +167,8 @@ def built_executable(commit, cmake, extra_path):
         exe = next(iter(bld.rglob(EXE_NAME)), None)
         if not exe:
             sys.exit("built %s but could not find the executable under %s" % (TARGET, bld))
-        yield exe
+        # Commits from before the named flags (Request.cpp) take positional arguments.
+        yield exe, (src / "Visualizer" / "src" / "Request.cpp").exists()
     finally:
         subprocess.run(["git", "worktree", "remove", "--force", str(src)], cwd=REPO, check=False, capture_output=True)
         remove_tree(tmp)
@@ -142,9 +177,9 @@ def built_executable(commit, cmake, extra_path):
 
 
 # ----------------------------------------------------------------------------------------------- running
-def run_once(exe, scene):
+def run_once(exe, scene, named_flags):
     with tempfile.TemporaryDirectory() as tmp:
-        proc = subprocess.run([str(exe), *scene_args(scene, Path(tmp) / "out.png")], capture_output=True, text=True)
+        proc = subprocess.run([str(exe), *scene_args(scene, Path(tmp) / "out.png", named_flags)], capture_output=True, text=True)
     if proc.returncode != 0:
         sys.exit("run failed (exit %d):\n%s%s" % (proc.returncode, proc.stdout, proc.stderr))
     stages = {}
@@ -195,15 +230,15 @@ def cmd_run(args):
         "settings": {"runs": args.runs, "discarded_runs": args.discard},
         "scenes": {},
     }
-    with built_executable(commit, cmake, extra_path) as exe:
+    with built_executable(commit, cmake, extra_path) as (exe, named_flags):
         for scene in args.scenes:
             print("scene '%s': %d runs (first %d discarded)" % (scene, args.runs, args.discard), flush=True)
             per_run = []
             for i in range(args.runs):
-                per_run.append(run_once(exe, scene))
+                per_run.append(run_once(exe, scene, named_flags))
                 print("  run %2d: %s" % (i + 1, ", ".join("%s=%d" % kv for kv in per_run[-1].items() if "Calculating" in kv[0])),
                       flush=True)
-            report["scenes"][scene] = {"arguments": SCENES[scene], "stages": summarize(per_run, args.discard)}
+            report["scenes"][scene] = {"arguments": scene_args(scene, "{out}", named_flags), "stages": summarize(per_run, args.discard)}
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     report_path.write_text(json.dumps(report, indent=2) + "\n")
