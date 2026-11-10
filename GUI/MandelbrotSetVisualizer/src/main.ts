@@ -132,7 +132,7 @@ class BoundaryManager{
   private paletteId: number = 0;
   private samples: number = 1;
   private escapeRadius: number = 2;
-  private colorSpread: number = 0.05;
+  private colorSpread: number = 0;
   private histogram: boolean = false;
   private histogramPhase: number = 0;
   private histogramCycles: number = 1;
@@ -520,8 +520,6 @@ class BoundaryManager{
   public reset(){
     this.maxIter = 700;
     this.paletteLength = 250;
-    this.escapeRadius = 2;
-    this.colorSpread = 0.05;
     this.highPrecission = false;
     this.lowPrecissionBoundary = {...this.startingBoundary};
     this.generateMandelbrot();
@@ -624,10 +622,6 @@ window.addEventListener("DOMContentLoaded", async () => {
     boundaryManager.reset();
     inputMaxIter.value = "700";
     inputPaletteLength.value = "250";
-    inputEscapeRadius.value = "2";
-    buttonEscapeRadiusCancel.disabled = true;
-    inputColorSpread.value = "0.05";
-    buttonColorSpreadCancel.disabled = true;
   });
   document.getElementById("button-color-spread")?.addEventListener("click", () => {
     // The renderer accepts 0 to 10 (see the README); keep the field in that range.
