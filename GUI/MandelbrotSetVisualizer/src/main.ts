@@ -132,7 +132,10 @@ class BoundaryManager{
   private paletteId: number = 0;
   private samples: number = 1;
   private escapeRadius: number = 2;
-  private colorSpread: number = 0.05;
+  private colorSpread: number = 0;
+  private histogram: boolean = false;
+  private histogramPhase: number = 0;
+  private histogramCycles: number = 1;
   private mode: string = 'CPU_PARALLEL';
   private static imgUrl: string;
 
@@ -195,6 +198,30 @@ class BoundaryManager{
   }
   public getColorSpread(): number{
     return this.colorSpread;
+  }
+  public setHistogramCycles(cycles: number){
+    this.histogramCycles = cycles;
+    if(this.highPrecission){
+      this.generateMandelbrotHighPrecission();
+    }else{
+      this.generateMandelbrot();
+    }
+  }
+  public setHistogramPhase(phase: number){
+    this.histogramPhase = phase;
+    if(this.highPrecission){
+      this.generateMandelbrotHighPrecission();
+    }else{
+      this.generateMandelbrot();
+    }
+  }
+  public setHistogram(histogram: boolean){
+    this.histogram = histogram;
+    if(this.highPrecission){
+      this.generateMandelbrotHighPrecission();
+    }else{
+      this.generateMandelbrot();
+    }
   }
   public getMaxIter(): number{
     return this.maxIter;
@@ -343,7 +370,10 @@ class BoundaryManager{
       paletteId: this.paletteId,
       samples: this.samples,
       escapeRadius: this.escapeRadius,
-      colorSpread: this.colorSpread
+      colorSpread: this.colorSpread,
+      histogram: this.histogram,
+      histogramPhase: this.histogramPhase,
+      histogramCycles: this.histogramCycles
     };
     const width = Math.abs(this.lowPrecissionBoundary.reEnd - this.lowPrecissionBoundary.reStart);
     await this.render("generate_mandelbrot", args, {
@@ -375,7 +405,10 @@ class BoundaryManager{
       paletteId: this.paletteId,
       samples: this.samples,
       escapeRadius: this.escapeRadius,
-      colorSpread: this.colorSpread
+      colorSpread: this.colorSpread,
+      histogram: this.histogram,
+      histogramPhase: this.histogramPhase,
+      histogramCycles: this.histogramCycles
     };
     const info: RenderInfo = {
       precision: `fixed point · ${fractionWords} words (~${fractionDigits(fractionWords)} digits)`,
@@ -439,6 +472,9 @@ class BoundaryManager{
         samples: this.samples,
         escapeRadius: this.escapeRadius,
         colorSpread: this.colorSpread,
+        histogram: this.histogram,
+        histogramPhase: this.histogramPhase,
+        histogramCycles: this.histogramCycles,
         ...extra
       });
     }
@@ -484,8 +520,6 @@ class BoundaryManager{
   public reset(){
     this.maxIter = 700;
     this.paletteLength = 250;
-    this.escapeRadius = 2;
-    this.colorSpread = 0.05;
     this.highPrecission = false;
     this.lowPrecissionBoundary = {...this.startingBoundary};
     this.generateMandelbrot();
@@ -588,10 +622,6 @@ window.addEventListener("DOMContentLoaded", async () => {
     boundaryManager.reset();
     inputMaxIter.value = "700";
     inputPaletteLength.value = "250";
-    inputEscapeRadius.value = "2";
-    buttonEscapeRadiusCancel.disabled = true;
-    inputColorSpread.value = "0.05";
-    buttonColorSpreadCancel.disabled = true;
   });
   document.getElementById("button-color-spread")?.addEventListener("click", () => {
     // The renderer accepts 0 to 10 (see the README); keep the field in that range.
@@ -604,6 +634,29 @@ window.addEventListener("DOMContentLoaded", async () => {
   buttonColorSpreadCancel.addEventListener("click", () => {
     inputColorSpread.value = boundaryManager.getColorSpread().toString();
     buttonColorSpreadCancel.disabled = true;
+  });
+  // Histogram colouring ignores the palette length, escape radius and colour spread, and only it uses the phase.
+  const histogramPhaseInput = document.getElementById("input-histogram-phase") as HTMLInputElement;
+  const histogramCyclesInput = document.getElementById("input-histogram-cycles") as HTMLInputElement;
+  document.getElementById("input-histogram")?.addEventListener("change", (e) => {
+    const on = (e.target as HTMLInputElement).checked;
+    for (const id of ["input-palette-length", "button-palette-length", "input-escape-radius", "button-escape-radius",
+                      "input-color-spread", "button-color-spread"]) {
+      (document.getElementById(id) as HTMLInputElement | HTMLButtonElement).disabled = on;
+    }
+    // The Cancel buttons are only needed while a field has an unapplied edit.
+    buttonPaletteLengthCancel.disabled = true;
+    buttonEscapeRadiusCancel.disabled = true;
+    buttonColorSpreadCancel.disabled = true;
+    histogramPhaseInput.disabled = !on;
+    histogramCyclesInput.disabled = !on;
+    boundaryManager.setHistogram(on);
+  });
+  histogramCyclesInput.addEventListener("change", () => {
+    boundaryManager.setHistogramCycles(parseFloat(histogramCyclesInput.value));
+  });
+  histogramPhaseInput.addEventListener("change", () => {
+    boundaryManager.setHistogramPhase(parseFloat(histogramPhaseInput.value));
   });
   inputColorSpread.addEventListener("input", () => {
     buttonColorSpreadCancel.disabled = false;

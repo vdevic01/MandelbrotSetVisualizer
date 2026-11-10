@@ -35,10 +35,14 @@ private:
 
 class HistogramColorPalette : public ColorManager {
 public:
-    HistogramColorPalette(int imageSize, int maxIter, std::vector<Color> colors, int samples);
+    // Colours by histogram equalisation of the smooth values (see paint). length is the resolution of the palette.
+    // phase (0..1) is where in the palette the first sample starts; the palette wraps around from its end to its start.
+    // cycles is how many times the palette repeats from the lowest to the highest value.
+    HistogramColorPalette(int imageSize, std::vector<Color> colors, int length, int samples, double phase = 0.0, double cycles = 1.0);
     [[nodiscard]] std::vector<Color> paint(const EscapeResult& escape, double escapeRadius) const override;
 private:
-    static Color interpolateColor(Color& l, Color& r, double val);
-    int maxIter;
     std::vector<Color> colors;
+    double length;
+    double phase;
+    double cycles;
 };

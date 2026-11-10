@@ -25,34 +25,67 @@ body{
   flex-direction: column;
 }
 .sidebar{
-  width: 300px;
-  min-width: 300px;
+  width: 480px;
+  min-width: 480px;
   background-color: #0f0f0f;
   height: 100vh;
   display: flex;
   flex-direction: column;
-  overflow-y: scroll;
+  overflow-y: auto;
   box-sizing: border-box;
+}
+.sidebar-columns{
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  flex-grow: 1;
+  align-content: start;
+}
+.sidebar-column{
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 12px 16px;
+}
+.sidebar-column + .sidebar-column{
+  border-left: 1px solid #222;
+}
+.column-title{
+  margin: 0 0 10px 0;
+  font-size: 0.7rem;
+  line-height: 16px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #8b8b95;
 }
 .sidebar .section{
   display: flex;
   flex-direction: column;
 }
-.sidebar > *{
-  margin: 20px;
-}
-.sidebar > hr{
-  margin: 0px 20px;
+.sidebar-column > hr{
+  width: 100%;
+  margin: 10px 0;
+  box-sizing: border-box;
 }
 .sidebar-footer{
-  flex-grow: 1;
   display: flex;
-  flex-direction: column-reverse;
+  flex-direction: row;
+  gap: 8px;
+  padding: 0 16px 12px 16px;
+}
+.sidebar-footer button{
+  flex: 1;
+  margin-top: 0;
+}
+.checkbox-label{
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 .form-field {
   appearance: none;
-  padding: 0.5rem 1rem;
-  font-size: 1rem;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.9rem;
   border-radius: 2px;
   outline: none;
   min-width: 70px;
@@ -63,9 +96,9 @@ body{
 }
 
 button{
-  margin-top: 10px;
-  padding: 0.5rem 1rem;
-  font-size: 1rem;
+  margin-top: 6px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.9rem;
   border-radius: 2px;
   outline: none;
 }
@@ -79,12 +112,15 @@ button:not(:disabled):hover{
 }
 .button-row{
   display: flex;
+  gap: 6px;
 }
 .button-row > *{
   flex-grow: 1;
 }
 label{
-  margin-bottom: 5px;
+  margin-bottom: 3px;
+  font-size: 0.9rem;
+  line-height: 20px;
 }
 #app-view {
   display: flex;
@@ -230,4 +266,11 @@ label{
 /* A canvas is an inline element, which leaves a few pixels of descender space below it. */
 #main-canvas canvas {
   display: block;
+}
+
+/* Range sliders need their native track; the text-field styling above would reduce them to a thumb. */
+input[type="range"].form-field {
+  appearance: auto;
+  padding: 0;
+  margin: 2px 0 8px 0;
 }

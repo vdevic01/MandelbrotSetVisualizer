@@ -44,6 +44,9 @@ struct MandelbrotConfig {
     int paletteId     = 0;
     double escapeRadius = DEFAULT_ESCAPE_RADIUS;   // iteration stops once |z| is above this (--escape-radius)
     double colorSpread  = 0.0;                     // logarithmic spread of the colours, 0 = linear (--color-spread)
+    bool histogram      = false;                   // colour by histogram equalisation instead (--histogram)
+    double histogramPhase = 0.0;                   // where in the palette histogram colouring starts, 0..1 (--histogram-phase)
+    double histogramCycles = 1.0;                  // how many times the palette repeats in histogram colouring (--histogram-cycles)
 };
 
 constexpr double MAX_COLOR_SPREAD = 10.0;
@@ -191,11 +194,18 @@ optional<MandelbrotConfig> parseCommandLine(int argcIn, char* argvIn[]) {
     int fractionWords = fpa::FRACTION_PART;
     double escapeRadius = DEFAULT_ESCAPE_RADIUS;
     double colorSpread = 0.0;
+    bool histogram = false;
+    double histogramPhase = 0.0;
+    double histogramCycles = 1.0;
     vector<char*> positional;
     for (int i = 0; i < argcIn; i++) {
         const string arg = argvIn[i];
+        if (arg == "--histogram") {
+            histogram = true;
+            continue;
+        }
         string flag;
-        for (const char* known : {"--fraction-words", "--escape-radius", "--color-spread"}) {
+        for (const char* known : {"--fraction-words", "--escape-radius", "--color-spread", "--histogram-phase", "--histogram-cycles"}) {
             if (arg == known || arg.rfind(string(known) + "=", 0) == 0) flag = known;
         }
         if (flag.empty()) {
@@ -216,6 +226,8 @@ optional<MandelbrotConfig> parseCommandLine(int argcIn, char* argvIn[]) {
             size_t parsed = 0;
             if (flag == "--fraction-words") fractionWords = stoi(value, &parsed);
             else if (flag == "--color-spread") colorSpread = stod(value, &parsed);
+            else if (flag == "--histogram-phase") histogramPhase = stod(value, &parsed);
+            else if (flag == "--histogram-cycles") histogramCycles = stod(value, &parsed);
             else                            escapeRadius  = stod(value, &parsed);
             if (parsed != value.size()) throw invalid_argument("not a number");
         } catch (const exception&) {
@@ -232,6 +244,14 @@ optional<MandelbrotConfig> parseCommandLine(int argcIn, char* argvIn[]) {
                  << MAX_ESCAPE_RADIUS << ", got " << value << ".\n";
             return nullopt;
         }
+        if (!(histogramCycles > 0.0 && histogramCycles <= 1000.0)) {   // also rejects NaN
+            cerr << "Error: --histogram-cycles must be above 0 and at most 1000, got " << value << ".\n";
+            return nullopt;
+        }
+        if (!(histogramPhase >= 0.0 && histogramPhase <= 1.0)) {   // also rejects NaN
+            cerr << "Error: --histogram-phase must be between 0 and 1, got " << value << ".\n";
+            return nullopt;
+        }
         if (!(colorSpread >= 0.0 && colorSpread <= MAX_COLOR_SPREAD)) {   // also rejects NaN
             cerr << "Error: --color-spread must be between 0 and " << MAX_COLOR_SPREAD << ", got " << value << ".\n";
             return nullopt;
@@ -244,6 +264,9 @@ optional<MandelbrotConfig> parseCommandLine(int argcIn, char* argvIn[]) {
     config.fractionWords = fractionWords;
     config.escapeRadius = escapeRadius;
     config.colorSpread = colorSpread;
+    config.histogram = histogram;
+    config.histogramPhase = histogramPhase;
+    config.histogramCycles = histogramCycles;
     if (argc > 1) {
         try {
             constexpr int W = 36;
@@ -345,13 +368,14 @@ optional<MandelbrotConfig> parseCommandLine(int argcIn, char* argvIn[]) {
             cout << left << setw(W) << "Image size:" << config.imageWidth << "x" << config.imageHeight << "\n";
             cout << left << setw(W) << "Escape radius:" << config.escapeRadius << "\n";
             cout << left << setw(W) << "Color spread:" << config.colorSpread << "\n";
+            cout << left << setw(W) << "Histogram coloring:" << boolalpha << config.histogram << noboolalpha << "\n";
         }
         catch (const exception& e) {
             cerr << "Error parsing arguments: " << e.what() << "\n";
             cerr << "Usage: " << argv[0]
                  << " <MODE> <OUTPUT_FILE> <MAX_ITER> <PALETTE_LENGTH> <PALETTE_ID>"
                     " <SAMPLES> <USE_HP(0/1)> <RE_START> <RE_END> <IM_START> <IM_END>"
-                    " [WIDTH HEIGHT] [--fraction-words N] [--escape-radius R] [--color-spread S]\n"
+                    " [WIDTH HEIGHT] [--fraction-words N] [--escape-radius R] [--color-spread S] [--histogram [--histogram-phase P] [--histogram-cycles C]]\n"
                  << "  --color-spread S: spread the colours with a logarithm (default 0 = off, range 0.." << MAX_COLOR_SPREAD << ").\n"
                  << "  MODE: CPU_PARALLEL | OPENCL_LOCAL | CUDA_LOCAL | CUDA_REMOTE\n"
                  << "  --escape-radius R: stop iterating once |z| > R (default " << DEFAULT_ESCAPE_RADIUS << ", range "
@@ -418,12 +442,15 @@ int main(int argc, char* argv[]) {
     if (!configOpt) return 1;
 
     const MandelbrotConfig config = configOpt.value();
-    const CyclicColorPalette colorManager(
-        config.imageHeight * config.imageWidth,
-        palettes[config.paletteId],
-        config.paletteLength,
-        config.samples,
-        config.colorSpread);
+    const int imageSize = config.imageHeight * config.imageWidth;
+    unique_ptr<ColorManager> colorManagerPtr;
+    if (config.histogram)
+        colorManagerPtr = make_unique<HistogramColorPalette>(
+            imageSize, palettes[config.paletteId], config.paletteLength, config.samples, config.histogramPhase, config.histogramCycles);
+    else
+        colorManagerPtr = make_unique<CyclicColorPalette>(
+            imageSize, palettes[config.paletteId], config.paletteLength, config.samples, config.colorSpread);
+    const ColorManager& colorManager = *colorManagerPtr;
 
     try {
         if (config.mode == Mode::CUDA_REMOTE) {
