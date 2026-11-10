@@ -76,6 +76,12 @@ body{
 .sidebar-footer button{
   flex: 1;
   margin-top: 0;
+  padding-left: 0.3rem;
+  padding-right: 0.3rem;
+  white-space: nowrap;
+}
+#button-export{
+  flex: 1.5;
 }
 .checkbox-label{
   display: flex;

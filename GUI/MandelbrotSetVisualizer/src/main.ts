@@ -23,6 +23,17 @@ type HighPrecissionBoundary = {
   imEnd: Decimal
 }
 
+// Where the view was: everything that decides which part of the plane is shown, so that undo can go back to it
+// whether the view was in double precision or in fixed point.
+type View = {
+  low: Boundary,
+  high?: HighPrecissionBoundary,
+  highPrecission: boolean
+}
+
+// How many earlier views undo can go back through.
+const MAX_UNDO_VIEWS = 100;
+
 // ---------------------------------------------------------------------------------------------------------
 // Status bar above the canvas: the precision of the last render, the scale of the view, how long the render took,
 // what the remote worker answered, and a message line for warnings and errors.
@@ -119,6 +130,8 @@ class BoundaryManager{
   private lowPrecissionBoundary: Boundary;
   private highPrecissionBoundary?: HighPrecissionBoundary;
   private highPrecission: boolean = false;
+  private viewHistory: View[] = [];                 // earlier views, the most recent last
+  private onUndoChange?: (canUndo: boolean) => void;
   private boxSidesRatio: number[];
   private pressX: number = -1;
   private pressY: number = -1;
@@ -350,7 +363,51 @@ class BoundaryManager{
     }
   }
 
+  // --- Undo: the views before the current one. Only the view is restored; iterations, palette and the other
+  // settings stay as they are.
+
+  private currentView(): View {
+    // The boundaries are replaced, never changed in place, so keeping the Decimal object itself is safe.
+    return { low: {...this.lowPrecissionBoundary}, high: this.highPrecissionBoundary, highPrecission: this.highPrecission };
+  }
+
+  // Call before the view changes.
+  private rememberView(){
+    this.viewHistory.push(this.currentView());
+    if(this.viewHistory.length > MAX_UNDO_VIEWS){
+      this.viewHistory.shift();
+    }
+    this.onUndoChange?.(true);
+  }
+
+  public canUndo(): boolean {
+    return this.viewHistory.length > 0;
+  }
+
+  // Tells the caller (the Undo button) whenever undo becomes possible or impossible.
+  public setUndoListener(listener: (canUndo: boolean) => void){
+    this.onUndoChange = listener;
+    listener(this.canUndo());
+  }
+
+  public undo(){
+    const previous = this.viewHistory.pop();
+    if(!previous){
+      return;
+    }
+    this.lowPrecissionBoundary = {...previous.low};
+    this.highPrecissionBoundary = previous.high;
+    this.highPrecission = previous.highPrecission;
+    this.onUndoChange?.(this.canUndo());
+    if(this.highPrecission){
+      this.generateMandelbrotHighPrecission();
+    }else{
+      this.generateMandelbrot();
+    }
+  }
+
   public updateBoundary(releaseX: number, releaseY: number){
+    this.rememberView();
     this.releaseX = releaseX;
     this.releaseY = releaseY;
     if(this.highPrecission){
@@ -520,6 +577,11 @@ class BoundaryManager{
   public reset(){
     this.maxIter = 700;
     this.paletteLength = 250;
+    // Resetting changes the view too, so it can be undone (unless the view is already the starting one).
+    const atStart = !this.highPrecission && JSON.stringify(this.lowPrecissionBoundary) === JSON.stringify(this.startingBoundary);
+    if(!atStart){
+      this.rememberView();
+    }
     this.highPrecission = false;
     this.lowPrecissionBoundary = {...this.startingBoundary};
     this.generateMandelbrot();
@@ -618,6 +680,19 @@ window.addEventListener("DOMContentLoaded", async () => {
   const buttonPaletteLengthCancel: HTMLButtonElement = document.getElementById("button-palette-length-cancel") as HTMLButtonElement;
   const buttonSamplesCancel: HTMLButtonElement = document.getElementById("button-samples-cancel") as HTMLButtonElement;
   const buttonMaxIterCancel: HTMLButtonElement = document.getElementById("button-max-iter-cancel") as HTMLButtonElement;
+  // Undo: go back to the previous view. The button is only enabled while there is a view to go back to.
+  const buttonUndo = document.getElementById("button-undo") as HTMLButtonElement;
+  boundaryManager!.setUndoListener((canUndo) => { buttonUndo.disabled = !canUndo; });
+  buttonUndo.addEventListener("click", () => boundaryManager.undo());
+  document.addEventListener("keydown", (e) => {
+    if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== "z") return;
+    if (settingsOpen) return;
+    // In a text field Ctrl+Z undoes typing, as usual.
+    const target = e.target as HTMLElement | null;
+    if (target && (target.tagName === "TEXTAREA" || (target.tagName === "INPUT" && (target as HTMLInputElement).type !== "range" && (target as HTMLInputElement).type !== "checkbox"))) return;
+    e.preventDefault();
+    boundaryManager.undo();
+  });
   document.getElementById("button-reset")?.addEventListener("click", () => {
     boundaryManager.reset();
     inputMaxIter.value = "700";
