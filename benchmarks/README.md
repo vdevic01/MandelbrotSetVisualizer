@@ -12,12 +12,15 @@ Run from the repository root.
 python benchmarks/bench.py run                   # benchmark HEAD
 python benchmarks/bench.py run main              # any commit, branch or tag
 python benchmarks/bench.py run 8bfd514 --force   # rerun an old commit (overwrites its report)
-python benchmarks/bench.py compare main HEAD     # table + HTML chart (opens in the browser)
+python benchmarks/bench.py compare main HEAD     # build both, run them in turn, table + HTML chart
+python benchmarks/bench.py compare main HEAD --stored   # compare two reports of `run` (quick, less reliable)
 ```
 
-`compare` also writes `benchmarks/charts/compare-<old>-<new>.html`: per stage, old and new bars with a noise whisker and the % change (red = slower, green = faster, only when the change is above 5% and above the run-to-run noise). Use `--no-chart` for the table only, or `--no-open` to write the file without opening it.
+To find out whether a change made the program faster or slower, use `compare`. `run` is for keeping a record of one commit.
 
-Useful options for `run`: `--runs N` (default 10), `--discard N` (default 3), `--scenes sp hp`, `--cmake <path>`.
+`compare` also writes `benchmarks/charts/compare-<old>-<new>.html`: per stage, old and new bars with a noise whisker, the % change and its noise (red = slower, green = faster, only when the change is above 5% and above the noise). Use `--no-chart` for the table only, or `--no-open` to write the file without opening it.
+
+Useful options for `run` and `compare`: `--runs N` (default 10), `--discard N` (default 3), `--scenes sp hp`, `--cmake <path>`. `compare` keeps its measurement in `benchmarks/results/compare-<old>-<new>.json` and shows it again the next time; `--force` measures again.
 
 Only **committed** code is benchmarked. Commit first, then run.
 
@@ -29,6 +32,21 @@ Only **committed** code is benchmarked. Commit first, then run.
 
 Nothing is kept except the report (and the chart, if you run `compare`).
 
+## Why `compare` runs the two commits in turn
+
+The speed of a machine changes over minutes: it warms up and slows down, and other programs come and go. Two commits measured one after the other can therefore differ by tens of percent with no change in the code. This happened here: a commit that only touched fixed-point code showed the untouched single-precision scene as 40% slower, because the machine had slowed down between the two runs.
+
+So `compare` builds both commits first and then measures them round by round. A round runs the scene once with each build, and the order alternates (old, new / new, old / ...), so both builds see the same machine. For every stage the report gives:
+
+- **change**: the mean of the new build against the mean of the old one.
+- **noise**: the change is also computed inside every round; the noise is the spread (standard deviation) of those values. A change counts only when it is above 5% and above this noise.
+
+If the machine got more than 10% faster or slower between the first and the last rounds of a scene, the table and the chart say so. The change between the builds still holds in that case, but the times themselves are less reliable, so run it again when the machine is quiet.
+
+A scene whose code you did not change is a useful check: it should come out as "same".
+
+`compare --stored` skips all of this and compares two reports of `run`. Those were measured at different times, so only trust it when the machine was steady in between; the output carries a warning.
+
 Scenes (the exact command lines are in `bench.py`; they are converted to the named flags for commits that understand them, and older commits get the old positional arguments, so every commit renders the same image):
 - `sp`: single precision.
 - `hp`: high precision (fixed-point).
@@ -36,6 +54,8 @@ Scenes (the exact command lines are in `bench.py`; they are converted to the nam
 CMake is taken from `--cmake`, then `$CMAKE`, then `PATH`, then CLion's bundled one (together with its MinGW and Ninja).
 
 ## Report format
+
+Report of `run` (`benchmarks/results/<full commit hash>.json`):
 
 ```json
 {
@@ -58,10 +78,13 @@ CMake is taken from `--cmake`, then `$CMAKE`, then `PATH`, then CLion's bundled 
 }
 ```
 
+The report of `compare` (`benchmarks/results/compare-<old>-<new>.json`) holds, per scene, the same `stages` data for `old` and for `new`, plus `changes` (per stage: the change inside every round and its spread) and `drift_pct` (how much the machine sped up or slowed down during the scene).
+
 ## Getting reliable numbers
 
 - Close other heavy programs and keep the laptop plugged in.
-- Look at `stdev_ms` before trusting a small difference; a change within the noise is not a real change.
+- Use `compare` (without `--stored`) to judge a change; do not compare two `run` reports measured at different times.
+- Look at the noise before trusting a small difference; a change within the noise is not a real change.
 - Compare reports only from the same machine and the same settings.
 - To get historical data, rerun old commits with `run <hash>`; the report is named after the hash.
 

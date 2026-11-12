@@ -9,15 +9,23 @@ iterations: 6232 ms"), and stores a machine-readable report named after the comm
     python benchmarks/bench.py run                  # benchmark HEAD
     python benchmarks/bench.py run main             # benchmark any commit / branch / tag
     python benchmarks/bench.py run 8bfd514 --force  # re-run an old commit (overwrites its report)
-    python benchmarks/bench.py compare main HEAD    # table + HTML chart of the difference between two reports
+    python benchmarks/bench.py compare main HEAD    # build both, run them in turn, table + HTML chart
 
-Reports live in benchmarks/results/<full commit hash>.json and charts in benchmarks/charts/ (both git-ignored:
-timings are only comparable between runs on the same machine). Uncommitted changes are NOT benchmarked - commit first.
+Reports live in benchmarks/results/ and charts in benchmarks/charts/ (both git-ignored: timings are only
+comparable between runs on the same machine). Uncommitted changes are NOT benchmarked - commit first.
 
-Method: each scene is run `--runs` times; the first `--discard` runs are thrown away (caches, CPU clocks,
-page cache warm up) and the report's headline number is the mean of the remaining runs. Median, min, max and
-standard deviation are stored too, to judge how noisy a measurement was. Close other heavy programs and keep
-the laptop on mains power while benchmarking.
+Method of `run`: each scene is run `--runs` times; the first `--discard` runs are thrown away (caches, CPU
+clocks, page cache warm up) and the report's headline number is the mean of the remaining runs. Median, min,
+max and standard deviation are stored too, to judge how noisy a measurement was.
+
+Method of `compare`: the speed of a machine changes over minutes (temperature, background programs), so two
+commits measured one after the other can differ by tens of percent without any change in the code. `compare`
+therefore builds both commits first and then runs them in turn, round by round (old, new / new, old / ...),
+so both see the same machine. The change of every round is computed from the two runs of that round; the
+spread of those changes is the noise. `compare --stored` compares two reports of `run` instead: quick, but
+only as trustworthy as the machine was steady between the two runs.
+
+Close other heavy programs and keep the laptop on mains power while benchmarking.
 """
 
 import argparse
@@ -210,6 +218,15 @@ def summarize(per_run, discard):
     return out
 
 
+def commit_info(commit):
+    return {"commit": commit, "subject": git("log", "-1", "--format=%s", commit),
+            "commit_date": git("log", "-1", "--format=%cI", commit)}
+
+
+def machine_info():
+    return {"os": platform.platform(), "cpu": platform.processor(), "logical_cpus": os.cpu_count()}
+
+
 def cmd_run(args):
     if args.runs <= args.discard:
         sys.exit("--runs must be larger than --discard")
@@ -222,11 +239,9 @@ def cmd_run(args):
 
     cmake, extra_path = find_tools(args.cmake)
     report = {
-        "commit": commit,
-        "subject": git("log", "-1", "--format=%s", commit),
-        "commit_date": git("log", "-1", "--format=%cI", commit),
+        **commit_info(commit),
         "measured_at": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
-        "machine": {"os": platform.platform(), "cpu": platform.processor(), "logical_cpus": os.cpu_count()},
+        "machine": machine_info(),
         "settings": {"runs": args.runs, "discarded_runs": args.discard},
         "scenes": {},
     }
@@ -266,10 +281,143 @@ def percent_change(old, new):
     return (new - old) / old * 100 if old else 0.0
 
 
+# A change counts only when it is above this (in %) and above the noise.
+MIN_CHANGE = 5.0
+# Warn when the machine got this much (in %) faster or slower between the first and the last rounds.
+DRIFT_WARNING = 10.0
+DRIFT_STAGE = "Total generation time"
+
+
+def verdict(change, noise):
+    limit = max(MIN_CHANGE, noise)
+    return "slower" if change > limit else "faster" if change < -limit else "same"
+
+
+def paired_changes(old_runs, new_runs, discard):
+    """Per stage: the change of new against old, measured inside each kept round, and its spread (in %)."""
+    out = {}
+    for name in new_runs[0]:
+        pairs = [(o[name], n[name]) for o, n in zip(old_runs, new_runs) if name in o and name in n][discard:]
+        changes = [percent_change(o, n) for o, n in pairs if o]
+        if changes:
+            out[name] = {"stdev_change_pct": round(statistics.stdev(changes), 1) if len(changes) > 1 else 0.0,
+                         "per_round_change_pct": [round(c, 1) for c in changes]}
+    return out
+
+
+def machine_drift(old_runs, new_runs, discard):
+    """How much slower (+) or faster (-) the machine was in the last third of the kept rounds than in the first
+    third, in %. Both builds are added up per round, so a difference between the builds does not count."""
+    rounds = [o[DRIFT_STAGE] + n[DRIFT_STAGE] for o, n in zip(old_runs, new_runs)
+              if DRIFT_STAGE in o and DRIFT_STAGE in n][discard:]
+    if len(rounds) < 2:
+        return 0.0
+    third = max(1, len(rounds) // 3)
+    return round(percent_change(statistics.mean(rounds[:third]), statistics.mean(rounds[-third:])), 1)
+
+
+def measure_pair(old, new, args):
+    """Builds both commits, then runs them in turn on every scene. Returns the comparison report."""
+    cmake, extra_path = find_tools(args.cmake)
+    report = {
+        "kind": "interleaved",
+        "old": commit_info(old),
+        "new": commit_info(new),
+        "measured_at": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
+        "machine": machine_info(),
+        "settings": {"rounds": args.runs, "discarded_rounds": args.discard},
+        "scenes": {},
+    }
+    with built_executable(old, cmake, extra_path) as old_build, built_executable(new, cmake, extra_path) as new_build:
+        builds = {"old": old_build, "new": new_build}
+        for scene in args.scenes:
+            print("scene '%s': %d rounds of old + new (first %d discarded)" % (scene, args.runs, args.discard), flush=True)
+            per_run = {"old": [], "new": []}
+            for i in range(args.runs):
+                # Alternate who goes first, so neither build always runs on the warmer (or cooler) machine.
+                for side in (("old", "new") if i % 2 == 0 else ("new", "old")):
+                    exe, named_flags = builds[side]
+                    per_run[side].append(run_once(exe, scene, named_flags))
+                print("  round %2d: %s" % (i + 1, ", ".join(
+                    "%s %s=%d" % (side, name, value) for side in ("old", "new")
+                    for name, value in per_run[side][-1].items() if "Calculating" in name)), flush=True)
+            report["scenes"][scene] = {
+                "old": {"arguments": scene_args(scene, "{out}", builds["old"][1]), "stages": summarize(per_run["old"], args.discard)},
+                "new": {"arguments": scene_args(scene, "{out}", builds["new"][1]), "stages": summarize(per_run["new"], args.discard)},
+                "changes": paired_changes(per_run["old"], per_run["new"], args.discard),
+                "drift_pct": machine_drift(per_run["old"], per_run["new"], args.discard),
+            }
+    return report
+
+
+def drift_message(drift):
+    return ("the machine got %.0f%% %s during this scene. Old and new ran in turn, so the change between them still "
+            "holds, but the times themselves are less reliable; run it again for a clean result."
+            % (abs(drift), "slower" if drift > 0 else "faster"))
+
+
+def write_chart(a, b, args, paired=None):
+    if args.no_chart:
+        return
+    out = CHARTS_DIR / ("compare-%s-%s.html" % (a["commit"][:10], b["commit"][:10]))
+    CHARTS_DIR.mkdir(parents=True, exist_ok=True)
+    out.write_text(chart_html(a, b, paired), encoding="utf-8")
+    print()
+    print("chart: " + str(out.relative_to(REPO)))
+    if not args.no_open:
+        webbrowser.open(out.as_uri())
+
+
 def cmd_compare(args):
+    if args.stored:
+        return compare_stored(args)
+    if args.runs <= args.discard:
+        sys.exit("--runs must be larger than --discard")
+    old, new = resolve(args.old), resolve(args.new)
+    if old == new:
+        sys.exit("%s and %s are the same commit." % (args.old, args.new))
+    path = RESULTS_DIR / ("compare-%s-%s.json" % (old[:10], new[:10]))
+    if path.exists() and not args.force:
+        report = json.loads(path.read_text())
+        print("showing the stored comparison %s (use --force to measure again)\n" % path.relative_to(REPO))
+    else:
+        report = measure_pair(old, new, args)
+        RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(report, indent=2) + "\n")
+        print("\nsaved " + str(path.relative_to(REPO)))
+
+    print("old: %s  %s" % (report["old"]["commit"][:10], report["old"]["subject"]))
+    print("new: %s  %s" % (report["new"]["commit"][:10], report["new"]["subject"]))
+    print("%d rounds, old and new run in turn; the first %d discarded"
+          % (report["settings"]["rounds"], report["settings"]["discarded_rounds"]))
+    print()
+    print("%-6s %-36s %10s %10s %9s %8s" % ("scene", "stage", "old (ms)", "new (ms)", "change", "noise"))
+    for scene, data in report["scenes"].items():
+        for stage, nv in data["new"]["stages"].items():
+            ov, paired = data["old"]["stages"].get(stage), data["changes"].get(stage)
+            if not ov or not paired:
+                continue
+            change = percent_change(ov["mean_ms"], nv["mean_ms"])
+            print("%-6s %-36s %10.1f %10.1f %+8.1f%% %7.1f%%  %s" % (scene, stage, ov["mean_ms"], nv["mean_ms"], change,
+                                                                  paired["stdev_change_pct"], verdict(change, paired["stdev_change_pct"])))
+    for scene, data in report["scenes"].items():
+        if abs(data["drift_pct"]) > DRIFT_WARNING:
+            print("\nwarning, scene %s: %s" % (scene, drift_message(data["drift_pct"])))
+
+    # The chart takes the two sides in the shape of a `run` report.
+    sides = [{**report[side], "scenes": {scene: data[side] for scene, data in report["scenes"].items()}}
+             for side in ("old", "new")]
+    write_chart(sides[0], sides[1], args, report)
+
+
+def compare_stored(args):
+    """Compares two reports of `run`. They were measured at different times, so the machine may have differed."""
     a, b = load_report(args.old), load_report(args.new)
-    print("old: %s  %s" % (a["commit"][:10], a["subject"]))
-    print("new: %s  %s" % (b["commit"][:10], b["subject"]))
+    print("old: %s  %s  (measured %s)" % (a["commit"][:10], a["subject"], a.get("measured_at", "?")))
+    print("new: %s  %s  (measured %s)" % (b["commit"][:10], b["subject"], b.get("measured_at", "?")))
+    print()
+    print("warning: these two reports were measured at different times. If the machine was faster or slower for one")
+    print("of them, the difference below is not a difference in the code. Leave out --stored to measure them in turn.")
     print()
     print("%-6s %-36s %10s %10s %9s" % ("scene", "stage", "old (ms)", "new (ms)", "change"))
     for scene in b["scenes"]:
@@ -280,24 +428,23 @@ def cmd_compare(args):
             if ov:
                 print("%-6s %-36s %10.1f %10.1f %+8.1f%%" % (scene, stage, ov["mean_ms"], nv["mean_ms"],
                                                            percent_change(ov["mean_ms"], nv["mean_ms"])))
-    if not args.no_chart:
-        out = CHARTS_DIR / ("compare-%s-%s.html" % (a["commit"][:10], b["commit"][:10]))
-        CHARTS_DIR.mkdir(parents=True, exist_ok=True)
-        out.write_text(chart_html(a, b), encoding="utf-8")
-        print()
-        print("chart: " + str(out.relative_to(REPO)))
-        if not args.no_open:
-            webbrowser.open(out.as_uri())
+    write_chart(a, b, args)
 
 
-def chart_html(a, b):
-    """Self-contained HTML page (no dependencies): per stage, old vs new bars scaled so the whiskers fit."""
+def chart_html(a, b, paired=None):
+    """Self-contained HTML page (no dependencies): per stage, old vs new bars scaled so the whiskers fit.
+
+    `paired` is the report of an interleaved comparison (the noise is then the spread of the per-round changes);
+    without it, a and b are two separate `run` reports and the page says that they may not be comparable.
+    """
     esc = html.escape
     rows = []
     for scene, bdata in b["scenes"].items():
         if scene not in a["scenes"]:
             continue
         rows.append('<h2>%s precision</h2>' % ("High" if scene == "hp" else "Single" if scene == "sp" else esc(scene)))
+        if paired and abs(paired["scenes"][scene]["drift_pct"]) > DRIFT_WARNING:
+            rows.append('<p class="warn">Warning: %s</p>' % esc(drift_message(paired["scenes"][scene]["drift_pct"])))
         stages = bdata["stages"]
         # keep the order the program reports the stages in (it is stored in the report in that order)
         for stage in stages:
@@ -305,11 +452,14 @@ def chart_html(a, b):
             if not ov:
                 continue
             change = percent_change(ov["mean_ms"], nv["mean_ms"])
-            noise = max(ov["stdev_ms"] / ov["mean_ms"], nv["stdev_ms"] / nv["mean_ms"]) * 100 if ov["mean_ms"] and nv["mean_ms"] else 0
-            verdict = "slower" if change > max(5.0, noise) else "faster" if change < -max(5.0, noise) else "same"
+            if paired:
+                noise = paired["scenes"][scene]["changes"].get(stage, {}).get("stdev_change_pct", 0.0)
+            else:
+                noise = max(ov["stdev_ms"] / ov["mean_ms"], nv["stdev_ms"] / nv["mean_ms"]) * 100 if ov["mean_ms"] and nv["mean_ms"] else 0
+            result = verdict(change, noise)
             scale = max(ov["mean_ms"] + ov["stdev_ms"], nv["mean_ms"] + nv["stdev_ms"]) or 1.0   # leave room for the whiskers
             bars = ""
-            for label, v, cls in (("old", ov, "old"), ("new", nv, "new " + verdict)):
+            for label, v, cls in (("old", ov, "old"), ("new", nv, "new " + result)):
                 width = v["mean_ms"] / scale * 100
                 err = v["stdev_ms"] / scale * 100
                 bars += ('<div class="bar-row"><span class="who">%s</span><div class="track">'
@@ -318,8 +468,9 @@ def chart_html(a, b):
                          '<span class="val">%.0f ms <small>&plusmn;%.0f</small></span></div>'
                          % (label, cls, width, max(0, width - err), min(2 * err, 100 - max(0, width - err), width + err),
                             v["mean_ms"], v["stdev_ms"]))
-            rows.append('<div class="stage"><div class="stage-head"><b>%s</b><span class="badge %s">%+.1f%%</span></div>%s</div>'
-                        % (esc(stage), verdict, change, bars))
+            badge = "%+.1f%%" % change + (" <small>&plusmn;%.1f</small>" % noise if paired else "")
+            rows.append('<div class="stage"><div class="stage-head"><b>%s</b><span class="badge %s">%s</span></div>%s</div>'
+                        % (esc(stage), result, badge, bars))
     css = """
 :root{--bg:#fff;--fg:#1d1d1f;--muted:#6e6e73;--card:#f5f5f7;--old:#8e8e93;--new:#0a84ff;--bad:#d70015;--good:#1a7f37;--same:#8e8e93}
 @media (prefers-color-scheme:dark){:root{--bg:#1c1c1e;--fg:#f5f5f7;--muted:#a1a1a6;--card:#2c2c2e;--old:#636366;--new:#64a8ff;--bad:#ff6961;--good:#4cd964}}
@@ -334,11 +485,25 @@ h1{font-size:20px;margin:0 0 4px}h2{font-size:17px;margin:28px 0 10px}.sub{color
 .whisker{position:absolute;top:7px;height:2px;background:var(--fg);opacity:.55}
 .val{width:120px;text-align:right;font-variant-numeric:tabular-nums}small{color:var(--muted)}
 .note{color:var(--muted);font-size:13px;margin-top:24px}
+.warn{color:var(--bad);font-size:14px;margin:6px 0}
 """
     head = ('<h1>Benchmark comparison</h1><p class="sub">old: <b>%s</b> %s</p><p class="sub">new: <b>%s</b> %s</p>'
             % (a["commit"][:10], esc(a["subject"]), b["commit"][:10], esc(b["subject"])))
-    note = ('<p class="note">Bars show the mean, with a whisker for &plusmn; one standard deviation; each pair is scaled '
-            'to the larger of the two (mean + deviation). A change counts as slower/faster only when it exceeds 5% and the run-to-run noise.</p>')
+    bars_note = ('Bars show the mean, with a whisker for &plusmn; one standard deviation; each pair is scaled '
+                 'to the larger of the two (mean + deviation). ')
+    if paired:
+        head += ('<p class="sub">%d rounds, old and new run in turn (the first %d discarded), measured %s</p>'
+                 % (paired["settings"]["rounds"], paired["settings"]["discarded_rounds"], esc(paired["measured_at"])))
+        note = ('<p class="note">%sThe change is followed by its noise: the spread (one standard deviation) of the change '
+                'measured inside each round. A change counts as slower/faster only when it exceeds %g%% and that noise.</p>'
+                % (bars_note, MIN_CHANGE))
+    else:
+        head += ('<p class="warn">Warning: these two reports were measured at different times (%s and %s). If the machine '
+                 'was faster or slower for one of them, the difference is not a difference in the code. '
+                 'Run compare without --stored to measure both in turn.</p>'
+                 % (esc(a.get("measured_at", "?")), esc(b.get("measured_at", "?"))))
+        note = ('<p class="note">%sA change counts as slower/faster only when it exceeds %g%% and the run-to-run noise.</p>'
+                % (bars_note, MIN_CHANGE))
     return ('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
             '<title>Benchmark comparison</title><style>%s</style></head><body>%s%s%s</body></html>'
             % (css, head, "".join(rows), note))
@@ -358,9 +523,17 @@ def main():
     run.add_argument("--force", action="store_true", help="overwrite an existing report for this commit")
     run.set_defaults(func=cmd_run)
 
-    cmp_ = sub.add_parser("compare", help="compare two stored reports")
+    cmp_ = sub.add_parser("compare", help="build two commits, run them in turn and compare them")
     cmp_.add_argument("old")
     cmp_.add_argument("new")
+    cmp_.add_argument("--runs", type=int, default=10, help="rounds per scene; a round runs old and new once (default 10)")
+    cmp_.add_argument("--discard", type=int, default=3, help="warm-up rounds to throw away (default 3)")
+    cmp_.add_argument("--scenes", nargs="+", choices=sorted(SCENES), default=sorted(SCENES))
+    cmp_.add_argument("--cmake", help="path to cmake (default: PATH, $CMAKE, then CLion's bundled one)")
+    cmp_.add_argument("--force", action="store_true", help="measure again even if this comparison is already stored")
+    cmp_.add_argument("--stored", action="store_true",
+                      help="compare the two reports of `run` instead of measuring (quick, but they were measured at "
+                           "different times, so the machine may have differed)")
     cmp_.add_argument("--no-chart", action="store_true", help="only print the table")
     cmp_.add_argument("--no-open", action="store_true", help="write the HTML chart but do not open the browser")
     cmp_.set_defaults(func=cmd_compare)
