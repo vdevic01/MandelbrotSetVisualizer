@@ -78,10 +78,10 @@ void calculateHp(const HpPoints& points, EscapeResult& result, const unsigned in
             core::add<F>(temp, x0, x);
 
             // x2 = x * x
-            core::mul<F>(x, x, x2);
+            core::sqr<F>(x, x2);
 
             // y2 = y * y
-            core::mul<F>(y, y, y2);
+            core::sqr<F>(y, y2);
 
             // escape check: x2 + y2 > R^2
             core::add<F>(x2, y2, temp);

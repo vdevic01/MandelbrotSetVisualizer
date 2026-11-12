@@ -54,6 +54,8 @@ namespace fpa {
 	bool gtFixed(const uint* a, const uint* b, int fractionWords = FRACTION_PART);
 	bool gteFixed(const uint* a, const uint* b, int fractionWords = FRACTION_PART);
 	void mulCmplFixed(const uint* a, const uint* b, uint* c, int fractionWords = FRACTION_PART);
+	// c = a * a: the same words as mulCmplFixed(a, a, c), computed faster.
+	void sqrCmplFixed(const uint* a, uint* c, int fractionWords = FRACTION_PART);
 	// Truncates toward zero. Throws std::invalid_argument when b is zero and std::overflow_error when the
 	// quotient is outside [min, max]; the output is left untouched in both cases.
 	void divFixed(const uint* a, const uint* b, uint* c, int fractionWords = FRACTION_PART);

@@ -57,60 +57,100 @@ bool gtFixed(const uint* a, const uint* b) {
 	return sign == 1;
 }
 
-void mulCmplFixed(const uint* a, const uint* b, uint c[FP_SIZE]) {
-	ulong result[FP_BUFFER_SIZE];
-	for (int i = 0; i < FP_BUFFER_SIZE; i++) {
-		result[i] = 0;
+// The same algorithms as mulColumns / sqrColumns in math/FixedPointShared.h (keep them in sync).
+//
+// Full product of two magnitudes, summed column by column from the least significant column upward:
+// column k holds the products a[p] * b[k - p], with the words counted from the least significant one.
+// The running sum stays in two variables and every product word is written once. `out` receives the
+// product least significant word first. Nothing overflows: a column gets at most FP_SIZE products.
+void mulWords(const uint* a, const uint* b, uint out[FP_BUFFER_SIZE]) {
+	ulong carry = 0;
+	for (int k = 0; k < FP_BUFFER_SIZE - 1; k++) {
+		const int first = k < FP_SIZE ? 0 : k - FP_SIZE + 1;   // first word of a that has a partner in this column
+		const int last = k < FP_SIZE ? k : FP_SIZE - 1;        // last one
+		ulong low = carry;    // low halves of the products, plus the carry from the column below
+		ulong high = 0;       // high halves: they belong to the next column
+		for (int p = first; p <= last; p++) {
+			ulong temp = (ulong)a[FP_SIZE - 1 - p] * b[FP_SIZE - 1 - (k - p)];
+			low += temp & 0x00000000FFFFFFFF;
+			high += temp >> 32;
+		}
+		out[k] = (uint)low;
+		carry = (low >> 32) + high;
 	}
+	out[FP_BUFFER_SIZE - 1] = (uint)carry;
+}
 
+// Full square of a magnitude. A product a[i] * a[j] with i != j appears twice in a square, so it is
+// computed once and added doubled: about half the word products of mulWords.
+void sqrWords(const uint* a, uint out[FP_BUFFER_SIZE]) {
+	ulong carry = 0;
+	for (int k = 0; k < FP_BUFFER_SIZE - 1; k++) {
+		const int first = k < FP_SIZE ? 0 : k - FP_SIZE + 1;
+		ulong low = carry;
+		ulong high = 0;
+		for (int p = first; 2 * p < k; p++) {
+			ulong temp = (ulong)a[FP_SIZE - 1 - p] * a[FP_SIZE - 1 - (k - p)];
+			low += (temp & 0x00000000FFFFFFFF) << 1;
+			high += (temp >> 32) << 1;
+		}
+		if ((k & 1) == 0) {
+			ulong temp = (ulong)a[FP_SIZE - 1 - k / 2] * a[FP_SIZE - 1 - k / 2];
+			low += temp & 0x00000000FFFFFFFF;
+			high += temp >> 32;
+		}
+		out[k] = (uint)low;
+		carry = (low >> 32) + high;
+	}
+	out[FP_BUFFER_SIZE - 1] = (uint)carry;
+}
+
+// The product has 2 * WHOLE_PART whole words; keep the window that starts at its last whole word.
+// `product` is least significant word first, c is most significant word first.
+void productWindow(const uint* product, uint c[FP_SIZE]) {
+	const int top = FP_BUFFER_SIZE - WHOLE_PART * 2;
+	for (int i = 0; i < FP_SIZE; i++) {
+		c[i] = product[top - i];
+	}
+}
+
+// c = a * b, truncated toward zero. c may be the same buffer as a or b.
+void mulCmplFixed(const uint* a, const uint* b, uint c[FP_SIZE]) {
 	const uint* aAbs = a;
 	const uint* bAbs = b;
-	char aSign = a[0] >> 31;
-	char bSign = b[0] >> 31;
-	bool negate = false;
+	uint aSign = a[0] >> 31;
+	uint bSign = b[0] >> 31;
 	uint tempA[FP_SIZE];
 	uint tempB[FP_SIZE];
-	if (aSign != bSign) {
-		if (aSign == 1) {
-			cmplFixed(a, tempA);
-			aAbs = tempA;
-		}
-		else {
-			cmplFixed(b, tempB);
-			bAbs = tempB;
-		}
-		negate = true;
-	}
-	else if (aSign == 1 && bSign == 1) {
+	if (aSign) {
 		cmplFixed(a, tempA);
-		cmplFixed(b, tempB);
 		aAbs = tempA;
+	}
+	if (bSign) {
+		cmplFixed(b, tempB);
 		bAbs = tempB;
 	}
 
-	for (int i = FP_SIZE - 1; i >= 0; i--) {
-		if (aAbs[i] == 0)
-			continue;
-		for (int j = FP_SIZE - 1; j >= 0; j--) {
-			if (bAbs[j] == 0)
-				continue;
-			ulong temp = (ulong)aAbs[i] * bAbs[j];
-			ulong tempLSB = temp & 0x00000000FFFFFFFF;
-			ulong tempMSB = temp >> 32;
-			result[i + j + 1] += tempLSB;
-			result[i + j] += tempMSB;
-		}
-	}
-	for (int i = FP_BUFFER_SIZE - 1; i >= 1; i--) {
-		result[i - 1] += result[i] >> 32;
-	}
-	const int leftBound = WHOLE_PART * 2 - 1;
-	const int rightBound = leftBound + FP_SIZE;
-	for (int i = leftBound; i < rightBound; i++) {
-		c[i - leftBound] = result[i];
-	}
-	if (negate)
+	uint product[FP_BUFFER_SIZE];
+	mulWords(aAbs, bAbs, product);
+	productWindow(product, c);
+	if (aSign != bSign)
 		cmplFixed(c, c);
+}
+
+// c = a * a, with the same words as mulCmplFixed(a, a, c). A square is never negative, so the sign
+// needs no handling beyond taking |a|. c may be the same buffer as a.
+void sqrCmplFixed(const uint* a, uint c[FP_SIZE]) {
+	const uint* aAbs = a;
+	uint tempA[FP_SIZE];
+	if (a[0] >> 31) {
+		cmplFixed(a, tempA);
+		aAbs = tempA;
+	}
+
+	uint product[FP_BUFFER_SIZE];
+	sqrWords(aAbs, product);
+	productWindow(product, c);
 }
 
 // IN holds, per point, the real words followed by the imaginary words (FP_SIZE words each, most significant first).
@@ -150,10 +190,10 @@ __kernel void calculateIters(__global const uint* IN, __global int* OUT, const u
 		addFixed(temp, x0, x);
 		//x = x2 - y2 + x0;
 
-		mulCmplFixed(x, x, x2);
+		sqrCmplFixed(x, x2);
 		//x2 = x * x;
 
-		mulCmplFixed(y, y, y2);
+		sqrCmplFixed(y, y2);
 		//y2 = y * y;
 
 		addFixed(x2, y2, temp);

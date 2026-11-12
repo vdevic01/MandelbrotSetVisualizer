@@ -117,6 +117,7 @@ inline Number apply(UnaryFn op, int f, const Number& a, uint outputFill = 0) {
 inline Number add(int f, const Number& a, const Number& b) { return apply(fpa::addFixed, f, a, b); }
 inline Number sub(int f, const Number& a, const Number& b) { return apply(fpa::subFixed, f, a, b); }
 inline Number mul(int f, const Number& a, const Number& b) { return apply(fpa::mulCmplFixed, f, a, b); }
+inline Number sqr(int f, const Number& a) { return apply(fpa::sqrCmplFixed, f, a); }
 inline Number div(int f, const Number& a, const Number& b) { return apply(fpa::divFixed, f, a, b); }
 inline Number inc(int f, const Number& a) { return apply(fpa::incFixed, f, a); }
 inline Number neg(int f, const Number& a) { return apply(fpa::cmplFixed, f, a); }
