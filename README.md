@@ -254,7 +254,9 @@ The margin of 3 steps per pixel comes from measurements, not a guess: `benchmark
 
 The fixed-point library (`Visualizer/src/math/`) implements addition, subtraction, multiplication, division, comparison and complementing entirely in integer arithmetic, with no heap allocation. Every function in `FixedPointArithmetics.h` takes an optional `fractionWords` argument (default 3). Results are truncated toward zero, and division throws `std::overflow_error` when the quotient does not fit.
 
-The arithmetic the GPU needs (add, subtract, compare, multiply) lives in `FixedPointShared.h`, which the CPU build and the CUDA kernel both use, so it is tested once by the unit tests. The OpenCL high-precision kernel has its own copy, which the host compiles for the size of each render. All backends (CPU, CUDA local and remote, OpenCL) support sizes 1 to 6.
+Squaring has its own routine (`sqrCmplFixed`, `core::sqr`): the iteration squares two numbers per step, and a square needs about half the word products of a general multiplication. It returns exactly the same words as multiplying the number by itself.
+
+The arithmetic the GPU needs (add, subtract, compare, multiply, square) lives in `FixedPointShared.h`, which the CPU build and the CUDA kernel both use, so it is tested once by the unit tests. The OpenCL high-precision kernel has its own copy of the same algorithms, which the host compiles for the size of each render. All backends (CPU, CUDA local and remote, OpenCL) support sizes 1 to 6.
 
 The frontend uses `decimal.js` for the viewport coordinates, configured for 100 significant digits (its default of 20 would cap the zoom depth far below what the formats can represent). The app sends them to the renderer as decimal text, which the C++ side converts to fixed-point words exactly with `fpa::decimalToFixedPoint()`; it converts doubles with `fpa::floatingToFixedPoint()` / `fpa::fixedToFloatingPoint()`.
 

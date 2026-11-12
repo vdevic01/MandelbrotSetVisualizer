@@ -167,6 +167,45 @@ TEST_P(EdgeTest, MultiplyTruncatesTowardZero) {
     EXPECT_TRUE(same(neg(f, ulp(f)), mul(f, neg(f, ulp(f)), one(f))));
 }
 
+// ---------------------------------------------------------------------------------- squaring
+// sqrCmplFixed(a) must give exactly the words of mulCmplFixed(a, a): the renderer relies on that, so the
+// image does not change. The random comparison is in test_invariants.cpp.
+TEST_P(EdgeTest, SquareExactCases) {
+    const int f = F();
+    EXPECT_TRUE(same(make(f, {0, 0x40000000u}), sqr(f, half()))) << "0.5^2 == 0.25";
+    EXPECT_TRUE(same(make(f, {0, 0x40000000u}), sqr(f, neg(f, half())))) << "(-0.5)^2 == 0.25";
+    EXPECT_TRUE(same(make(f, {4}), sqr(f, two())));
+    EXPECT_TRUE(same(make(f, {9}), sqr(f, neg(f, three()))));
+    EXPECT_TRUE(same(one(f), sqr(f, neg(f, one(f))))) << "(-1)^2 == 1";
+    EXPECT_TRUE(same(zero(f), sqr(f, zero(f))));
+    EXPECT_TRUE(same(zero(f), sqr(f, ulp(f)))) << "ulp^2 truncates to 0";
+    EXPECT_TRUE(same(zero(f), sqr(f, neg(f, ulp(f)))));
+}
+
+TEST_P(EdgeTest, SquareMatchesMultiplicationOnTheKeyValues) {
+    const int f = F();
+    for (const Number& x : ascending()) {
+        EXPECT_TRUE(same(mul(f, x, x), sqr(f, x))) << "x^2 for " << hex(x);
+    }
+    // Every word at its largest value: the columns of the product receive their largest possible sums.
+    const Number allOnes = filled(f, kAllOnes);
+    EXPECT_TRUE(same(mul(f, allOnes, allOnes), sqr(f, allOnes)));
+    EXPECT_TRUE(same(mul(f, maxValue(f), maxValue(f)), sqr(f, maxValue(f))));
+    EXPECT_TRUE(same(mul(f, minValue(f), minValue(f)), sqr(f, minValue(f))));
+}
+
+TEST_P(EdgeTest, SquareOverwritesTheOutputAndAllowsItToBeTheInput) {
+    const int f = F();
+    const Number x = make(f, {1, 0x80000000u, 0x12345678u});
+    const Number expected = mul(f, x, x);
+    Number dirty = filled(f, kAllOnes);                    // pre-existing garbage
+    fpa::sqrCmplFixed(x.data(), dirty.data(), f);
+    EXPECT_TRUE(same(expected, dirty)) << "into a dirty buffer";
+    Number inPlace = x;
+    fpa::sqrCmplFixed(inPlace.data(), inPlace.data(), f);
+    EXPECT_TRUE(same(expected, inPlace)) << "output buffer == input buffer";
+}
+
 // ---------------------------------------------------------------------------------- division
 TEST_P(EdgeTest, DivideExactCases) {
     const int f = F();
@@ -283,6 +322,7 @@ TEST(ErrorHandling, UnsupportedFractionSizesThrowInEveryFunction) {
         EXPECT_THROW(fpa::incFixed(a, c, bad), std::invalid_argument) << bad;
         EXPECT_THROW(fpa::cmplFixed(a, c, bad), std::invalid_argument) << bad;
         EXPECT_THROW(fpa::mulCmplFixed(a, b, c, bad), std::invalid_argument) << bad;
+        EXPECT_THROW(fpa::sqrCmplFixed(a, c, bad), std::invalid_argument) << bad;
         EXPECT_THROW(fpa::divFixed(a, b, c, bad), std::invalid_argument) << bad;
         EXPECT_THROW(fpa::gtFixed(a, b, bad), std::invalid_argument) << bad;
         EXPECT_THROW(fpa::gteFixed(a, b, bad), std::invalid_argument) << bad;

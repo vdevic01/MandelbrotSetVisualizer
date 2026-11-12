@@ -92,10 +92,10 @@ __global__ void calculateItersHp(const uint32_t* points, int32_t* iterations, fl
 		fpa::core::add<F>(temp, x0, x);
 		//x = x2 - y2 + x0;
 
-		fpa::core::mul<F>(x, x, x2);
+		fpa::core::sqr<F>(x, x2);
 		//x2 = x * x;
 
-		fpa::core::mul<F>(y, y, y2);
+		fpa::core::sqr<F>(y, y2);
 		//y2 = y * y;
 
 		fpa::core::add<F>(x2, y2, temp);

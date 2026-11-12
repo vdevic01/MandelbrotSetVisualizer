@@ -134,6 +134,23 @@ TEST_P(InvariantTest, MultiplicationIsCommutativeAndSignSymmetric) {
     }
 }
 
+TEST_P(InvariantTest, SquaringGivesExactlyTheWordsOfMultiplyingByItself) {
+    // Not a tolerance: the renderer replaced mul(x, x) by sqr(x), and the image must not change by one bit.
+    Rng r = rng(40);
+    for (int i = 0; i < 50 * kIterations; i++) {
+        const Number a = r.any(F());
+        ASSERT_TRUE(same(mul(F(), a, a), sqr(F(), a))) << hex(a);
+        if (!same(minValue(F()), a)) {
+            ASSERT_TRUE(same(sqr(F(), a), sqr(F(), neg(F(), a)))) << "(-a)^2 == a^2 for " << hex(a);
+        }
+    }
+    // The values the iteration actually squares: magnitude below 4 with a full random fraction.
+    for (int i = 0; i < 50 * kIterations; i++) {
+        const Number a = r.small(F(), 2);
+        ASSERT_TRUE(same(mul(F(), a, a), sqr(F(), a))) << hex(a);
+    }
+}
+
 TEST_P(InvariantTest, MultiplyingByTwoIsDoubling) {
     Rng r = rng(11);
     for (int i = 0; i < kIterations; i++) {

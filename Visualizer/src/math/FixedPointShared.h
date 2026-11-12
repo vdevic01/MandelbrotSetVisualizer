@@ -75,62 +75,122 @@ namespace fpa::core {
 		return sign == 1;
 	}
 
+	// Multiplication of two magnitudes. The word products are summed column by column, from the least
+	// significant column of the full 2 * SIZE-word product upward: column K holds the products
+	// a[p] * b[K - p], with the words counted from the least significant one. K is a template parameter,
+	// so every loop bound is a compile-time constant and the compiler emits straight-line code; the
+	// running sum stays in two registers and every product word is written once.
+	//
+	// `out` receives the product least significant word first. Nothing overflows: a column gets at most
+	// SIZE products, so both sums stay far below 2^(2 * WORD_BITS).
+	template<int SIZE, int K>
+	FPA_HD inline void mulColumns(const uint* a, const uint* b, uint* out, ulong carry) {
+		if constexpr (K < 2 * SIZE - 1) {
+			constexpr int FIRST = K < SIZE ? 0 : K - SIZE + 1;   // first word of a that has a partner in this column
+			constexpr int LAST = K < SIZE ? K : SIZE - 1;        // last one
+			ulong low = carry;    // low halves of the products, plus the carry from the column below
+			ulong high = 0;       // high halves: they belong to the next column
+			for (int p = FIRST; p <= LAST; p++) {
+				const ulong temp = (ulong)a[SIZE - 1 - p] * b[SIZE - 1 - (K - p)];
+				low += temp & WORD_MASK;
+				high += temp >> WORD_BITS;
+			}
+			out[K] = (uint)low;
+			mulColumns<SIZE, K + 1>(a, b, out, (low >> WORD_BITS) + high);
+		}
+		else {
+			out[K] = (uint)carry;
+		}
+	}
+
+	// c = a * b, truncated toward zero. c may be the same buffer as a or b.
 	template<int F>
 	FPA_HD void mulCmplImpl(const uint* a, const uint* b, uint* c) {
 		constexpr int SIZE = WHOLE_PART + F;
-		constexpr int MUL_BUFFER_SIZE = SIZE * 2;
-
-		ulong result[MUL_BUFFER_SIZE] = {};
 
 		uint tempA[SIZE];
 		uint tempB[SIZE];
 		const uint* aAbs = a;
 		const uint* bAbs = b;
-		uint aSign = a[0] >> SIGN_SHIFT;
-		uint bSign = b[0] >> SIGN_SHIFT;
-		bool negate = false;
-		if (aSign != bSign) {
-			if (aSign == 1) {
-				cmplWords<SIZE>(a, tempA);
-				aAbs = tempA;
-			}
-			else {
-				cmplWords<SIZE>(b, tempB);
-				bAbs = tempB;
-			}
-			negate = true;
-		}
-		else if (aSign == 1 && bSign == 1) {
+		const uint aSign = a[0] >> SIGN_SHIFT;
+		const uint bSign = b[0] >> SIGN_SHIFT;
+		if (aSign) {
 			cmplWords<SIZE>(a, tempA);
-			cmplWords<SIZE>(b, tempB);
 			aAbs = tempA;
+		}
+		if (bSign) {
+			cmplWords<SIZE>(b, tempB);
 			bAbs = tempB;
 		}
 
-		for (int i = SIZE - 1; i >= 0; i--) {
-			if (aAbs[i] == 0)
-				continue;
-			for (int j = SIZE - 1; j >= 0; j--) {
-				if (bAbs[j] == 0)
-					continue;
-				ulong temp = (ulong)aAbs[i] * bAbs[j];
-				ulong tempLSB = temp & WORD_MASK;
-				ulong tempMSB = temp >> WORD_BITS;
-				result[i + j + 1] += tempLSB;
-				result[i + j] += tempMSB;
-			}
+		uint product[SIZE * 2];
+		mulColumns<SIZE, 0>(aAbs, bAbs, product, 0);
+
+		// The product has 2 * WHOLE_PART whole words; keep the window that starts at its last whole word,
+		// which is word 2 * SIZE - 1 - (2 * WHOLE_PART - 1) counted from the least significant end.
+		const int top = SIZE * 2 - WHOLE_PART * 2;
+		for (int i = 0; i < SIZE; i++) {
+			c[i] = product[top - i];
 		}
-		for (int i = MUL_BUFFER_SIZE - 1; i >= 1; i--) {
-			result[i - 1] += result[i] >> WORD_BITS;
-		}
-		// The product has 2 * WHOLE_PART whole words; keep the window that starts at its last whole word.
-		const int leftBound = WHOLE_PART * 2 - 1;
-		const int rightBound = leftBound + SIZE;
-		for (int i = leftBound; i < rightBound; i++) {
-			c[i - leftBound] = result[i];
-		}
-		if (negate)
+		if (aSign != bSign)
 			cmplWords<SIZE>(c, c);
+	}
+
+	// Squaring. A square needs about half the word products of a general multiplication: a product
+	// a[i] * a[j] with i != j appears twice, so it is computed once and added doubled. And the sign needs
+	// no handling beyond taking |a|, because a square is never negative.
+	//
+	// The products are summed column by column, from the least significant column of the full
+	// 2 * SIZE-word square upward (column K holds the products of the words p and K - p, counted from the
+	// least significant word). K is a template parameter, so every loop bound is a compile-time constant
+	// and the compiler emits straight-line code; that is a large part of the speed.
+	//
+	// `out` receives the square least significant word first. Nothing overflows: a column gets at most
+	// SIZE / 2 doubled products and one square, so both sums stay far below 2^(2 * WORD_BITS).
+	template<int SIZE, int K>
+	FPA_HD inline void sqrColumns(const uint* a, uint* out, ulong carry) {
+		if constexpr (K < 2 * SIZE - 1) {
+			constexpr int FIRST = K < SIZE ? 0 : K - SIZE + 1;   // first word that has a partner in this column
+			ulong low = carry;    // low halves of the products, plus the carry from the column below
+			ulong high = 0;       // high halves: they belong to the next column
+			for (int p = FIRST; 2 * p < K; p++) {
+				const ulong temp = (ulong)a[SIZE - 1 - p] * a[SIZE - 1 - (K - p)];
+				low += (temp & WORD_MASK) << 1;
+				high += (temp >> WORD_BITS) << 1;
+			}
+			if constexpr (K % 2 == 0) {
+				const ulong temp = (ulong)a[SIZE - 1 - K / 2] * a[SIZE - 1 - K / 2];
+				low += temp & WORD_MASK;
+				high += temp >> WORD_BITS;
+			}
+			out[K] = (uint)low;
+			sqrColumns<SIZE, K + 1>(a, out, (low >> WORD_BITS) + high);
+		}
+		else {
+			out[K] = (uint)carry;
+		}
+	}
+
+	// c = a * a, with exactly the same words as mulCmplImpl(a, a, c). c may be the same buffer as a.
+	template<int F>
+	FPA_HD void sqrCmplImpl(const uint* a, uint* c) {
+		constexpr int SIZE = WHOLE_PART + F;
+
+		uint tempA[SIZE];
+		const uint* aAbs = a;
+		if (a[0] >> SIGN_SHIFT) {
+			cmplWords<SIZE>(a, tempA);
+			aAbs = tempA;
+		}
+
+		uint square[SIZE * 2];
+		sqrColumns<SIZE, 0>(aAbs, square, 0);
+
+		// Same window as in mulCmplImpl.
+		const int top = SIZE * 2 - WHOLE_PART * 2;
+		for (int i = 0; i < SIZE; i++) {
+			c[i] = square[top - i];
+		}
 	}
 
 	// ---------------------------------------------------------------------------------------------
@@ -144,5 +204,7 @@ namespace fpa::core {
 	template<int F> FPA_HD inline void sub(const uint* a, const uint* b, uint* c) { subWords<WHOLE_PART + F>(a, b, c); }
 	template<int F> FPA_HD inline bool gt(const uint* a, const uint* b) { return gtWords<WHOLE_PART + F>(a, b); }
 	template<int F> FPA_HD inline void mul(const uint* a, const uint* b, uint* c) { mulCmplImpl<F>(a, b, c); }
+	// c = a * a. Same result as mul(a, a, c), faster.
+	template<int F> FPA_HD inline void sqr(const uint* a, uint* c) { sqrCmplImpl<F>(a, c); }
 
 } // namespace fpa::core

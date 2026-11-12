@@ -63,6 +63,10 @@ namespace fpa {
 		withFormat(fractionWords, [&](auto f) { core::mul<decltype(f)::value>(a, b, c); });
 	}
 
+	void sqrCmplFixed(const uint* a, uint* c, int fractionWords) {
+		withFormat(fractionWords, [&](auto f) { core::sqr<decltype(f)::value>(a, c); });
+	}
+
 	void divFixed(const uint* a, const uint* b, uint* c, int fractionWords) {
 		withFormat(fractionWords, [&](auto f) { core::div<decltype(f)::value>(a, b, c); });
 	}
