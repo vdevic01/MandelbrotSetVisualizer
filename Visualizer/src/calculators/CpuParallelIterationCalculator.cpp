@@ -5,6 +5,10 @@
 #include <stdexcept>
 #include <string>
 
+// Points a thread takes from the OpenMP scheduler at a time. One point per grab (the default) makes the
+// scheduler lock a visible cost on cheap points; 256 was the best of 64..1024 in the double-precision benchmark.
+constexpr int OMP_CHUNK = 256;
+
 
 void CpuParallelIterationCalculator::calculate(const std::vector<Complex>& points, EscapeResult& result, const unsigned int maxIter, const double escapeRadius) const {
     const int N = static_cast<int>(points.size());
@@ -12,7 +16,7 @@ void CpuParallelIterationCalculator::calculate(const std::vector<Complex>& point
     std::vector<int>& iters = result.iters;
     std::vector<float>& magSq = result.magSq;
 
-    #pragma omp parallel for schedule(dynamic) default(none) shared(points, iters, magSq, maxIter, N, escapeSq)
+    #pragma omp parallel for schedule(dynamic, OMP_CHUNK) default(none) shared(points, iters, magSq, maxIter, N, escapeSq)
     for (int idx = 0; idx < N; idx++) {
         const double x0 = points[idx].real;
         const double y0 = points[idx].imag;
@@ -50,7 +54,7 @@ void calculateHp(const HpPoints& points, EscapeResult& result, const unsigned in
     uint thresholdWhole, thresholdFraction;
     escapeThresholdWords(escapeRadius, thresholdWhole, thresholdFraction);
 
-    #pragma omp parallel for schedule(dynamic) default(none) shared(points, iters, magSq, maxIter, N, thresholdWhole, thresholdFraction)
+    #pragma omp parallel for schedule(dynamic, OMP_CHUNK) default(none) shared(points, iters, magSq, maxIter, N, thresholdWhole, thresholdFraction)
     for (int idx = 0; idx < N; idx++) {
         uint x0[S], y0[S];
         const uint* re = points.real(idx);
