@@ -146,9 +146,12 @@ class BoundaryManager{
   private escapeRadius: number = 2;
   private colorSpread: number = 0;
   private histogram: boolean = false;
-  private histogramPhase: number = 0;
+  private colorPhase: number = 0;
   private histogramCycles: number = 1;
   private mode: string = 'CPU_PARALLEL';
+  // The renderer keeps the escape results of the last on-screen render; they allow a recolour without iterating.
+  private escapeCacheValid: boolean = false;
+  private lastRenderInfo?: RenderInfo;
   private static imgUrl: string;
 
 
@@ -169,11 +172,7 @@ class BoundaryManager{
 
   public setPaletteLength(paletteLength: number){
     this.paletteLength = paletteLength;
-    if(this.highPrecission){
-      this.generateMandelbrotHighPrecission();
-    }else{
-      this.generateMandelbrot();
-    }
+    this.recolourOrRender();
   }
   public getPaletteLength(): number{
     return this.paletteLength;
@@ -202,38 +201,22 @@ class BoundaryManager{
   }
   public setColorSpread(colorSpread: number){
     this.colorSpread = colorSpread;
-    if(this.highPrecission){
-      this.generateMandelbrotHighPrecission();
-    }else{
-      this.generateMandelbrot();
-    }
+    this.recolourOrRender();
   }
   public getColorSpread(): number{
     return this.colorSpread;
   }
   public setHistogramCycles(cycles: number){
     this.histogramCycles = cycles;
-    if(this.highPrecission){
-      this.generateMandelbrotHighPrecission();
-    }else{
-      this.generateMandelbrot();
-    }
+    this.recolourOrRender();
   }
-  public setHistogramPhase(phase: number){
-    this.histogramPhase = phase;
-    if(this.highPrecission){
-      this.generateMandelbrotHighPrecission();
-    }else{
-      this.generateMandelbrot();
-    }
+  public setColorPhase(phase: number){
+    this.colorPhase = phase;
+    this.recolourOrRender();
   }
   public setHistogram(histogram: boolean){
     this.histogram = histogram;
-    if(this.highPrecission){
-      this.generateMandelbrotHighPrecission();
-    }else{
-      this.generateMandelbrot();
-    }
+    this.recolourOrRender();
   }
   public getMaxIter(): number{
     return this.maxIter;
@@ -248,11 +231,7 @@ class BoundaryManager{
   }
   public setPaletteId(id: number){
     this.paletteId = id;
-    if(this.highPrecission){
-      this.generateMandelbrotHighPrecission();
-    }else{
-      this.generateMandelbrot();
-    }
+    this.recolourOrRender();
   }
   public setMode(mode: string){
     this.mode = mode;
@@ -417,6 +396,29 @@ class BoundaryManager{
     }
   }
 
+  // Only the colour settings changed: paint the image again from the escape results of the last render. Without
+  // them (nothing rendered yet, or a render is running or failed) the image is rendered in full.
+  private recolourOrRender(){
+    if(this.escapeCacheValid){
+      this.recolour();
+    }else if(this.highPrecission){
+      this.generateMandelbrotHighPrecission();
+    }else{
+      this.generateMandelbrot();
+    }
+  }
+
+  private async recolour(){
+    await this.render("recolour_mandelbrot", {
+      paletteLength: this.paletteLength,
+      paletteId: this.paletteId,
+      colorSpread: this.colorSpread,
+      histogram: this.histogram,
+      colorPhase: this.colorPhase,
+      histogramCycles: this.histogramCycles
+    }, this.lastRenderInfo!, true);
+  }
+
   private async generateMandelbrot(){
     const args = {
       mode: this.mode,
@@ -428,7 +430,7 @@ class BoundaryManager{
       escapeRadius: this.escapeRadius,
       colorSpread: this.colorSpread,
       histogram: this.histogram,
-      histogramPhase: this.histogramPhase,
+      colorPhase: this.colorPhase,
       histogramCycles: this.histogramCycles
     };
     const width = Math.abs(this.lowPrecissionBoundary.reEnd - this.lowPrecissionBoundary.reStart);
@@ -464,7 +466,7 @@ class BoundaryManager{
       escapeRadius: this.escapeRadius,
       colorSpread: this.colorSpread,
       histogram: this.histogram,
-      histogramPhase: this.histogramPhase,
+      colorPhase: this.colorPhase,
       histogramCycles: this.histogramCycles
     };
     const info: RenderInfo = {
@@ -530,7 +532,7 @@ class BoundaryManager{
         escapeRadius: this.escapeRadius,
         colorSpread: this.colorSpread,
         histogram: this.histogram,
-        histogramPhase: this.histogramPhase,
+        colorPhase: this.colorPhase,
         histogramCycles: this.histogramCycles,
         ...extra
       });
@@ -543,21 +545,27 @@ class BoundaryManager{
 
   // Runs one render and keeps the status bar up to date: what it is rendering with, how long it took, what the
   // remote worker answered, or why it failed (otherwise a failed render looks like nothing happened).
-  private async render(command: string, args: Record<string, unknown>, info: RenderInfo){
-    const remote = this.mode === "CUDA_REMOTE";
+  private async render(command: string, args: Record<string, unknown>, info: RenderInfo, recolour: boolean = false){
+    const remote = this.mode === "CUDA_REMOTE" && !recolour;
     const started = performance.now();
 
-    setField("status-precision", info.precision);
-    setScale(info.scaleLog10);
-    setField("status-time", "rendering...");
-    setField("status-remote", remote ? "waiting for the worker..." : "not used (local render)");
+    if (!recolour) {
+      // A new render replaces the saved escape results, so they are only usable once it has succeeded.
+      this.escapeCacheValid = false;
+      this.lastRenderInfo = info;
+      setField("status-precision", info.precision);
+      setScale(info.scaleLog10);
+      setField("status-remote", remote ? "waiting for the worker..." : "not used (local render)");
+    }
+    setField("status-time", recolour ? "recolouring..." : "rendering...");
     setMessage("");
 
     try {
       const output = await invoke<string>(command, args);
       this.img = this.p5Client.loadImage(BoundaryManager.imgUrl);
+      this.escapeCacheValid = true;
       const parsed = parseRendererOutput(output);
-      setField("status-time", formatDuration(performance.now() - started), parsed.stages);
+      setField("status-time", formatDuration(performance.now() - started) + (recolour ? " (recoloured)" : ""), parsed.stages);
       if (remote) {
         setField("status-remote", parsed.remote ?? "no information from the worker", parsed.remoteDetails);
       }
@@ -710,8 +718,8 @@ window.addEventListener("DOMContentLoaded", async () => {
     inputColorSpread.value = boundaryManager.getColorSpread().toString();
     buttonColorSpreadCancel.disabled = true;
   });
-  // Histogram colouring ignores the palette length, escape radius and colour spread, and only it uses the phase.
-  const histogramPhaseInput = document.getElementById("input-histogram-phase") as HTMLInputElement;
+  // Histogram colouring ignores the palette length, escape radius and colour spread, and only it uses the cycles.
+  const colorPhaseInput = document.getElementById("input-color-phase") as HTMLInputElement;
   const histogramCyclesInput = document.getElementById("input-histogram-cycles") as HTMLInputElement;
   document.getElementById("input-histogram")?.addEventListener("change", (e) => {
     const on = (e.target as HTMLInputElement).checked;
@@ -723,15 +731,14 @@ window.addEventListener("DOMContentLoaded", async () => {
     buttonPaletteLengthCancel.disabled = true;
     buttonEscapeRadiusCancel.disabled = true;
     buttonColorSpreadCancel.disabled = true;
-    histogramPhaseInput.disabled = !on;
     histogramCyclesInput.disabled = !on;
     boundaryManager.setHistogram(on);
   });
   histogramCyclesInput.addEventListener("change", () => {
     boundaryManager.setHistogramCycles(parseFloat(histogramCyclesInput.value));
   });
-  histogramPhaseInput.addEventListener("change", () => {
-    boundaryManager.setHistogramPhase(parseFloat(histogramPhaseInput.value));
+  colorPhaseInput.addEventListener("change", () => {
+    boundaryManager.setColorPhase(parseFloat(colorPhaseInput.value));
   });
   inputColorSpread.addEventListener("input", () => {
     buttonColorSpreadCancel.disabled = false;

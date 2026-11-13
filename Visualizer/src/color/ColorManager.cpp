@@ -5,9 +5,9 @@
 #include <cmath>
 #include <stdexcept>
 
-CyclicColorPalette::CyclicColorPalette(int imageSize, std::vector<Color> colors, int length, int samples, double colorSpread)
+CyclicColorPalette::CyclicColorPalette(int imageSize, std::vector<Color> colors, int length, int samples, double colorSpread, double colorPhase)
     : ColorManager(imageSize, samples), colors(std::move(colors)), length(length),
-      colorSpread(static_cast<float>(colorSpread)) {}
+      colorSpread(static_cast<float>(colorSpread)), colorPhase(static_cast<float>(colorPhase)) {}
 
 // val is a position along the palette cycle. It does not have to be a whole number: the colour is
 // interpolated between the two nearest palette entries.
@@ -45,14 +45,16 @@ std::vector<Color> CyclicColorPalette::paint(const EscapeResult& escape, const d
     const float spread = this->colorSpread;
     // Values below a tenth of the palette cycle are not stacked yet; leave them as they are.
     const float knee = static_cast<float>(this->length) * 0.1f;
-    #pragma omp parallel for default(none) shared(iters, magSq, pixels, offset, spread, knee)
+    // The phase moves the start of the colouring along the palette; the lookup wraps around at the palette length.
+    const float shift = this->colorPhase * static_cast<float>(this->length);
+    #pragma omp parallel for default(none) shared(iters, magSq, pixels, offset, spread, knee, shift)
     for (int i = 0; i < this->imageSize; i++) {
         const int idx = i * this->samples;
         double r = 0, g = 0, b = 0;
         for (int k = 0; k < this->samples; k++) {
             if (iters[idx + k] >= 0) {   // negative: the sample never escaped and stays black
                 const float value = spreadValue(smoothValue(iters[idx + k], magSq[idx + k], offset), spread, knee);
-                const Color c = getColorFromPalette(value, this->colors, this->length);
+                const Color c = getColorFromPalette(value + shift, this->colors, this->length);
                 r += c.red;
                 g += c.green;
                 b += c.blue;

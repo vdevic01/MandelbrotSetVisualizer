@@ -15,6 +15,12 @@ struct MandelbrotConfig {
     Mode mode = Mode::CPU_PARALLEL;
     std::string outputFilename = "./mandelbrot_set.png";
 
+    // Escape file: saveEscapeFile (optional) is where a render stores its escape results. recolourFrom (optional)
+    // paints an earlier render's escape file again with the colour settings below, without iterating; the image
+    // size, samples and escape radius then come from that file and the view and iteration options are not allowed.
+    std::string saveEscapeFile;
+    std::string recolourFrom;
+
     // image
     int imageWidth  = 900;
     int imageHeight = 600;
@@ -39,7 +45,7 @@ struct MandelbrotConfig {
     int paletteId = 0;
     int paletteLength = 256;       // cyclic: iterations per palette cycle
     double colorSpread = 0.0;      // cyclic: logarithmic spread of the colours, 0 = linear
-    double histogramPhase = 0.0;   // histogram: where in the palette the colouring starts, 0..1
+    double colorPhase = 0.0;       // where in the palette the colouring starts, 0..1 (both methods)
     double histogramCycles = 1.0;  // histogram: how many times the palette repeats
 };
 

@@ -39,6 +39,8 @@ set(SOURCES
     src/util/ScopedTimer.h
     src/util/ImageWriter.h
     src/util/ImageWriter.cpp
+    src/util/EscapeFile.h
+    src/util/EscapeFile.cpp
     src/kernels/OpenCLKernel.cl
     src/kernels/OpenCLKernelHP.cl
 )

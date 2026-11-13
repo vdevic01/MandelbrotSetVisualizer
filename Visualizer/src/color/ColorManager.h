@@ -25,12 +25,14 @@ protected:
 class CyclicColorPalette : public ColorManager {
 public:
     // colorSpread: strength of the logarithmic spread of the colours (0 = linear, see spreadValue).
-    CyclicColorPalette(int imageSize, std::vector<Color> colors, int length, int samples, double colorSpread = 0.0);
+    // colorPhase (0..1): how far along the palette the colouring starts (the palette wraps around).
+    CyclicColorPalette(int imageSize, std::vector<Color> colors, int length, int samples, double colorSpread = 0.0, double colorPhase = 0.0);
     [[nodiscard]] std::vector<Color> paint(const EscapeResult& escape, double escapeRadius) const override;
 private:
     std::vector<Color> colors;
     double length;
     float colorSpread;
+    float colorPhase;
 };
 
 class HistogramColorPalette : public ColorManager {

@@ -139,7 +139,7 @@ int readPalette(const json& color, const string& path) {
 
 MandelbrotConfig configFromRequest(const json& request) {
     if (!request.is_object()) fail("request", "must be a JSON object");
-    checkKeys(request, "", {"version", "mode", "output", "image", "view", "precision", "iteration", "color"});
+    checkKeys(request, "", {"version", "mode", "output", "saveEscape", "recolourFrom", "image", "view", "precision", "iteration", "color"});
 
     MandelbrotConfig config;
     readInt(request, "", "version", REQUEST_VERSION, REQUEST_VERSION, REQUEST_VERSION);
@@ -150,6 +150,14 @@ MandelbrotConfig configFromRequest(const json& request) {
         fail("mode", e.what());
     }
     config.outputFilename = readString(request, "", "output", config.outputFilename);
+    config.saveEscapeFile = readString(request, "", "saveEscape", "");
+    config.recolourFrom = readString(request, "", "recolourFrom", "");
+    const bool recolour = !config.recolourFrom.empty();
+    if (recolour) {
+        // The escape file already holds the result of the iteration, so nothing that shapes it can be given.
+        for (const char* key : {"mode", "saveEscape", "image", "view", "precision", "iteration"})
+            if (request.contains(key)) fail(key, "does not apply when recolouring (recolourFrom): it comes from the escape file");
+    }
 
     if (const json* image = optionalObject(request, "", "image")) {
         checkKeys(*image, "image", {"width", "height", "samples"});
@@ -187,12 +195,12 @@ MandelbrotConfig configFromRequest(const json& request) {
     config.useHighPrecision = precisionType == "fixed";
 
     // view (required): two numbers or decimal strings for each axis
-    if (!request.contains("view")) fail("view", "is required (view.re and view.im, each as [start, end])");
-    const json* view = optionalObject(request, "", "view");
-    checkKeys(*view, "view", {"re", "im"});
+    if (!recolour && !request.contains("view")) fail("view", "is required (view.re and view.im, each as [start, end])");
+    const json* view = recolour ? nullptr : optionalObject(request, "", "view");
+    if (view) checkKeys(*view, "view", {"re", "im"});
     string coordinates[2][2];
     const char* axes[2] = {"re", "im"};
-    for (int a = 0; a < 2; a++) {
+    for (int a = 0; view && a < 2; a++) {
         const string where = join("view", axes[a]);
         if (!view->contains(axes[a])) fail(where, "is required, as [start, end]");
         const json& pair = (*view)[axes[a]];
@@ -201,7 +209,7 @@ MandelbrotConfig configFromRequest(const json& request) {
     }
     fpa::uint* words[2][2] = {{config.reStartHP, config.reEndHP}, {config.imStartHP, config.imEndHP}};
     double* numbers[2][2] = {{&config.reStart, &config.reEnd}, {&config.imStart, &config.imEnd}};
-    for (int a = 0; a < 2; a++) {
+    for (int a = 0; view && a < 2; a++) {
         for (int k = 0; k < 2; k++) {
             const string where = join("view", axes[a]) + "[" + to_string(k) + "]";
             if (config.useHighPrecision) {
@@ -220,7 +228,7 @@ MandelbrotConfig configFromRequest(const json& request) {
     if (const json* color = optionalObject(request, "", "color")) {
         const string method = readString(*color, "color", "method", "cyclic");
         if (method == "cyclic") {
-            checkKeys(*color, "color", {"method", "palette", "length", "spread"});
+            checkKeys(*color, "color", {"method", "palette", "phase", "length", "spread"});
             config.colorMethod = ColorMethod::CYCLIC;
             config.paletteLength = readInt(*color, "color", "length", config.paletteLength, 1, 1000000);
             config.colorSpread = readNumber(*color, "color", "spread", config.colorSpread, 0.0, MAX_COLOR_SPREAD);
@@ -230,11 +238,11 @@ MandelbrotConfig configFromRequest(const json& request) {
                     fail(join("color", key), "only applies to the cyclic color method, not histogram");
             checkKeys(*color, "color", {"method", "palette", "phase", "cycles"});
             config.colorMethod = ColorMethod::HISTOGRAM;
-            config.histogramPhase = readNumber(*color, "color", "phase", config.histogramPhase, 0.0, 1.0);
             config.histogramCycles = readNumber(*color, "color", "cycles", config.histogramCycles, 1e-6, MAX_HISTOGRAM_CYCLES);
         } else {
             fail("color.method", "must be \"cyclic\" or \"histogram\", got \"" + method + "\"");
         }
+        config.colorPhase = readNumber(*color, "color", "phase", config.colorPhase, 0.0, 1.0);
         config.paletteId = readPalette(*color, "color");
     }
     return config;
@@ -256,6 +264,8 @@ struct Flag {
 const Flag FLAGS[] = {
     {"--mode",             Kind::TEXT,    {"mode"}},
     {"--output",           Kind::TEXT,    {"output"}},
+    {"--save-escape",      Kind::TEXT,    {"saveEscape"}},
+    {"--recolour-from",    Kind::TEXT,    {"recolourFrom"}},
     {"--size",             Kind::SIZE,    {"image"}},
     {"--samples",          Kind::INT,     {"image", "samples"}},
     {"--re",               Kind::RANGE,   {"view", "re"}},
@@ -268,7 +278,8 @@ const Flag FLAGS[] = {
     {"--palette",          Kind::PALETTE, {"color", "palette"}},
     {"--palette-length",   Kind::INT,     {"color", "length"}},
     {"--color-spread",     Kind::NUMBER,  {"color", "spread"}},
-    {"--histogram-phase",  Kind::NUMBER,  {"color", "phase"}},
+    {"--color-phase",      Kind::NUMBER,  {"color", "phase"}},
+    {"--histogram-phase",  Kind::NUMBER,  {"color", "phase"}},   // the old name of --color-phase
     {"--histogram-cycles", Kind::NUMBER,  {"color", "cycles"}},
 };
 
@@ -424,38 +435,44 @@ optional<MandelbrotConfig> parseRequestJson(const string& jsonText) {
 void printConfig(const MandelbrotConfig& config) {
     constexpr int W = 36;
     const auto line = [&](const string& label, const auto& value) { cout << left << setw(W) << (label + ":") << value << "\n"; };
-    line("Mode", modeToString(config.mode));
+    const bool recolour = !config.recolourFrom.empty();
+    if (recolour) line("Recolouring", config.recolourFrom);
+    else          line("Mode", modeToString(config.mode));
     line("Output file", config.outputFilename);
-    line("Image size", to_string(config.imageWidth) + "x" + to_string(config.imageHeight));
-    line("Samples", config.samples);
-    line("Max iterations", config.maxIter);
-    line("Escape radius", config.escapeRadius);
-    line("Precision", config.useHighPrecision ? "fixed point, " + to_string(config.fractionWords) + " fraction words" : "double");
-    if (config.useHighPrecision) {
-        const auto words = [&](const fpa::uint* v) {
-            string out = "{";
-            for (int i = 0; i < fpa::fpSize(config.fractionWords); i++) out += (i ? "," : "") + to_string(v[i]);
-            return out + "}";
-        };
-        line("reStartHP", words(config.reStartHP));
-        line("reEndHP", words(config.reEndHP));
-        line("imStartHP", words(config.imStartHP));
-        line("imEndHP", words(config.imEndHP));
-    } else {
-        const auto exact = [](double v) { ostringstream s; s << setprecision(17) << v; return s.str(); };
-        line("reStart", exact(config.reStart));
-        line("reEnd", exact(config.reEnd));
-        line("imStart", exact(config.imStart));
-        line("imEnd", exact(config.imEnd));
+    if (!config.saveEscapeFile.empty()) line("Escape file", config.saveEscapeFile);
+    if (!recolour) {
+        line("Image size", to_string(config.imageWidth) + "x" + to_string(config.imageHeight));
+        line("Samples", config.samples);
+        line("Max iterations", config.maxIter);
+        line("Escape radius", config.escapeRadius);
+        line("Precision", config.useHighPrecision ? "fixed point, " + to_string(config.fractionWords) + " fraction words" : "double");
+        if (config.useHighPrecision) {
+            const auto words = [&](const fpa::uint* v) {
+                string out = "{";
+                for (int i = 0; i < fpa::fpSize(config.fractionWords); i++) out += (i ? "," : "") + to_string(v[i]);
+                return out + "}";
+            };
+            line("reStartHP", words(config.reStartHP));
+            line("reEndHP", words(config.reEndHP));
+            line("imStartHP", words(config.imStartHP));
+            line("imEndHP", words(config.imEndHP));
+        } else {
+            const auto exact = [](double v) { ostringstream s; s << setprecision(17) << v; return s.str(); };
+            line("reStart", exact(config.reStart));
+            line("reEnd", exact(config.reEnd));
+            line("imStart", exact(config.imStart));
+            line("imEnd", exact(config.imEnd));
+        }
     }
     line("Palette", paletteNames[static_cast<size_t>(config.paletteId)]);
     if (config.colorMethod == ColorMethod::CYCLIC) {
         line("Color method", "cyclic");
         line("Palette length", config.paletteLength);
         line("Color spread", config.colorSpread);
+        line("Color phase", config.colorPhase);
     } else {
         line("Color method", "histogram");
-        line("Histogram phase", config.histogramPhase);
+        line("Color phase", config.colorPhase);
         line("Histogram cycles", config.histogramCycles);
     }
 }
@@ -468,6 +485,9 @@ string usageText(const char* program) {
       << "Options (the JSON path of each is in brackets; every option has a default except the view):\n"
       << "  --mode M              CPU_PARALLEL | OPENCL_LOCAL | CUDA_LOCAL | CUDA_REMOTE   [mode]\n"
       << "  --output FILE         PNG to write, default ./mandelbrot_set.png                [output]\n"
+      << "  --save-escape FILE    also save the escape results, to recolour later           [saveEscape]\n"
+      << "  --recolour-from FILE  paint a saved escape file again without iterating: only the\n"
+      << "                        colour options and --output apply; the size comes from the file  [recolourFrom]\n"
       << "  --size WxH            image size in pixels, default 900x600                     [image.width, image.height]\n"
       << "  --samples N           samples per pixel (anti-aliasing), default 10             [image.samples]\n"
       << "  --re START:END        real range, decimal numbers (required)                    [view.re]\n"
@@ -480,11 +500,11 @@ string usageText(const char* program) {
       << ", default " << DEFAULT_ESCAPE_RADIUS << "                [iteration.escapeRadius]\n"
       << "  --color METHOD        cyclic (default) | histogram                              [color.method]\n"
       << "  --palette P           palette id or name, default 0 (Navy)                      [color.palette]\n"
+      << "  --color-phase P       where in the palette the colouring starts, 0..1, default 0 [color.phase]\n"
       << "  cyclic only:\n"
       << "  --palette-length N    iterations per palette cycle, default 256                 [color.length]\n"
       << "  --color-spread S      spread packed colours with a log, 0.." << MAX_COLOR_SPREAD << ", default 0           [color.spread]\n"
       << "  histogram only:\n"
-      << "  --histogram-phase P   where the palette starts, 0..1, default 0                 [color.phase]\n"
       << "  --histogram-cycles C  how many times the palette repeats, default 1             [color.cycles]\n\n"
       << "Palettes:";
     for (size_t i = 0; i < paletteNames.size(); i++) u << (i ? ", " : " ") << i << " " << paletteNames[i];
