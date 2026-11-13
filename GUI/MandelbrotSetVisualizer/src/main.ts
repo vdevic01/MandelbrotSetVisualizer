@@ -843,6 +843,23 @@ window.addEventListener("DOMContentLoaded", async () => {
   const EXPORT_MIN_SIDE = 100;
   const EXPORT_MAX_SIDE = 8000;
 
+  const selectExportPreset = document.getElementById("select-export-preset") as HTMLSelectElement;
+
+  selectExportPreset.addEventListener("change", () => {
+    if (!selectExportPreset.value) return;
+    const [w, h] = selectExportPreset.value.split("x");
+    inputExportW.value = w;
+    inputExportH.value = h;
+  });
+  // Keep the dropdown in sync when the size is typed by hand.
+  const syncExportPreset = () => {
+    const key = `${inputExportW.value}x${inputExportH.value}`;
+    const match = Array.from(selectExportPreset.options).some(o => o.value === key);
+    selectExportPreset.value = match ? key : "";
+  };
+  inputExportW.addEventListener("input", syncExportPreset);
+  inputExportH.addEventListener("input", syncExportPreset);
+
   function showExportStatus(text: string, color: string) {
     exportStatus.textContent   = text;
     exportStatus.style.color   = color;
