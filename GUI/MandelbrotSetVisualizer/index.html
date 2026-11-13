@@ -140,6 +140,20 @@
         <div class="settings-section">
           <h3>Current view</h3>
           <p class="settings-desc">Renders the view you are looking at at any size and shape. The centre and the width of the view stay the same; a taller or wider image shows more above and below. It uses the current mode, iterations, samples and palette. The image is saved in <code>generated-files/exports</code>.</p>
+          <label for="select-export-preset">Preset</label>
+          <select id="select-export-preset" class="form-field">
+            <option value="">Custom</option>
+            <option value="1280x720">HD – 1280 × 720</option>
+            <option value="1920x1080">Full HD – 1920 × 1080</option>
+            <option value="2560x1440">QHD / 2K – 2560 × 1440</option>
+            <option value="3440x1440">Ultrawide – 3440 × 1440</option>
+            <option value="3840x2160">4K UHD – 3840 × 2160</option>
+            <option value="5120x2880">5K – 5120 × 2880</option>
+            <option value="7680x4320">8K UHD – 7680 × 4320</option>
+            <option value="1080x1080">Square – 1080 × 1080</option>
+            <option value="2160x2160">Square – 2160 × 2160</option>
+            <option value="1080x1920">Portrait Full HD – 1080 × 1920</option>
+          </select>
           <label for="input-export-width">Width (px)</label>
           <input type="number" id="input-export-width" class="form-field" value="1800" min="100" max="8000">
           <label for="input-export-height">Height (px)</label>
