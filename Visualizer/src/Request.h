@@ -21,6 +21,10 @@ struct MandelbrotConfig {
     std::string saveEscapeFile;
     std::string recolourFrom;
 
+    // How the run reports its timings, remote answer and warnings: as text lines while it runs, or as one JSON object
+    // at the end (--format json), which is what the app reads (see RunReport.h).
+    bool jsonOutput = false;
+
     // image
     int imageWidth  = 900;
     int imageHeight = 600;

@@ -1,9 +1,15 @@
 name: Tests
 
-# Runs the fixed-point arithmetic unit tests on every pull request and on every push to main.
+# Runs the tests on every pull request and on every push to main, but only the suites that a change can affect: a
+# change to the GUI runs no C++ unit test, a change to the colour code runs no fixed-point test.
 #
-# No path filters on purpose: if this check is marked as required for merging, it must report on every
-# pull request, otherwise a PR that does not touch the listed paths could never be merged.
+# Which files belong to which suite is the `filters` list in the `changes` job. A new test suite needs an entry
+# there, a flag in the `suites` step of `unit-tests`, and its target in the build line. The `integration` filter is
+# the integration test between the Rust backend and the renderer.
+#
+# The workflow itself always reports: the last job, "Tests passed", succeeds when every job that had to run
+# succeeded (jobs that were skipped because nothing relevant changed do not count). Mark that one job as the
+# required check, not the individual ones, which do not exist when they are skipped.
 on:
   pull_request:
     branches: [main]
@@ -19,8 +25,84 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  fpa-tests:
+  changes:
+    name: Which tests are needed
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      fpa: ${{ steps.filter.outputs.fpa }}
+      request: ${{ steps.filter.outputs.request }}
+      escape: ${{ steps.filter.outputs.escape }}
+      interior: ${{ steps.filter.outputs.interior }}
+      integration: ${{ steps.filter.outputs.integration }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # A manual run has nothing to compare with: it runs every suite (see RUN_ALL in unit-tests).
+      - uses: dorny/paths-filter@v3
+        id: filter
+        if: github.event_name != 'workflow_dispatch'
+        with:
+          filters: |
+            # Files every suite depends on: how the tests are built and this workflow.
+            common: &common
+              - 'Visualizer/CMakeLists.txt'
+              - 'Visualizer/tests/CMakeLists.txt'
+              - '.github/workflows/tests.yml'
+            fpa:
+              - *common
+              - 'Visualizer/src/math/**'
+              - 'Visualizer/tests/vectors/**'
+              - 'Visualizer/tests/generate_vectors.py'
+              - 'Visualizer/tests/vector_loader.*'
+              - 'Visualizer/tests/test_support.h'
+              - 'Visualizer/tests/test_vectors.cpp'
+              - 'Visualizer/tests/test_edge_cases.cpp'
+              - 'Visualizer/tests/test_invariants.cpp'
+              - 'Visualizer/tests/test_cross_format.cpp'
+              - 'Visualizer/tests/test_random_range.cpp'
+              - 'Visualizer/tests/test_known_bugs.cpp'
+              - 'Visualizer/tests/test_decimal.cpp'
+            request:
+              - *common
+              - 'Visualizer/src/Request.*'
+              - 'Visualizer/src/Mode.h'
+              - 'Visualizer/src/color/Palettes.h'
+              - 'Visualizer/src/calculators/IterationCalculator.h'
+              - 'Visualizer/src/math/**'
+              - 'Visualizer/tests/test_request.cpp'
+            escape:
+              - *common
+              - 'Visualizer/src/util/EscapeFile.*'
+              - 'Visualizer/src/calculators/IterationCalculator.h'
+              - 'Visualizer/tests/test_escape_file.cpp'
+            interior:
+              - *common
+              - 'Visualizer/src/calculators/InteriorCheck.h'
+              - 'Visualizer/tests/test_interior.cpp'
+            # What the app and the renderer agree on: the flags the app sends (cli_args.rs), what the renderer
+            # prints and the frontend reads (renderer-output.ts), the mode dropdown, and the renderer itself.
+            integration:
+              - 'GUI/MandelbrotSetVisualizer/src-tauri/src/cli_args.rs'
+              - 'GUI/MandelbrotSetVisualizer/src/renderer-output.ts'
+              - 'GUI/MandelbrotSetVisualizer/index.html'
+              - 'GUI/MandelbrotSetVisualizer/integration-tests/**'
+              - 'GUI/MandelbrotSetVisualizer/package.json'
+              - 'GUI/MandelbrotSetVisualizer/package-lock.json'
+              - 'Visualizer/src/**'
+              - 'Visualizer/CMakeLists.txt'
+              - '.github/workflows/tests.yml'
+
+  unit-tests:
     name: Unit tests (${{ matrix.name }})
+    needs: changes
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      needs.changes.outputs.fpa == 'true' || needs.changes.outputs.request == 'true' ||
+      needs.changes.outputs.escape == 'true' || needs.changes.outputs.interior == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -38,8 +120,25 @@ jobs:
     env:
       UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
       ASAN_OPTIONS: detect_leaks=1:abort_on_error=0
+      RUN_ALL: ${{ github.event_name == 'workflow_dispatch' }}
+      RUN_FPA: ${{ needs.changes.outputs.fpa }}
+      RUN_REQUEST: ${{ needs.changes.outputs.request }}
+      RUN_ESCAPE: ${{ needs.changes.outputs.escape }}
+      RUN_INTERIOR: ${{ needs.changes.outputs.interior }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Choose the suites
+        id: suites
+        run: |
+          targets=""
+          add() { if [ "$RUN_ALL" = "true" ] || [ "$1" = "true" ]; then targets="$targets $2"; fi; }
+          add "$RUN_FPA" fpa_tests
+          add "$RUN_REQUEST" request_tests
+          add "$RUN_ESCAPE" escape_file_tests
+          add "$RUN_INTERIOR" interior_tests
+          echo "targets=${targets# }" >> "$GITHUB_OUTPUT"
+          echo "Suites to run: ${targets# }"
 
       - name: Configure
         run: >
@@ -49,7 +148,72 @@ jobs:
           -DFPA_SANITIZE=${{ matrix.sanitize }}
 
       - name: Build tests
-        run: cmake --build build --target fpa_tests request_tests escape_file_tests interior_tests --parallel
+        run: cmake --build build --target ${{ steps.suites.outputs.targets }} --parallel
 
       - name: Run tests
-        run: ctest --test-dir build --output-on-failure --parallel
+        run: |
+          status=0
+          for target in ${{ steps.suites.outputs.targets }}; do
+            echo "::group::$target"
+            ./build/tests/"$target" || status=1
+            echo "::endgroup::"
+          done
+          exit $status
+
+  # Integration test between the app and the renderer (GUI/MandelbrotSetVisualizer/integration-tests/): the real
+  # renderer is run with the argument lists the Rust code builds, and the frontend's parser is run on its output.
+  integration-tests:
+    name: Integration tests (app and renderer)
+    needs: changes
+    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.integration == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: GUI/MandelbrotSetVisualizer
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: GUI/MandelbrotSetVisualizer/package-lock.json
+
+      - name: Install the frontend dependencies
+        run: npm ci
+
+      - name: Build the renderer
+        working-directory: .
+        run: |
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends libssl-dev
+          cmake -S Visualizer -B build-renderer -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-renderer --target mandelbrot_visualizer --parallel
+
+      - name: Run the renderer with the arguments the app builds
+        env:
+          MANDELBROT_VISUALIZER_BIN: ${{ github.workspace }}/build-renderer/mandelbrot_visualizer
+        run: |
+          rustc --version
+          node integration-tests/check-cli.mjs
+
+  # The one check to require for merging. It runs even when the test jobs were skipped, and fails when one of
+  # them failed or was cancelled.
+  tests-passed:
+    name: Tests passed
+    needs: [changes, unit-tests, integration-tests]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the results
+        run: |
+          echo "changes:    ${{ needs.changes.result }}"
+          echo "unit-tests: ${{ needs.unit-tests.result }}"
+          echo "integration-tests: ${{ needs.integration-tests.result }}"
+          if [ "${{ needs.changes.result }}" != "success" ]; then exit 1; fi
+          for result in "${{ needs.unit-tests.result }}" "${{ needs.integration-tests.result }}"; do
+            case "$result" in
+              success|skipped) ;;
+              *) exit 1 ;;
+            esac
+          done

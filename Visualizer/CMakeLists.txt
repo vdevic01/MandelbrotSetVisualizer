@@ -38,6 +38,7 @@ set(SOURCES
     src/util/fpng.h
     src/util/errors.h
     src/util/ScopedTimer.h
+    src/util/RunReport.h
     src/util/ImageWriter.h
     src/util/ImageWriter.cpp
     src/util/EscapeFile.h

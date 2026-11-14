@@ -13,6 +13,7 @@ WORKDIR /build
 COPY Visualizer/src/calculators/IterationCalculator.h     src/calculators/
 COPY Visualizer/src/calculators/CUDAIterationCalculator.h src/calculators/
 COPY Visualizer/src/calculators/CUDAUnifiedKernel.cu      src/calculators/
+COPY Visualizer/src/calculators/InteriorCheck.h           src/calculators/
 COPY Visualizer/src/util/base64.h                         src/util/
 COPY Visualizer/src/Sampler.h                             src/
 COPY Visualizer/src/Sampler.cpp                           src/

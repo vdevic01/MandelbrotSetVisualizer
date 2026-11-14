@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "base64.h"
+#include "RunReport.h"
 #include "IterationCalculator.h"
 
 using namespace std;
@@ -69,6 +70,9 @@ string CUDARemoteIterationCalculator::httpPost(const string& body) const {
     }
 
     cout << "Remote: HTTP " << r.status_code << " after " << elapsedMs << " ms (" << r.text.size() << " bytes)\n" << flush;
+    RunReport::Remote& remote = RunReport::instance().remote.emplace();
+    remote.httpStatus = static_cast<int>(r.status_code);
+    remote.roundTripMs = static_cast<double>(elapsedMs);
 
     if (r.status_code < 200 || r.status_code >= 300) {
         throw runtime_error("Worker returned HTTP " + to_string(r.status_code) + " (" + statusHint(r.status_code) +
@@ -82,6 +86,10 @@ void CUDARemoteIterationCalculator::decodeResponse(const string& response, Escap
     vector<int>& iters = result.iters;
     const double samplingMs = extractJsonDouble(response, "sampling_time_ms");
     const double kernelMs   = extractJsonDouble(response, "execution_time_ms");
+    if (RunReport::instance().remote) {
+        if (samplingMs > 0.0) RunReport::instance().remote->samplingMs = samplingMs;
+        if (kernelMs > 0.0) RunReport::instance().remote->kernelMs = kernelMs;
+    }
     if (samplingMs > 0.0 || kernelMs > 0.0)
         cout << fixed << setprecision(2)
              << "Remote sampling time: " << samplingMs << " ms\n"
@@ -109,8 +117,10 @@ void CUDARemoteIterationCalculator::decodeResponse(const string& response, Escap
     if (magB64.empty()) {
         // A worker built before smooth colouring: it sends no escape values (and always uses radius 2).
         // R^2 as the escape value makes the smooth value a whole number, so the image is banded as before.
-        cerr << "Warning: the worker did not return escape values; smooth colouring is off for this render. "
-                "Update the remote worker.\n";
+        const string warning = "The worker did not return escape values; smooth colouring is off for this render. "
+                               "Update the remote worker.";
+        cerr << "Warning: " << warning << "\n";
+        RunReport::instance().warnings.push_back(warning);
         fill(result.magSq.begin(), result.magSq.end(), static_cast<float>(escapeRadius * escapeRadius));
         return;
     }

@@ -496,4 +496,30 @@ TEST(RequestEscapeFile, RecolouringRejectsWhatTheEscapeFileAlreadyDecides) {
     expectError(parseArgs({"--recolour-from", "a.esc", "--save-escape", "b.esc"}), {"saveEscape", "recolour"});
 }
 
+// ------------------------------------------------------------------------------------------------ output format
+TEST(RequestFormat, TextIsTheDefaultAndJsonIsAnOption) {
+    const Outcome text = parseJson(request());
+    EXPECT_PARSED(text);
+    EXPECT_FALSE(text.config->jsonOutput);
+
+    const Outcome json = parseArgs({"--re=-2:1", "--im=-1:1", "--format", "json"});
+    EXPECT_PARSED(json);
+    EXPECT_TRUE(json.config->jsonOutput);
+
+    const Outcome fromRequest = parseJson(request(R"("format": "json")"));
+    EXPECT_PARSED(fromRequest);
+    EXPECT_TRUE(fromRequest.config->jsonOutput);
+}
+
+TEST(RequestFormat, OtherFormatsAreRejected) {
+    expectError(parseJson(request(R"("format": "xml")")), {"format", "text", "json"});
+    expectError(parseArgs({"--re=-2:1", "--im=-1:1", "--format", "yaml"}), {"format", "yaml"});
+}
+
+TEST(RequestFormat, RecolouringCanAskForJson) {
+    const Outcome o = parseArgs({"--recolour-from", "a.esc", "--format", "json"});
+    EXPECT_PARSED(o);
+    EXPECT_TRUE(o.config->jsonOutput);
+}
+
 }  // namespace
