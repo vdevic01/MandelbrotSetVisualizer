@@ -69,10 +69,6 @@ export class MandelbrotViewer {
     void this.renderCurrentView();
   }
 
-  public canUndo(): boolean {
-    return this.history.canUndo;
-  }
-
   public undo(): void {
     const previous = this.history.pop();
     if (!previous) return;
