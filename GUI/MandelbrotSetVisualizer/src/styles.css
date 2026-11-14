@@ -280,3 +280,13 @@ input[type="range"].form-field {
   padding: 0;
   margin: 2px 0 8px 0;
 }
+
+/* Elements with the hidden attribute stay hidden even when a rule above sets their display. */
+[hidden] {
+  display: none !important;
+}
+
+.settings-status[data-kind="info"] { color: #aaa; }
+.settings-status[data-kind="ok"] { color: #6fcf97; }
+.settings-status[data-kind="warning"] { color: #ffe08a; }
+.settings-status[data-kind="error"] { color: #eb5757; }
