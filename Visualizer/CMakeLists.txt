@@ -23,6 +23,7 @@ set(SOURCES
     src/calculators/IterationCalculator.h
     src/calculators/CpuParallelIterationCalculator.cpp
     src/calculators/CpuParallelIterationCalculator.h
+    src/calculators/InteriorCheck.h
     src/calculators/OpenCLIterationCalculator.h
     src/calculators/OpenCLIterationCalculator.cpp
     src/calculators/CUDAIterationCalculator.h
