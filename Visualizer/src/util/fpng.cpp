@@ -1005,7 +1005,7 @@ do { \
 		// write BFINAL bit
 		PUT_BITS(1, 1);
 
-		std::vector<uint32_t> codes((w + 1) * h);
+		std::vector<uint32_t> codes(static_cast<size_t>(w + 1) * h);
 		uint32_t* pDst_codes = codes.data();
 
 		uint32_t lit_freq[DEFL_MAX_HUFF_SYMBOLS_0];
@@ -1014,7 +1014,7 @@ do { \
 		const uint8_t* pSrc = pImg;
 		uint32_t src_ofs = 0;
 
-		uint32_t src_adler32 = fpng_adler32(pImg, bpl * h, FPNG_ADLER32_INIT);
+		uint32_t src_adler32 = fpng_adler32(pImg, static_cast<size_t>(bpl) * h, FPNG_ADLER32_INIT);
 
 		const uint32_t dist_sym = g_defl_small_dist_sym[3 - 1];
 				
@@ -1177,7 +1177,7 @@ do { \
 		const uint8_t* pSrc = pImg;
 		uint32_t src_ofs = 0;
 
-		uint32_t src_adler32 = fpng_adler32(pImg, bpl * h, FPNG_ADLER32_INIT);
+		uint32_t src_adler32 = fpng_adler32(pImg, static_cast<size_t>(bpl) * h, FPNG_ADLER32_INIT);
 
 		for (uint32_t y = 0; y < h; y++)
 		{
@@ -1283,7 +1283,7 @@ do { \
 		PUT_BITS(1, 1);
 
 		std::vector<uint64_t> codes;
-		codes.resize((w + 1) * h);
+		codes.resize(static_cast<size_t>(w + 1) * h);
 		uint64_t* pDst_codes = codes.data();
 
 		uint32_t lit_freq[DEFL_MAX_HUFF_SYMBOLS_0];
@@ -1292,7 +1292,7 @@ do { \
 		const uint8_t* pSrc = pImg;
 		uint32_t src_ofs = 0;
 
-		uint32_t src_adler32 = fpng_adler32(pImg, bpl * h, FPNG_ADLER32_INIT);
+		uint32_t src_adler32 = fpng_adler32(pImg, static_cast<size_t>(bpl) * h, FPNG_ADLER32_INIT);
 
 		const uint32_t dist_sym = g_defl_small_dist_sym[4 - 1];
 
@@ -1463,7 +1463,7 @@ do { \
 		const uint8_t* pSrc = pImg;
 		uint32_t src_ofs = 0;
 
-		uint32_t src_adler32 = fpng_adler32(pImg, bpl * h, FPNG_ADLER32_INIT);
+		uint32_t src_adler32 = fpng_adler32(pImg, static_cast<size_t>(bpl) * h, FPNG_ADLER32_INIT);
 
 		for (uint32_t y = 0; y < h; y++)
 		{

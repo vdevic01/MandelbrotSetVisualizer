@@ -4,13 +4,13 @@
 #include <stdexcept>
 
 void saveColorImageToPng(const std::vector<Color>& pixels, int width, int height, const std::string& filename) {
-    std::vector<unsigned char> rgb_data(width * height * 3);
+    std::vector<unsigned char> rgb_data(static_cast<size_t>(width) * height * 3);
 
     for (int y = 0; y < height; ++y) {
         const int target_y = height - 1 - y;
         for (int x = 0; x < width; ++x) {
-            const Color& p = pixels[y * width + x];
-            const int di = (target_y * width + x) * 3;
+            const Color& p = pixels[static_cast<size_t>(y) * width + x];
+            const size_t di = (static_cast<size_t>(target_y) * width + x) * 3;
             rgb_data[di + 0] = p.red;
             rgb_data[di + 1] = p.green;
             rgb_data[di + 2] = p.blue;

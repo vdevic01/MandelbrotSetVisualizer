@@ -19,7 +19,7 @@ std::vector<Complex> samplePointsFromComplexPlane(
     double reStart, double reEnd,
     int samples)
 {
-    std::vector<Complex> points(imageWidth * imageHeight * samples);
+    std::vector<Complex> points(static_cast<size_t>(imageWidth) * imageHeight * samples);
 
     const double scaleImaginary = (imEnd - imStart) / imageHeight;
     const double scaleReal      = (reEnd - reStart) / imageWidth;
@@ -32,7 +32,7 @@ std::vector<Complex> samplePointsFromComplexPlane(
             for (int k = 0; k < samples; k++) {
                 double realPart = fastRandomFromRange(realPartBoundary, realPartBoundary + scaleReal);
                 double imagPart = fastRandomFromRange(imaginaryPartBoundary, imaginaryPartBoundary + scaleImaginary);
-                points[(j + i * imageWidth) * samples + k] = { realPart, imagPart };
+                points[(static_cast<size_t>(i) * imageWidth + j) * samples + k] = { realPart, imagPart };
             }
             realPartBoundary += scaleReal;
         }
