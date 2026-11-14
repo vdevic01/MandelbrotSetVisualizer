@@ -117,7 +117,7 @@ TEST(RequestJson, HistogramMethod) {
     EXPECT_PARSED(o);
     EXPECT_EQ(ColorMethod::HISTOGRAM, o.config->colorMethod);
     EXPECT_EQ(3, o.config->paletteId);
-    EXPECT_DOUBLE_EQ(0.25, o.config->histogramPhase);
+    EXPECT_DOUBLE_EQ(0.25, o.config->colorPhase);
     EXPECT_DOUBLE_EQ(3, o.config->histogramCycles);
 }
 
@@ -294,7 +294,7 @@ TEST(RequestErrors, TheTextMustBeAJsonObject) {
 TEST(RequestColor, SettingsOfTheOtherMethodAreRejected) {
     expectError(parseJson(request(R"("color": {"method": "histogram", "length": 100})")), {"color.length", "cyclic", "histogram"});
     expectError(parseJson(request(R"("color": {"method": "histogram", "spread": 0.1})")), {"color.spread", "cyclic"});
-    expectError(parseJson(request(R"("color": {"method": "cyclic", "phase": 0.1})")), {"color.phase", "unknown option"});
+    EXPECT_TRUE(parseJson(request(R"("color": {"method": "cyclic", "phase": 0.1})")).config.has_value());
     expectError(parseJson(request(R"("color": {"cycles": 2})")), {"color.cycles", "unknown option"});
 }
 
@@ -350,7 +350,7 @@ TEST(RequestFlags, HistogramFlags) {
                                  "--histogram-cycles", "4", "--palette", "2"});
     EXPECT_PARSED(o);
     EXPECT_EQ(ColorMethod::HISTOGRAM, o.config->colorMethod);
-    EXPECT_DOUBLE_EQ(0.5, o.config->histogramPhase);
+    EXPECT_DOUBLE_EQ(0.5, o.config->colorPhase);
     EXPECT_DOUBLE_EQ(4, o.config->histogramCycles);
     EXPECT_EQ(2, o.config->paletteId);
 }
@@ -410,7 +410,9 @@ TEST(RequestFlags, TheOldPositionalFormatIsRejectedWithAHint) {
 TEST(RequestFlags, SettingsOfTheOtherMethodAreRejected) {
     expectError(parseArgs({"--re=-2:1", "--im=-1:1", "--color", "histogram", "--color-spread", "1"}), {"color.spread", "cyclic"});
     expectError(parseArgs({"--re=-2:1", "--im=-1:1", "--color", "histogram", "--palette-length", "10"}), {"color.length", "cyclic"});
-    expectError(parseArgs({"--re=-2:1", "--im=-1:1", "--histogram-phase", "0.5"}), {"color.phase"});
+    const Outcome phase = parseArgs({"--re=-2:1", "--im=-1:1", "--color-phase", "0.5"});   // both methods have a phase
+    EXPECT_PARSED(phase);
+    EXPECT_DOUBLE_EQ(0.5, phase.config->colorPhase);
     expectError(parseArgs({"--re=-2:1", "--im=-1:1", "--precision", "double", "--fraction-words", "4"}), {"precision.fractionWords", "fixed"});
 }
 
@@ -468,6 +470,30 @@ TEST(RequestFile, ProblemsWithTheFileAreReported) {
     expectError(parseArgs({"--request", typo}), {"iteraton", "unknown option"});
     std::remove(typo.c_str());
     expectError(parseArgs({"--request"}), {"--request", "needs a value"});
+}
+
+// ------------------------------------------------------------------------------------------------ escape file / recolour
+TEST(RequestEscapeFile, SaveEscapeIsAnOptionOfARender) {
+    const Outcome o = parseArgs({"--re=-2:1", "--im=-1:1", "--save-escape", "a.esc"});
+    EXPECT_PARSED(o);
+    EXPECT_EQ("a.esc", o.config->saveEscapeFile);
+    EXPECT_TRUE(o.config->recolourFrom.empty());
+}
+
+TEST(RequestEscapeFile, RecolouringNeedsNoViewAndTakesTheColourOptions) {
+    const Outcome o = parseArgs({"--recolour-from", "a.esc", "--palette", "3", "--palette-length", "80", "--output", "b.png"});
+    EXPECT_PARSED(o);
+    EXPECT_EQ("a.esc", o.config->recolourFrom);
+    EXPECT_EQ(3, o.config->paletteId);
+    EXPECT_EQ(80, o.config->paletteLength);
+    EXPECT_EQ("b.png", o.config->outputFilename);
+}
+
+TEST(RequestEscapeFile, RecolouringRejectsWhatTheEscapeFileAlreadyDecides) {
+    expectError(parseArgs({"--recolour-from", "a.esc", "--re=-2:1"}), {"view", "recolour"});
+    expectError(parseArgs({"--recolour-from", "a.esc", "--size", "10x10"}), {"image", "recolour"});
+    expectError(parseArgs({"--recolour-from", "a.esc", "--max-iter", "10"}), {"iteration", "recolour"});
+    expectError(parseArgs({"--recolour-from", "a.esc", "--save-escape", "b.esc"}), {"saveEscape", "recolour"});
 }
 
 }  // namespace

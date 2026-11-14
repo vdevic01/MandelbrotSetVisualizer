@@ -151,6 +151,11 @@ fn output_path(output_filename: Option<String>) -> Result<String, String> {
     Ok(folder.join(name).to_string_lossy().into_owned())
 }
 
+// Where an on-screen render keeps its escape results, so the colours can be changed without rendering again.
+fn escape_cache_path() -> String {
+    project_dir().join("generated-files").join("escape_cache.bin").to_string_lossy().into_owned()
+}
+
 // The renderer is driven by named flags (run `mandelbrot_visualizer --help` for the list). These helpers build
 // the groups of flags the app uses.
 
@@ -174,13 +179,13 @@ fn view_args(re_start: &str, re_end: &str, im_start: &str, im_end: &str) -> Vec<
 // The colour method and the settings that belong to it (the renderer rejects settings of the other method).
 fn color_args(
     palette_id: i32, palette_length: i32, color_spread: f64,
-    histogram: bool, histogram_phase: f64, histogram_cycles: f64,
+    histogram: bool, color_phase: f64, histogram_cycles: f64,
 ) -> Vec<String> {
     let mut args = vec!["--palette".to_string(), palette_id.to_string()];
+    args.extend(["--color-phase".to_string(), color_phase.to_string()]);
     if histogram {
         args.extend([
             "--color".to_string(), "histogram".to_string(),
-            "--histogram-phase".to_string(), histogram_phase.to_string(),
             "--histogram-cycles".to_string(), histogram_cycles.to_string(),
         ]);
     } else {
@@ -203,12 +208,13 @@ async fn generate_mandelbrot(
     escape_radius: f64,
     color_spread: f64,
     histogram: bool,
-    histogram_phase: f64,
+    color_phase: f64,
     histogram_cycles: f64,
     output_filename: Option<String>,
     width: Option<i32>, height: Option<i32>,
 ) -> Result<String, String> {
     let env = remote_env(&mode);
+    let on_screen = output_filename.is_none();
     let mut args = vec![
         "--mode".to_string(), mode.clone(),
         "--output".to_string(), output_path(output_filename)?,
@@ -221,8 +227,11 @@ async fn generate_mandelbrot(
         &re_start.to_string(), &re_end.to_string(),
         &im_start.to_string(), &im_end.to_string(),
     ));
-    args.extend(color_args(palette_id, palette_length, color_spread, histogram, histogram_phase, histogram_cycles));
+    args.extend(color_args(palette_id, palette_length, color_spread, histogram, color_phase, histogram_cycles));
     args.extend(size_args(width, height)?);
+    if on_screen {
+        args.extend(["--save-escape".to_string(), escape_cache_path()]);
+    }
     run_sidecar(mode, args, env).await
 }
 
@@ -237,12 +246,13 @@ async fn generate_mandelbrot_hp(
     escape_radius: f64,
     color_spread: f64,
     histogram: bool,
-    histogram_phase: f64,
+    color_phase: f64,
     histogram_cycles: f64,
     output_filename: Option<String>,
     width: Option<i32>, height: Option<i32>,
 ) -> Result<String, String> {
     let env = remote_env(&mode);
+    let on_screen = output_filename.is_none();
     let mut args = vec![
         "--mode".to_string(), mode.clone(),
         "--output".to_string(), output_path(output_filename)?,
@@ -253,9 +263,30 @@ async fn generate_mandelbrot_hp(
         "--escape-radius".to_string(), escape_radius.to_string(),
     ];
     args.extend(view_args(&re_start, &re_end, &im_start, &im_end));
-    args.extend(color_args(palette_id, palette_length, color_spread, histogram, histogram_phase, histogram_cycles));
+    args.extend(color_args(palette_id, palette_length, color_spread, histogram, color_phase, histogram_cycles));
     args.extend(size_args(width, height)?);
+    if on_screen {
+        args.extend(["--save-escape".to_string(), escape_cache_path()]);
+    }
     run_sidecar(mode, args, env).await
+}
+
+// Paints the image shown in the app again with other colour settings, from the escape results saved by the last
+// on-screen render. Nothing is iterated, so this is much faster than a render.
+#[tauri::command]
+async fn recolour_mandelbrot(
+    palette_id: i32, palette_length: i32,
+    color_spread: f64,
+    histogram: bool,
+    color_phase: f64,
+    histogram_cycles: f64,
+) -> Result<String, String> {
+    let mut args = vec![
+        "--recolour-from".to_string(), escape_cache_path(),
+        "--output".to_string(), output_path(None)?,
+    ];
+    args.extend(color_args(palette_id, palette_length, color_spread, histogram, color_phase, histogram_cycles));
+    run_sidecar("recolour".to_string(), args, HashMap::new()).await
 }
 
 fn main() {
@@ -263,6 +294,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             generate_mandelbrot,
             generate_mandelbrot_hp,
+            recolour_mandelbrot,
             get_project_dir,
             get_available_modes,
             get_remote_settings,

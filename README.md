@@ -189,6 +189,8 @@ A line below shows warnings (such as reaching the maximum precision) and errors,
 
 ### Exporting an image
 
+**Changing colours** (palette, palette length, colour spread, histogram settings) does not render the image again. Every on-screen render saves its escape results to `generated-files/escape_cache.bin`, and a colour change paints them again with the new settings (the status bar shows "recoloured"). Changing the view, iterations, samples, escape radius or mode renders in full.
+
 **Export image** (bottom of the sidebar) renders the view you are looking at at a larger size. You choose the width and the height (100 to 8000 px each). The centre of the image is the centre of the view on screen and the visible width stays the same, so a taller or wider shape shows more above and below (or less). It uses the current mode, iterations, samples and palette, picks the number format for the larger image (a bigger image has smaller pixels, so it may need more fraction words than the on-screen render), and saves `generated-files/exports/export_<timestamp>.png` (separate from the image shown in the app). The image on screen and the status bar are not affected.
 
 ---
@@ -287,6 +289,9 @@ Only the view (`--re` and `--im`) is required; everything else has a default. `-
 | `--escape-radius R` | 2 | 2–128. Iteration of a point stops once `|z| > R`. Larger values make the colouring smoother, at the cost of a few extra iterations per point. |
 | `--color METHOD` | `cyclic` | `cyclic` or `histogram` (see below) |
 | `--palette P` | 0 | Palette id (0–7) or name (`Navy`, `Sunset`, `Ocean`, `Fire and Ash`, `Twilight`, `Garden`, `Pomegranate`, `Greyscale`) |
+| `--color-phase P` | 0 | 0–1. Where in the palette the colouring starts, as a share of one cycle. The palette wraps around, so this changes which colour goes where without shortening it. Works with both colour methods. (The old name `--histogram-phase` still works.) |
+| `--save-escape FILE` | – | Also save the escape results of the render, so it can be recoloured later. |
+| `--recolour-from FILE` | – | Paint a file written by `--save-escape` again, without iterating. Only the colour options and `--output` are allowed; the size, samples and escape radius come from the file. |
 
 Options of the **cyclic** color method (the default):
 
@@ -299,7 +304,6 @@ Options of the **histogram** color method. It colours by histogram equalisation:
 
 | Option | Default | Description |
 |---|---|---|
-| `--histogram-phase P` | 0 | 0–1. Where in the palette the colouring starts. The palette wraps around, so this changes which colour goes where without shortening it. |
 | `--histogram-cycles C` | 1 | 0–1000. How many times the palette repeats from the lowest to the highest value. |
 
 ### Coordinates and precision

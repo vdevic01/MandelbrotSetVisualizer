@@ -58,6 +58,23 @@ if(NOT MSVC)
     target_compile_options(request_tests PRIVATE -Wall -Wextra)
 endif()
 
+# The escape file (save and load of the escape results used for recolouring).
+add_executable(escape_file_tests
+    test_escape_file.cpp
+    ../src/util/EscapeFile.cpp
+)
+target_include_directories(escape_file_tests PRIVATE
+    ../src
+    ../src/calculators
+    ../src/util
+)
+target_link_libraries(escape_file_tests PRIVATE GTest::gtest_main)
+target_compile_features(escape_file_tests PRIVATE cxx_std_17)
+if(NOT MSVC)
+    target_compile_options(escape_file_tests PRIVATE -Wall -Wextra)
+endif()
+
 include(GoogleTest)
 gtest_discover_tests(fpa_tests DISCOVERY_TIMEOUT 120)
 gtest_discover_tests(request_tests DISCOVERY_TIMEOUT 120)
+gtest_discover_tests(escape_file_tests DISCOVERY_TIMEOUT 120)
