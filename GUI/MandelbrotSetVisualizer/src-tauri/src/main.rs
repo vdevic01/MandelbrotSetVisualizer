@@ -159,7 +159,7 @@ fn escape_cache_path() -> String {
     project_dir().join("generated-files").join("escape_cache.bin").to_string_lossy().into_owned()
 }
 
-// The renderer's arguments are built in cli_args.rs (and tested against the real renderer in contract-tests/).
+// The renderer's arguments are built in cli_args.rs (and tested against the real renderer in integration-tests/).
 #[tauri::command]
 async fn generate_mandelbrot(
     mode: String,

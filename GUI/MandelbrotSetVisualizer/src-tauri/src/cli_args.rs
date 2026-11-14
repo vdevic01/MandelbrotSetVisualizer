@@ -1,6 +1,6 @@
 // The command-line arguments the app gives to the renderer (the `mandelbrot_visualizer` sidecar).
 //
-// This file is plain Rust with no dependencies, on purpose: the contract tests (contract-tests/) compile it on its
+// This file is plain Rust with no dependencies, on purpose: the integration tests (integration-tests/) compile it on its
 // own and run the real renderer with the argument lists it builds, so a flag that is renamed or removed in the
 // renderer fails a test instead of failing at run time in the app.
 //

@@ -2,7 +2,7 @@
 // them with the real code of the app (src-tauri/src/cli_args.rs, compiled as a module of this file), so
 // check-cli.mjs can run the real renderer with exactly what the app would run it with.
 //
-//   rustc --edition 2021 -o dump_args contract-tests/dump_args.rs && ./dump_args <directory for the files>
+//   rustc --edition 2021 -o dump_args integration-tests/dump_args.rs && ./dump_args <directory for the files>
 
 #[path = "../src-tauri/src/cli_args.rs"]
 mod cli_args;

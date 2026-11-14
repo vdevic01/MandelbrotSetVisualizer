@@ -1,5 +1,5 @@
-// Reading what the renderer prints. This file has no dependencies, on purpose: the contract tests
-// (contract-tests/) run it on the output of the real renderer, so a change of that output that the app cannot read
+// Reading what the renderer prints. This file has no dependencies, on purpose: the integration tests
+// (integration-tests/) run it on the output of the real renderer, so a change of that output that the app cannot read
 // fails a test.
 
 export function formatDuration(milliseconds: number): string {

@@ -4,7 +4,7 @@ name: Tests
 # change to the GUI runs no C++ unit test, a change to the colour code runs no fixed-point test.
 #
 # Which files belong to which suite is the `filters` list in the `changes` job. A new test suite needs an entry
-# there, a flag in the `suites` step of `unit-tests`, and its target in the build line. The `contract` filter is
+# there, a flag in the `suites` step of `unit-tests`, and its target in the build line. The `integration` filter is
 # the integration test between the Rust backend and the renderer.
 #
 # The workflow itself always reports: the last job, "Tests passed", succeeds when every job that had to run
@@ -37,7 +37,7 @@ jobs:
       request: ${{ steps.filter.outputs.request }}
       escape: ${{ steps.filter.outputs.escape }}
       interior: ${{ steps.filter.outputs.interior }}
-      contract: ${{ steps.filter.outputs.contract }}
+      integration: ${{ steps.filter.outputs.integration }}
     steps:
       - uses: actions/checkout@v4
 
@@ -85,11 +85,11 @@ jobs:
               - 'Visualizer/tests/test_interior.cpp'
             # What the app and the renderer agree on: the flags the app sends (cli_args.rs), what the renderer
             # prints and the frontend reads (renderer-output.ts), the mode dropdown, and the renderer itself.
-            contract:
+            integration:
               - 'GUI/MandelbrotSetVisualizer/src-tauri/src/cli_args.rs'
               - 'GUI/MandelbrotSetVisualizer/src/renderer-output.ts'
               - 'GUI/MandelbrotSetVisualizer/index.html'
-              - 'GUI/MandelbrotSetVisualizer/contract-tests/**'
+              - 'GUI/MandelbrotSetVisualizer/integration-tests/**'
               - 'GUI/MandelbrotSetVisualizer/package.json'
               - 'GUI/MandelbrotSetVisualizer/package-lock.json'
               - 'Visualizer/src/**'
@@ -160,12 +160,12 @@ jobs:
           done
           exit $status
 
-  # Integration test between the app and the renderer (GUI/MandelbrotSetVisualizer/contract-tests/): the real
+  # Integration test between the app and the renderer (GUI/MandelbrotSetVisualizer/integration-tests/): the real
   # renderer is run with the argument lists the Rust code builds, and the frontend's parser is run on its output.
-  contract-tests:
-    name: Contract tests (app and renderer)
+  integration-tests:
+    name: Integration tests (app and renderer)
     needs: changes
-    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.contract == 'true'
+    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.integration == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     defaults:
@@ -195,13 +195,13 @@ jobs:
           MANDELBROT_VISUALIZER_BIN: ${{ github.workspace }}/build-renderer/mandelbrot_visualizer
         run: |
           rustc --version
-          node contract-tests/check-cli.mjs
+          node integration-tests/check-cli.mjs
 
   # The one check to require for merging. It runs even when the test jobs were skipped, and fails when one of
   # them failed or was cancelled.
   tests-passed:
     name: Tests passed
-    needs: [changes, unit-tests, contract-tests]
+    needs: [changes, unit-tests, integration-tests]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -209,9 +209,9 @@ jobs:
         run: |
           echo "changes:    ${{ needs.changes.result }}"
           echo "unit-tests: ${{ needs.unit-tests.result }}"
-          echo "contract-tests: ${{ needs.contract-tests.result }}"
+          echo "integration-tests: ${{ needs.integration-tests.result }}"
           if [ "${{ needs.changes.result }}" != "success" ]; then exit 1; fi
-          for result in "${{ needs.unit-tests.result }}" "${{ needs.contract-tests.result }}"; do
+          for result in "${{ needs.unit-tests.result }}" "${{ needs.integration-tests.result }}"; do
             case "$result" in
               success|skipped) ;;
               *) exit 1 ;;

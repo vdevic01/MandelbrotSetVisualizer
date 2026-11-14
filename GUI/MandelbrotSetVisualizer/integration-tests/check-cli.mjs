@@ -1,4 +1,4 @@
-// Backend <-> renderer contract: the app (Rust) starts the renderer (C++) and the frontend reads what it prints. Runs the real renderer (the C++ binary) with the argument
+// Integration test of the backend and the renderer: the app (Rust) starts the renderer (C++) and the frontend reads what it prints. Runs the real renderer (the C++ binary) with the argument
 // lists that the app's own code builds (src-tauri/src/cli_args.rs, via dump_args.rs) and checks that
 //   - every run succeeds and writes a PNG (and the escape file where one is expected), so a flag the renderer
 //     renamed, removed or now rejects fails here and not in the app,
@@ -9,7 +9,7 @@
 // Needs the renderer: MANDELBROT_VISUALIZER_BIN=<path to mandelbrot_visualizer>, or the copy the CMake build
 // deploys to src-tauri/binaries. Needs `rustc` (it ships with the Rust toolchain the app is built with).
 //
-// Run: node contract-tests/check-cli.mjs
+// Run: node integration-tests/check-cli.mjs
 
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
@@ -32,13 +32,13 @@ function findRenderer() {
 }
 const renderer = findRenderer();
 
-const work = fs.mkdtempSync(path.join(os.tmpdir(), "mandelbrot-contract-"));
+const work = fs.mkdtempSync(path.join(os.tmpdir(), "mandelbrot-integration-"));
 const run = (file, args, options = {}) => execFileSync(file, args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], ...options });
 
 try {
   // The argument lists, built by the app's code.
   const dumper = path.join(work, process.platform === "win32" ? "dump_args.exe" : "dump_args");
-  run("rustc", ["--edition", "2021", "-o", dumper, path.join(root, "contract-tests/dump_args.rs")]);
+  run("rustc", ["--edition", "2021", "-o", dumper, path.join(root, "integration-tests/dump_args.rs")]);
   const scenarios = JSON.parse(run(dumper, [work]));
 
   // The frontend's parser of the renderer's output, compiled from the TypeScript source.
@@ -86,7 +86,7 @@ try {
     if (!html.includes(`value="${mode}"`)) fail(`the renderer lists the mode ${mode}, but the mode dropdown in index.html has no option for it`);
 
   if (!errors.length)
-    console.log(`CLI contract ok: ${scenarios.length} runs of the real renderer with the app's arguments, ${used.size} flags known, modes: ${modes.join(", ")}`);
+    console.log(`Integration test ok: ${scenarios.length} runs of the real renderer with the app's arguments, ${used.size} flags known, modes: ${modes.join(", ")}`);
 } catch (e) {
   fail(`${e.message}${e.stderr ? `\n${e.stderr}` : ""}`);
 } finally {
@@ -94,6 +94,6 @@ try {
 }
 
 if (errors.length) {
-  console.error(`CLI contract broken (${errors.length}):\n  - ${errors.join("\n  - ")}`);
+  console.error(`Integration test failed (${errors.length}):\n  - ${errors.join("\n  - ")}`);
   process.exit(1);
 }
