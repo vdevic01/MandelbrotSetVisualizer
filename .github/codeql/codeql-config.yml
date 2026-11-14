@@ -1,3 +1,0 @@
-paths-ignore:
-  - Visualizer/src/util/fpng.cpp
-  - Visualizer/src/util/fpng.h
