@@ -3,6 +3,20 @@ typedef struct {
 	double imag;
 } Complex;
 
+// Interior check: a point of the main cardioid or of the period-2 bulb is in the set and never escapes, so its
+// iteration is skipped. The same test as isInteriorPoint in calculators/InteriorCheck.h (keep the two in step);
+// the regions are shrunk by INTERIOR_MARGIN so that rounding cannot put a point on the wrong side of a boundary.
+#define INTERIOR_MARGIN 1e-9
+
+bool isInteriorPoint(double x, double y) {
+	double y2 = y * y;
+	double dx = x - 0.25;
+	double q = dx * dx + y2;
+	if (q * (q + dx) < 0.25 * y2 - INTERIOR_MARGIN) return true;   // main cardioid
+	double bx = x + 1.0;
+	return bx * bx + y2 < 0.0625 - INTERIOR_MARGIN;                 // period-2 bulb
+}
+
 // OUT: escape iteration (-1 if the point never escaped). OUT_MAG: |z|^2 at that iteration.
 // escape_sq: the squared escape radius.
 __kernel void calculateIters(__global Complex* IN, __global int* OUT, const unsigned int max_iter,
@@ -13,6 +27,12 @@ __kernel void calculateIters(__global Complex* IN, __global int* OUT, const unsi
 	
 	double x0 = c.real;
 	double y0 = c.imag;
+
+	if (isInteriorPoint(x0, y0)) {
+		OUT[idx] = -1;
+		OUT_MAG[idx] = 0;
+		return;
+	}
 
 	double x2 = 0;
 	double y2 = 0;

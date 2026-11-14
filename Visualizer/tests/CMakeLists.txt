@@ -74,7 +74,17 @@ if(NOT MSVC)
     target_compile_options(escape_file_tests PRIVATE -Wall -Wextra)
 endif()
 
+# The interior check (header only).
+add_executable(interior_tests test_interior.cpp)
+target_include_directories(interior_tests PRIVATE ../src/calculators)
+target_link_libraries(interior_tests PRIVATE GTest::gtest_main)
+target_compile_features(interior_tests PRIVATE cxx_std_17)
+if(NOT MSVC)
+    target_compile_options(interior_tests PRIVATE -Wall -Wextra)
+endif()
+
 include(GoogleTest)
 gtest_discover_tests(fpa_tests DISCOVERY_TIMEOUT 120)
 gtest_discover_tests(request_tests DISCOVERY_TIMEOUT 120)
 gtest_discover_tests(escape_file_tests DISCOVERY_TIMEOUT 120)
+gtest_discover_tests(interior_tests DISCOVERY_TIMEOUT 120)

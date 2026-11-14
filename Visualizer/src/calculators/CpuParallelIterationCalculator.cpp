@@ -1,6 +1,7 @@
 #include "CpuParallelIterationCalculator.h"
 #include "FixedPointArithmetics.h"
 #include "FixedPointCore.h"
+#include "InteriorCheck.h"
 
 #include <stdexcept>
 #include <string>
@@ -26,6 +27,7 @@ inline void iteratePoint(const Complex& p, int& itersOut, float& magSqOut, const
 
     itersOut = -1;
     magSqOut = 0;
+    if (isInteriorPoint(x0, y0)) return;   // in the set: never escapes
     for (unsigned int i = 0; i < maxIter; i++) {
         y  = (x + x) * y + y0;
         x  = x2 - y2 + x0;
@@ -55,6 +57,22 @@ void calculateScalar(const std::vector<Complex>& points, EscapeResult& result, c
 // is reached); a point that escapes records its iteration and |z|^2 once and is ignored from then on (its
 // values may overflow to infinity afterwards, which is harmless). No fused multiply-add is used, so every
 // lane computes bit for bit what iteratePoint computes.
+// isInteriorPoint (InteriorCheck.h) for four points; the same operations in the same order, so a lane is set
+// exactly when the scalar function says true.
+__attribute__((target("avx2")))
+__m256d interiorMask(const __m256d x, const __m256d y) {
+    const __m256d y2 = _mm256_mul_pd(y, y);
+    const __m256d dx = _mm256_sub_pd(x, _mm256_set1_pd(0.25));
+    const __m256d q = _mm256_add_pd(_mm256_mul_pd(dx, dx), y2);
+    const __m256d lhs = _mm256_mul_pd(q, _mm256_add_pd(q, dx));
+    const __m256d rhs = _mm256_sub_pd(_mm256_mul_pd(_mm256_set1_pd(0.25), y2), _mm256_set1_pd(INTERIOR_MARGIN));
+    const __m256d cardioid = _mm256_cmp_pd(lhs, rhs, _CMP_LT_OQ);
+    const __m256d bx = _mm256_add_pd(x, _mm256_set1_pd(1.0));
+    const __m256d bulbLhs = _mm256_add_pd(_mm256_mul_pd(bx, bx), y2);
+    const __m256d bulb = _mm256_cmp_pd(bulbLhs, _mm256_set1_pd(0.0625 - INTERIOR_MARGIN), _CMP_LT_OQ);
+    return _mm256_or_pd(cardioid, bulb);
+}
+
 __attribute__((target("avx2")))
 void calculateAvx2(const std::vector<Complex>& points, EscapeResult& result, const unsigned int maxIter, const double escapeSq) {
     const int N = static_cast<int>(points.size());
@@ -74,12 +92,15 @@ void calculateAvx2(const std::vector<Complex>& points, EscapeResult& result, con
         const __m256d one = _mm256_set1_pd(1.0);
         __m256d x = _mm256_setzero_pd(), y = _mm256_setzero_pd();
         __m256d x2 = _mm256_setzero_pd(), y2 = _mm256_setzero_pd();
-        __m256d active = _mm256_castsi256_pd(_mm256_set1_epi64x(-1));   // lanes that have not escaped yet
+        // Lanes that have not escaped yet. A point of the main cardioid or the period-2 bulb never escapes, so its
+        // lane starts out finished (it keeps iteration -1); when all four are such points the loop is skipped.
+        const __m256d interior = interiorMask(x0, y0);
+        __m256d active = _mm256_andnot_pd(interior, _mm256_castsi256_pd(_mm256_set1_epi64x(-1)));
         __m256d count = _mm256_setzero_pd();                            // the iteration number i, as a double
         __m256d foundIter = _mm256_set1_pd(-1.0);
         __m256d foundMag = _mm256_setzero_pd();
 
-        for (unsigned int i = 0; i < maxIter; i++) {
+        for (unsigned int i = 0; i < maxIter && _mm256_movemask_pd(active) != 0; i++) {
             y  = _mm256_add_pd(_mm256_mul_pd(_mm256_add_pd(x, x), y), y0);
             x  = _mm256_add_pd(_mm256_sub_pd(x2, y2), x0);
             x2 = _mm256_mul_pd(x, x);
@@ -124,6 +145,15 @@ void CpuParallelIterationCalculator::calculate(const std::vector<Complex>& point
 
 namespace {
 
+// A fixed-point number (two's complement, whole word first) as a double, from its first three words.
+inline double fixedToDouble(const unsigned int* words, int count) {
+    double value = static_cast<double>(static_cast<int>(words[0]));
+    double scale = 1.0 / 4294967296.0;
+    for (int k = 1; k < count && k < 3; k++, scale /= 4294967296.0)
+        value += static_cast<double>(words[k]) * scale;
+    return value;
+}
+
 // The high-precision loop for one fraction size F (a compile-time constant): the arithmetic is called
 // without any per-operation dispatch and the compiler can inline it into the loop.
 template<int F>
@@ -154,6 +184,8 @@ void calculateHp(const HpPoints& points, EscapeResult& result, const unsigned in
 
         iters[idx] = -1;
         magSq[idx] = 0;
+        // The interior check needs only a double that is accurate to far less than INTERIOR_MARGIN.
+        if (isInteriorPoint(fixedToDouble(x0, S), fixedToDouble(y0, S))) continue;
         for (unsigned int i = 0; i < maxIter; i++) {
             // y = (x + x) * y + y0
             core::add<F>(x, x, temp);

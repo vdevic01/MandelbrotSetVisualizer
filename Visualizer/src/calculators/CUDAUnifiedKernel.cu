@@ -7,6 +7,7 @@
 
 #include "CUDAIterationCalculator.h"
 #include "FixedPointShared.h"
+#include "InteriorCheck.h"
 
 // The fixed-point arithmetic itself (add, sub, compare, multiply) is shared with the CPU build:
 // fpa::core in FixedPointShared.h, so it is tested once by the unit tests.
@@ -18,6 +19,16 @@ __constant__ double deviceEscapeSq;            // R^2 (double-precision kernel)
 __constant__ uint32_t deviceThresholdWhole;    // R^2 as fixed-point words (high-precision kernel)
 __constant__ uint32_t deviceThresholdFraction;
 
+// A fixed-point number (two's complement, whole word first) as a double, from its first three words. That is
+// far more precise than INTERIOR_MARGIN needs.
+template<int S>
+__device__ double fixedToDouble(const uint32_t* w) {
+	double value = (double)((int32_t)w[0]) + (double)w[1] * (1.0 / 4294967296.0);
+	if (S > 2)
+		value += (double)w[S > 2 ? 2 : 0] * (1.0 / 4294967296.0 / 4294967296.0);
+	return value;
+}
+
 __global__ void calculateIters(const Complex* points, int32_t* iterations, float* magSq) {
 	const size_t idx = threadIdx.x + blockIdx.x * blockDim.x;
 	if (idx >= deviceN)
@@ -25,6 +36,13 @@ __global__ void calculateIters(const Complex* points, int32_t* iterations, float
 
 	const double x0 = points[idx].real;
 	const double y0 = points[idx].imag;
+
+	// In the main cardioid or the period-2 bulb: in the set, never escapes.
+	if (isInteriorPoint(x0, y0)) {
+		iterations[idx] = -1;
+		magSq[idx] = 0;
+		return;
+	}
 
 	double x2 = 0;
 	double y2 = 0;
@@ -69,6 +87,12 @@ __global__ void calculateItersHp(const uint32_t* points, int32_t* iterations, fl
 	for (int i = 0; i < S; i++) {
 		x0[i] = c[i];
 		y0[i] = c[S + i];
+	}
+
+	if (isInteriorPoint(fixedToDouble<S>(x0), fixedToDouble<S>(y0))) {
+		iterations[idx] = -1;
+		magSq[idx] = 0;
+		return;
 	}
 
 	uint32_t x2[S] = {};
