@@ -28,6 +28,11 @@ inline void iteratePoint(const Complex& p, int& itersOut, float& magSqOut, const
     itersOut = -1;
     magSqOut = 0;
     if (isInteriorPoint(x0, y0)) return;   // in the set: never escapes
+
+    // Periodicity check (Brent): the next state is a function of (x, y) alone, so once the state is exactly the
+    // one saved earlier the orbit repeats forever. Nothing in the cycle escaped (every state was checked), so
+    // the point never escapes. The saved state is renewed at iterations 1, 2, 4, 8, ...
+    double savedX = 0, savedY = 0;
     for (unsigned int i = 0; i < maxIter; i++) {
         y  = (x + x) * y + y0;
         x  = x2 - y2 + x0;
@@ -38,6 +43,8 @@ inline void iteratePoint(const Complex& p, int& itersOut, float& magSqOut, const
             magSqOut = static_cast<float>(x2 + y2);
             break;
         }
+        if (x == savedX && y == savedY) break;
+        if (((i + 1) & i) == 0) { savedX = x; savedY = y; }
     }
 }
 
@@ -99,6 +106,7 @@ void calculateAvx2(const std::vector<Complex>& points, EscapeResult& result, con
         __m256d count = _mm256_setzero_pd();                            // the iteration number i, as a double
         __m256d foundIter = _mm256_set1_pd(-1.0);
         __m256d foundMag = _mm256_setzero_pd();
+        __m256d savedX = _mm256_setzero_pd(), savedY = _mm256_setzero_pd();   // periodicity check, see iteratePoint
 
         for (unsigned int i = 0; i < maxIter && _mm256_movemask_pd(active) != 0; i++) {
             y  = _mm256_add_pd(_mm256_mul_pd(_mm256_add_pd(x, x), y), y0);
@@ -110,6 +118,10 @@ void calculateAvx2(const std::vector<Complex>& points, EscapeResult& result, con
             foundIter = _mm256_blendv_pd(foundIter, count, escaped);
             foundMag  = _mm256_blendv_pd(foundMag, s, escaped);
             active = _mm256_andnot_pd(escaped, active);
+            // A lane whose state repeats an earlier one is in the set: it is finished and keeps iteration -1.
+            const __m256d periodic = _mm256_and_pd(_mm256_cmp_pd(x, savedX, _CMP_EQ_OQ), _mm256_cmp_pd(y, savedY, _CMP_EQ_OQ));
+            active = _mm256_andnot_pd(periodic, active);
+            if (((i + 1) & i) == 0) { savedX = x; savedY = y; }
             if (_mm256_movemask_pd(active) == 0) break;
             count = _mm256_add_pd(count, one);
         }
@@ -186,6 +198,7 @@ void calculateHp(const HpPoints& points, EscapeResult& result, const unsigned in
         magSq[idx] = 0;
         // The interior check needs only a double that is accurate to far less than INTERIOR_MARGIN.
         if (isInteriorPoint(fixedToDouble(x0, S), fixedToDouble(y0, S))) continue;
+        uint savedX[S] = {}, savedY[S] = {};   // periodicity check, see iteratePoint
         for (unsigned int i = 0; i < maxIter; i++) {
             // y = (x + x) * y + y0
             core::add<F>(x, x, temp);
@@ -209,6 +222,14 @@ void calculateHp(const HpPoints& points, EscapeResult& result, const unsigned in
                 // |z|^2 as a float: the whole word and the first fraction word carry more than enough bits
                 magSq[idx] = static_cast<float>(temp[0]) + static_cast<float>(temp[1]) * (1.0f / 4294967296.0f);
                 break;
+            }
+
+            // The state (x, y) is exactly the saved one: the orbit repeats and never escapes.
+            bool repeats = true;
+            for (int k = 0; k < S; k++) repeats = repeats && x[k] == savedX[k] && y[k] == savedY[k];
+            if (repeats) break;
+            if (((i + 1) & i) == 0) {
+                for (int k = 0; k < S; k++) { savedX[k] = x[k]; savedY[k] = y[k]; }
             }
         }
     }

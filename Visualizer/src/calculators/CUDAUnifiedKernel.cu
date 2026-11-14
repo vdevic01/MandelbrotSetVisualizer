@@ -50,6 +50,10 @@ __global__ void calculateIters(const Complex* points, int32_t* iterations, float
 	double x = 0;
 	double y = 0;
 
+	// Periodicity check (Brent), the same as in the CPU calculator: the next state is a function of (x, y) alone, so a state exactly equal to the saved one means the orbit repeats and never escapes. The saved state is renewed at iterations 1, 2, 4, 8, ...
+	double savedX = 0;
+	double savedY = 0;
+
 	int32_t result = -1;
 	float escapeValue = 0;
 	for (uint32_t i = 0; i < deviceMaxIter; i++) {
@@ -62,6 +66,8 @@ __global__ void calculateIters(const Complex* points, int32_t* iterations, float
 			escapeValue = (float)(x2 + y2);
 			break;
 		}
+		if (x == savedX && y == savedY) break;
+		if (((i + 1) & i) == 0) { savedX = x; savedY = y; }
 	}
 	iterations[idx] = result;
 	magSq[idx] = escapeValue;
@@ -104,6 +110,10 @@ __global__ void calculateItersHp(const uint32_t* points, int32_t* iterations, fl
 	uint32_t temp[S];
 	uint32_t threshold[S] = { deviceThresholdWhole, deviceThresholdFraction };   // R^2; the other fraction words are 0
 
+	// Periodicity check (Brent), the same as in the CPU calculator: the next state is a function of (x, y) alone, so a state exactly equal to the saved one means the orbit repeats and never escapes. The saved state is renewed at iterations 1, 2, 4, 8, ...
+	uint32_t savedX[S] = {};
+	uint32_t savedY[S] = {};
+
 	int32_t result = -1;
 	float escapeValue = 0;
 	for (size_t i = 0; i < deviceMaxIter; i++) {
@@ -128,6 +138,14 @@ __global__ void calculateItersHp(const uint32_t* points, int32_t* iterations, fl
 			// |z|^2 as a float: the whole word and the first fraction word carry more than enough bits
 			escapeValue = (float)temp[0] + (float)temp[1] * (1.0f / 4294967296.0f);
 			break;
+		}
+
+		bool repeats = true;
+		for (int k = 0; k < S; k++)
+			repeats = repeats && x[k] == savedX[k] && y[k] == savedY[k];
+		if (repeats) break;
+		if (((i + 1) & i) == 0) {
+			for (int k = 0; k < S; k++) { savedX[k] = x[k]; savedY[k] = y[k]; }
 		}
 	}
 
