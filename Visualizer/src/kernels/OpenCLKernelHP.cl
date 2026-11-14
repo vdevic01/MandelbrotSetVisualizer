@@ -153,6 +153,30 @@ void sqrCmplFixed(const uint* a, uint c[FP_SIZE]) {
 	productWindow(product, c);
 }
 
+// Interior check: a point of the main cardioid or of the period-2 bulb is in the set and never escapes, so its
+// iteration is skipped. The same test as isInteriorPoint in calculators/InteriorCheck.h (keep the two in step);
+// the regions are shrunk by INTERIOR_MARGIN so that rounding cannot put a point on the wrong side of a boundary.
+#define INTERIOR_MARGIN 1e-9
+
+bool isInteriorPoint(double x, double y) {
+	double y2 = y * y;
+	double dx = x - 0.25;
+	double q = dx * dx + y2;
+	if (q * (q + dx) < 0.25 * y2 - INTERIOR_MARGIN) return true;   // main cardioid
+	double bx = x + 1.0;
+	return bx * bx + y2 < 0.0625 - INTERIOR_MARGIN;                 // period-2 bulb
+}
+
+// A fixed-point number (two's complement, whole word first) as a double, from its first three words. That is
+// far more precise than INTERIOR_MARGIN needs.
+double fixedToDouble(const uint* w) {
+	double value = (double)((int)w[0]) + (double)w[1] * (1.0 / 4294967296.0);
+#if FP_SIZE > 2
+	value += (double)w[2] * (1.0 / 4294967296.0 / 4294967296.0);
+#endif
+	return value;
+}
+
 // IN holds, per point, the real words followed by the imaginary words (FP_SIZE words each, most significant first).
 // OUT: escape iteration (-1 if the point never escaped). OUT_MAG: |z|^2 at that iteration.
 // threshold_whole / threshold_fraction: the squared escape radius, as the whole word and the first fraction word.
@@ -167,6 +191,12 @@ __kernel void calculateIters(__global const uint* IN, __global int* OUT, const u
 	for (int i = 0; i < FP_SIZE; i++) {
 		x0[i] = c[i];
 		y0[i] = c[FP_SIZE + i];
+	}
+
+	if (isInteriorPoint(fixedToDouble(x0), fixedToDouble(y0))) {
+		OUT[idx] = -1;
+		OUT_MAG[idx] = 0;
+		return;
 	}
 
 	uint x2[FP_SIZE] = { 0 };

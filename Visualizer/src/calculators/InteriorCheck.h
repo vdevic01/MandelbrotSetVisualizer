@@ -15,7 +15,14 @@
 
 constexpr double INTERIOR_MARGIN = 1e-9;
 
-inline bool isInteriorPoint(double x, double y) {
+// The OpenCL kernels (src/kernels/*.cl) carry their own copy of this function: keep them in step.
+#ifdef __CUDACC__
+#define INTERIOR_CHECK_FN __host__ __device__ inline   // the CUDA kernels call it too
+#else
+#define INTERIOR_CHECK_FN inline
+#endif
+
+INTERIOR_CHECK_FN bool isInteriorPoint(double x, double y) {
     const double y2 = y * y;
     const double dx = x - 0.25;
     const double q = dx * dx + y2;
