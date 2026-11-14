@@ -415,3 +415,9 @@ runpod-settings.json
 # Local benchmark data (timings are only comparable on the machine that produced them)
 benchmarks/results/
 benchmarks/charts/
+
+# Terraform local state and plugin cache (the lock file is committed)
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
