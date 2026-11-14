@@ -7,6 +7,9 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use tauri::api::process::{Command, CommandEvent};
 
+mod cli_args;
+use cli_args::{Colour, Render, View};
+
 fn project_dir() -> PathBuf {
     let mut path = std::env::current_exe().unwrap();
     for _ in 0..4 {
@@ -156,48 +159,7 @@ fn escape_cache_path() -> String {
     project_dir().join("generated-files").join("escape_cache.bin").to_string_lossy().into_owned()
 }
 
-// The renderer is driven by named flags (run `mandelbrot_visualizer --help` for the list). These helpers build
-// the groups of flags the app uses.
-
-// The renderer draws 900 x 600 unless it is given an explicit size.
-fn size_args(width: Option<i32>, height: Option<i32>) -> Result<Vec<String>, String> {
-    match (width, height) {
-        (None, None) => Ok(Vec::new()),
-        (Some(w), Some(h)) if w > 0 && h > 0 => Ok(vec!["--size".to_string(), format!("{}x{}", w, h)]),
-        _ => Err("Width and height must be given together and be positive.".to_string()),
-    }
-}
-
-// The view as `--re` and `--im` ranges. Coordinates are decimal text, so no digit is lost on the way.
-fn view_args(re_start: &str, re_end: &str, im_start: &str, im_end: &str) -> Vec<String> {
-    vec![
-        format!("--re={}:{}", re_start, re_end),
-        format!("--im={}:{}", im_start, im_end),
-    ]
-}
-
-// The colour method and the settings that belong to it (the renderer rejects settings of the other method).
-fn color_args(
-    palette_id: i32, palette_length: i32, color_spread: f64,
-    histogram: bool, color_phase: f64, histogram_cycles: f64,
-) -> Vec<String> {
-    let mut args = vec!["--palette".to_string(), palette_id.to_string()];
-    args.extend(["--color-phase".to_string(), color_phase.to_string()]);
-    if histogram {
-        args.extend([
-            "--color".to_string(), "histogram".to_string(),
-            "--histogram-cycles".to_string(), histogram_cycles.to_string(),
-        ]);
-    } else {
-        args.extend([
-            "--color".to_string(), "cyclic".to_string(),
-            "--palette-length".to_string(), palette_length.to_string(),
-            "--color-spread".to_string(), color_spread.to_string(),
-        ]);
-    }
-    args
-}
-
+// The renderer's arguments are built in cli_args.rs (and tested against the real renderer in contract-tests/).
 #[tauri::command]
 async fn generate_mandelbrot(
     mode: String,
@@ -215,23 +177,16 @@ async fn generate_mandelbrot(
 ) -> Result<String, String> {
     let env = remote_env(&mode);
     let on_screen = output_filename.is_none();
-    let mut args = vec![
-        "--mode".to_string(), mode.clone(),
-        "--output".to_string(), output_path(output_filename)?,
-        "--precision".to_string(), "double".to_string(),
-        "--max-iter".to_string(), max_iter.to_string(),
-        "--samples".to_string(), samples.to_string(),
-        "--escape-radius".to_string(), escape_radius.to_string(),
-    ];
-    args.extend(view_args(
-        &re_start.to_string(), &re_end.to_string(),
-        &im_start.to_string(), &im_end.to_string(),
-    ));
-    args.extend(color_args(palette_id, palette_length, color_spread, histogram, color_phase, histogram_cycles));
-    args.extend(size_args(width, height)?);
-    if on_screen {
-        args.extend(["--save-escape".to_string(), escape_cache_path()]);
-    }
+    let render = Render {
+        mode: &mode,
+        view: View::Double { re_start, re_end, im_start, im_end },
+        max_iter, samples, escape_radius,
+        colour: Colour { palette_id, palette_length, color_spread, histogram, color_phase, histogram_cycles },
+        width, height,
+    };
+    let output = output_path(output_filename)?;
+    let cache = escape_cache_path();
+    let args = cli_args::render_args(&render, &output, if on_screen { Some(cache.as_str()) } else { None })?;
     run_sidecar(mode, args, env).await
 }
 
@@ -253,21 +208,18 @@ async fn generate_mandelbrot_hp(
 ) -> Result<String, String> {
     let env = remote_env(&mode);
     let on_screen = output_filename.is_none();
-    let mut args = vec![
-        "--mode".to_string(), mode.clone(),
-        "--output".to_string(), output_path(output_filename)?,
-        "--precision".to_string(), "fixed".to_string(),
-        "--fraction-words".to_string(), fraction_words.to_string(),
-        "--max-iter".to_string(), max_iter.to_string(),
-        "--samples".to_string(), samples.to_string(),
-        "--escape-radius".to_string(), escape_radius.to_string(),
-    ];
-    args.extend(view_args(&re_start, &re_end, &im_start, &im_end));
-    args.extend(color_args(palette_id, palette_length, color_spread, histogram, color_phase, histogram_cycles));
-    args.extend(size_args(width, height)?);
-    if on_screen {
-        args.extend(["--save-escape".to_string(), escape_cache_path()]);
-    }
+    let render = Render {
+        mode: &mode,
+        view: View::Fixed {
+            re_start: &re_start, re_end: &re_end, im_start: &im_start, im_end: &im_end, fraction_words,
+        },
+        max_iter, samples, escape_radius,
+        colour: Colour { palette_id, palette_length, color_spread, histogram, color_phase, histogram_cycles },
+        width, height,
+    };
+    let output = output_path(output_filename)?;
+    let cache = escape_cache_path();
+    let args = cli_args::render_args(&render, &output, if on_screen { Some(cache.as_str()) } else { None })?;
     run_sidecar(mode, args, env).await
 }
 
@@ -281,11 +233,8 @@ async fn recolour_mandelbrot(
     color_phase: f64,
     histogram_cycles: f64,
 ) -> Result<String, String> {
-    let mut args = vec![
-        "--recolour-from".to_string(), escape_cache_path(),
-        "--output".to_string(), output_path(None)?,
-    ];
-    args.extend(color_args(palette_id, palette_length, color_spread, histogram, color_phase, histogram_cycles));
+    let colour = Colour { palette_id, palette_length, color_spread, histogram, color_phase, histogram_cycles };
+    let args = cli_args::recolour_args(&escape_cache_path(), &output_path(None)?, &colour);
     run_sidecar("recolour".to_string(), args, HashMap::new()).await
 }
 

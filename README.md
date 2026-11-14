@@ -166,6 +166,15 @@ The tests run automatically on every pull request to `main` (GitHub Actions work
 
 Changing `Visualizer/CMakeLists.txt`, `Visualizer/tests/CMakeLists.txt` or the workflow runs every suite. A manual run of the workflow does too.
 
+### Contract tests (app and renderer)
+
+The app starts the renderer with command-line flags and reads what it prints. `GUI/MandelbrotSetVisualizer/contract-tests/check-cli.mjs` tests that seam with the real renderer; run it with `npm run test:contract` in `GUI/MandelbrotSetVisualizer` (after `npm ci`, with the renderer built; set `MANDELBROT_VISUALIZER_BIN` to its path, or use the copy that the CMake build deploys to `src-tauri/binaries`). The CI job `Contract tests` runs it when the Rust argument code, the output parser, the mode dropdown or the renderer changes.
+
+- The Rust code that builds the renderer's arguments is `src-tauri/src/cli_args.rs`. The test compiles it with `dump_args.rs`, runs the real renderer with the lists it builds (a render, an export, a fixed-point render, two recolours), and checks that each run succeeds and writes a PNG (and the escape file), and that every flag is listed by `--help`.
+- The frontend's parser of the renderer's output is `src/renderer-output.ts`. The test runs it on the real output and checks that the stage timings shown in the status bar are found, and that `--list-modes` matches the mode dropdown.
+
+It does not start the Tauri app. When you add a flag the app should send, add it in `cli_args.rs` and, so that it is exercised, in a scenario in `dump_args.rs`.
+
 ---
 
 ## Benchmarking

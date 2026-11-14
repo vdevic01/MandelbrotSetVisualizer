@@ -1,10 +1,11 @@
 name: Tests
 
-# Runs the unit tests on every pull request and on every push to main, but only the suites that a change can
-# affect: a change to the GUI runs no C++ test, a change to the colour code runs no fixed-point test.
+# Runs the tests on every pull request and on every push to main, but only the suites that a change can affect: a
+# change to the GUI runs no C++ unit test, a change to the colour code runs no fixed-point test.
 #
 # Which files belong to which suite is the `filters` list in the `changes` job. A new test suite needs an entry
-# there, a flag in the `suites` step of `unit-tests`, and its target in the build line.
+# there, a flag in the `suites` step of `unit-tests`, and its target in the build line. The `contract` filter is
+# the integration test between the Rust backend and the renderer.
 #
 # The workflow itself always reports: the last job, "Tests passed", succeeds when every job that had to run
 # succeeded (jobs that were skipped because nothing relevant changed do not count). Mark that one job as the
@@ -36,6 +37,7 @@ jobs:
       request: ${{ steps.filter.outputs.request }}
       escape: ${{ steps.filter.outputs.escape }}
       interior: ${{ steps.filter.outputs.interior }}
+      contract: ${{ steps.filter.outputs.contract }}
     steps:
       - uses: actions/checkout@v4
 
@@ -81,6 +83,18 @@ jobs:
               - *common
               - 'Visualizer/src/calculators/InteriorCheck.h'
               - 'Visualizer/tests/test_interior.cpp'
+            # What the app and the renderer agree on: the flags the app sends (cli_args.rs), what the renderer
+            # prints and the frontend reads (renderer-output.ts), the mode dropdown, and the renderer itself.
+            contract:
+              - 'GUI/MandelbrotSetVisualizer/src-tauri/src/cli_args.rs'
+              - 'GUI/MandelbrotSetVisualizer/src/renderer-output.ts'
+              - 'GUI/MandelbrotSetVisualizer/index.html'
+              - 'GUI/MandelbrotSetVisualizer/contract-tests/**'
+              - 'GUI/MandelbrotSetVisualizer/package.json'
+              - 'GUI/MandelbrotSetVisualizer/package-lock.json'
+              - 'Visualizer/src/**'
+              - 'Visualizer/CMakeLists.txt'
+              - '.github/workflows/tests.yml'
 
   unit-tests:
     name: Unit tests (${{ matrix.name }})
@@ -146,11 +160,48 @@ jobs:
           done
           exit $status
 
+  # Integration test between the app and the renderer (GUI/MandelbrotSetVisualizer/contract-tests/): the real
+  # renderer is run with the argument lists the Rust code builds, and the frontend's parser is run on its output.
+  contract-tests:
+    name: Contract tests (app and renderer)
+    needs: changes
+    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.contract == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: GUI/MandelbrotSetVisualizer
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: GUI/MandelbrotSetVisualizer/package-lock.json
+
+      - name: Install the frontend dependencies
+        run: npm ci
+
+      - name: Build the renderer
+        working-directory: .
+        run: |
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends libssl-dev
+          cmake -S Visualizer -B build-renderer -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-renderer --target mandelbrot_visualizer --parallel
+
+      - name: Run the renderer with the arguments the app builds
+        env:
+          MANDELBROT_VISUALIZER_BIN: ${{ github.workspace }}/build-renderer/mandelbrot_visualizer
+        run: |
+          rustc --version
+          node contract-tests/check-cli.mjs
+
   # The one check to require for merging. It runs even when the test jobs were skipped, and fails when one of
   # them failed or was cancelled.
   tests-passed:
     name: Tests passed
-    needs: [changes, unit-tests]
+    needs: [changes, unit-tests, contract-tests]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -158,8 +209,11 @@ jobs:
         run: |
           echo "changes:    ${{ needs.changes.result }}"
           echo "unit-tests: ${{ needs.unit-tests.result }}"
+          echo "contract-tests: ${{ needs.contract-tests.result }}"
           if [ "${{ needs.changes.result }}" != "success" ]; then exit 1; fi
-          case "${{ needs.unit-tests.result }}" in
-            success|skipped) ;;
-            *) exit 1 ;;
-          esac
+          for result in "${{ needs.unit-tests.result }}" "${{ needs.contract-tests.result }}"; do
+            case "$result" in
+              success|skipped) ;;
+              *) exit 1 ;;
+            esac
+          done
