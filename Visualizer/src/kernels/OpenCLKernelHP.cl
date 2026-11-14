@@ -208,6 +208,10 @@ __kernel void calculateIters(__global const uint* IN, __global int* OUT, const u
 	uint temp[FP_SIZE];
 	uint threshold[FP_SIZE] = { threshold_whole, threshold_fraction };   // R^2; the other fraction words are 0
 
+	// Periodicity check (Brent), the same as in the CPU calculator: the next state is a function of (x, y) alone, so a state exactly equal to the saved one means the orbit repeats and never escapes. The saved state is renewed at iterations 1, 2, 4, 8, ...
+	uint savedX[FP_SIZE] = { 0 };
+	uint savedY[FP_SIZE] = { 0 };
+
 	int result = -1;
 	float escapeValue = 0;
 	for (int i = 0; i < max_iter; i++) {
@@ -232,6 +236,14 @@ __kernel void calculateIters(__global const uint* IN, __global int* OUT, const u
 			// |z|^2 as a float: the whole word and the first fraction word carry more than enough bits
 			escapeValue = (float)temp[0] + (float)temp[1] * (1.0f / 4294967296.0f);
 			break;
+		}
+
+		bool repeats = true;
+		for (int k = 0; k < FP_SIZE; k++)
+			repeats = repeats && x[k] == savedX[k] && y[k] == savedY[k];
+		if (repeats) break;
+		if (((i + 1) & i) == 0) {
+			for (int k = 0; k < FP_SIZE; k++) { savedX[k] = x[k]; savedY[k] = y[k]; }
 		}
 	}
 

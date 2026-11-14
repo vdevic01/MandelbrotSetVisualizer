@@ -40,6 +40,10 @@ __kernel void calculateIters(__global Complex* IN, __global int* OUT, const unsi
 	double x = 0;
 	double y = 0;
 	
+	// Periodicity check (Brent), the same as in the CPU calculator: the next state is a function of (x, y) alone, so a state exactly equal to the saved one means the orbit repeats and never escapes. The saved state is renewed at iterations 1, 2, 4, 8, ...
+	double savedX = 0;
+	double savedY = 0;
+
 	int result = -1;
 	float escapeValue = 0;
 	for (int i = 0; i < max_iter; i++) {
@@ -52,6 +56,8 @@ __kernel void calculateIters(__global Complex* IN, __global int* OUT, const unsi
 			escapeValue = (float)(x2 + y2);
 			break;
 		}
+		if (x == savedX && y == savedY) break;
+		if (((i + 1) & i) == 0) { savedX = x; savedY = y; }
 	}
 
 	OUT[idx] = result;

@@ -10,6 +10,7 @@ An interactive Mandelbrot set explorer with a Tauri/TypeScript GUI and a high-pe
 - **Automatic high-precision mode** — seamlessly switches from 64-bit `double` to fixed-point arithmetic when the viewport width drops below ~6×10⁻¹³ and grows the fixed-point size (2 to 6 words) as you zoom deeper, down to a viewport width of ~4×10⁻⁵⁵
 - **OpenMP parallelism** — CPU rendering uses all available cores
 - **Interior check** — the local backends (CPU, OpenCL, CUDA) skip the iteration of points in the main cardioid and the period-2 bulb (they are in the set), which makes views with a lot of interior several times faster and does not change the image
+- **Periodicity check** — an orbit that lands exactly on a state it had before repeats forever and never escapes, so its iteration stops there (all local backends). Other bulbs and mini-brots that the interior check does not cover are cut short, and the image is the same
 - **Anti-aliasing** — configurable samples-per-pixel with random sub-pixel jitter
 - **8 colour palettes** — cyclic palettes with configurable cycle length
 - **Smooth colouring** — colours follow a continuous escape-time value instead of the whole iteration count, so there are no colour bands
