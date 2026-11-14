@@ -55,8 +55,3 @@ export function chooseFractionWords(viewportWidth: Decimal, canvasWidthPx: numbe
   }
   return { fractionWords: MAX_FRACTION_WORDS, limitReached: true };
 }
-
-// Viewport width below which a format stops being good enough, for a canvas `canvasWidthPx` pixels wide.
-export function minViewportWidth(fractionWords: number, canvasWidthPx: number): Decimal {
-  return resolution(fractionWords).mul(SAFETY_STEPS_PER_PIXEL).mul(canvasWidthPx);
-}
