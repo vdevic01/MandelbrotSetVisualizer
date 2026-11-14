@@ -133,7 +133,7 @@ try {
     // What the frontend makes of it.
     const parsed = parseRendererOutput(stdout);
     for (const stage of s.stages)
-      if (!new RegExp(`^${stage.replace(/[()+]/g, "\\$&")} \\d+(\\.\\d+)? m?s$`, "m").test(parsed.stages))
+      if (!parsed.stages.split("\n").some((line) => line.startsWith(`${stage} `) && /^\d+(\.\d+)? m?s$/.test(line.slice(stage.length + 1))))
         fail(`${s.name}: the app reads no '${stage}' time from the report (it read: ${JSON.stringify(parsed.stages)})`);
 
     if (s.remote) {
