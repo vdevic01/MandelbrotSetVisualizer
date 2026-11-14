@@ -2,6 +2,10 @@
 
 An interactive Mandelbrot set explorer with a Tauri/TypeScript GUI and a high-performance C++ backend. Zoom arbitrarily deep using standard double precision, with automatic promotion to fixed-point arithmetic of up to 192 bits when double precision runs out.
 
+![Example render](examples/export_1794272784924.png)
+
+*Example export produced by the app.*
+
 ---
 
 ## Features
@@ -485,3 +489,7 @@ The C++ client sends a compact JSON body directly to the worker:
 ```
 
 `sampling_time_ms` is measured with `chrono::steady_clock` (CPU sampling). `execution_time_ms` is measured with CUDA events (kernel only). `handler_time_ms` is the total subprocess wall time measured by the Python handler.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
