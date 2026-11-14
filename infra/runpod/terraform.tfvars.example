@@ -1,0 +1,11 @@
+# Copy this file to terraform.tfvars (gitignored) and fill in your values.
+runpod_api_key = "your-runpod-api-key"
+endpoint_name  = "mandelbrot-worker"
+
+# Worker image built from Worker/Dockerfile. It is only used when the
+# endpoint is created; Terraform ignores later changes to it.
+image = "your-registry/mandelbrot-worker:tag"
+
+# Optional overrides of the defaults in variables.tf:
+# gpu_pools   = ["AMPERE_24"]
+# workers_max = 1
