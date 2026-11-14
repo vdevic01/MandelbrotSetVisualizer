@@ -139,7 +139,7 @@ int readPalette(const json& color, const string& path) {
 
 MandelbrotConfig configFromRequest(const json& request) {
     if (!request.is_object()) fail("request", "must be a JSON object");
-    checkKeys(request, "", {"version", "mode", "output", "saveEscape", "recolourFrom", "image", "view", "precision", "iteration", "color"});
+    checkKeys(request, "", {"version", "mode", "output", "format", "saveEscape", "recolourFrom", "image", "view", "precision", "iteration", "color"});
 
     MandelbrotConfig config;
     readInt(request, "", "version", REQUEST_VERSION, REQUEST_VERSION, REQUEST_VERSION);
@@ -150,6 +150,9 @@ MandelbrotConfig configFromRequest(const json& request) {
         fail("mode", e.what());
     }
     config.outputFilename = readString(request, "", "output", config.outputFilename);
+    const string format = readString(request, "", "format", "text");
+    if (format != "text" && format != "json") fail("format", "must be \"text\" or \"json\", got \"" + format + "\"");
+    config.jsonOutput = format == "json";
     config.saveEscapeFile = readString(request, "", "saveEscape", "");
     config.recolourFrom = readString(request, "", "recolourFrom", "");
     const bool recolour = !config.recolourFrom.empty();
@@ -264,6 +267,7 @@ struct Flag {
 const Flag FLAGS[] = {
     {"--mode",             Kind::TEXT,    {"mode"}},
     {"--output",           Kind::TEXT,    {"output"}},
+    {"--format",           Kind::TEXT,    {"format"}},
     {"--save-escape",      Kind::TEXT,    {"saveEscape"}},
     {"--recolour-from",    Kind::TEXT,    {"recolourFrom"}},
     {"--size",             Kind::SIZE,    {"image"}},
@@ -485,6 +489,7 @@ string usageText(const char* program) {
       << "Options (the JSON path of each is in brackets; every option has a default except the view):\n"
       << "  --mode M              CPU_PARALLEL | OPENCL_LOCAL | CUDA_LOCAL | CUDA_REMOTE   [mode]\n"
       << "  --output FILE         PNG to write, default ./mandelbrot_set.png                [output]\n"
+      << "  --format F            text (default): timings as lines while it runs | json: one JSON object at the end   [format]\n"
       << "  --save-escape FILE    also save the escape results, to recolour later           [saveEscape]\n"
       << "  --recolour-from FILE  paint a saved escape file again without iterating: only the\n"
       << "                        colour options and --output apply; the size comes from the file  [recolourFrom]\n"

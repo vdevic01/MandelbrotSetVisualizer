@@ -168,10 +168,14 @@ Changing `Visualizer/CMakeLists.txt`, `Visualizer/tests/CMakeLists.txt` or the w
 
 ### Integration tests (app and renderer)
 
-The app starts the renderer with command-line flags and reads what it prints. `GUI/MandelbrotSetVisualizer/integration-tests/check-cli.mjs` tests that seam with the real renderer; run it with `npm run test:integration` in `GUI/MandelbrotSetVisualizer` (after `npm ci`, with the renderer built; set `MANDELBROT_VISUALIZER_BIN` to its path, or use the copy that the CMake build deploys to `src-tauri/binaries`). The CI job `Integration tests` runs it when the Rust argument code, the output parser, the mode dropdown or the renderer changes.
+The app starts the renderer with command-line flags and reads its report (`--format json`, see the options table). `GUI/MandelbrotSetVisualizer/integration-tests/check-cli.mjs` tests that seam with the real renderer; run it with `npm run test:integration` in `GUI/MandelbrotSetVisualizer` (after `npm ci`, with the renderer built; set `MANDELBROT_VISUALIZER_BIN` to its path, or use the copy that the CMake build deploys to `src-tauri/binaries`). The CI job `Integration tests` runs it when the Rust argument code, the report parser, the mode dropdown or the renderer changes.
 
-- The Rust code that builds the renderer's arguments is `src-tauri/src/cli_args.rs`. The test compiles it with `dump_args.rs`, runs the real renderer with the lists it builds (a render, an export, a fixed-point render, two recolours), and checks that each run succeeds and writes a PNG (and the escape file), and that every flag is listed by `--help`.
-- The frontend's parser of the renderer's output is `src/renderer-output.ts`. The test runs it on the real output and checks that the stage timings shown in the status bar are found, and that `--list-modes` matches the mode dropdown.
+- The Rust code that builds the renderer's arguments is `src-tauri/src/cli_args.rs`. The test compiles it with `dump_args.rs`, runs the real renderer with the lists it builds (a render, an export, a fixed-point render, two recolours, a render with the remote worker), and checks that each run succeeds and writes a PNG (and the escape file), and that every flag is listed by `--help`.
+- Each run must print the report and nothing else: one line of JSON with the expected version, a list of `{name, ms}` stages and a list of warnings. The frontend's parser of it is `src/renderer-output.ts`; the test runs it on the real output and checks that the stage timings shown in the status bar are found.
+- The remote render runs against a fake worker on localhost. The test checks that the request has the fields the worker needs (and the API key), and that what the worker answered (HTTP status, round trip, sampling and kernel times) is in the report.
+- `--list-modes` must match the mode dropdown.
+
+Changing the report format: change `reportJson` in `Visualizer/src/main.cpp` and `src/renderer-output.ts` together, and raise the version in both.
 
 It does not start the Tauri app. When you add a flag the app should send, add it in `cli_args.rs` and, so that it is exercised, in a scenario in `dump_args.rs`.
 
@@ -310,6 +314,7 @@ Only the view (`--re` and `--im`) is required; everything else has a default. `-
 | `--color METHOD` | `cyclic` | `cyclic` or `histogram` (see below) |
 | `--palette P` | 0 | Palette id (0–7) or name (`Navy`, `Sunset`, `Ocean`, `Fire and Ash`, `Twilight`, `Garden`, `Pomegranate`, `Greyscale`) |
 | `--color-phase P` | 0 | 0–1. Where in the palette the colouring starts, as a share of one cycle. The palette wraps around, so this changes which colour goes where without shortening it. Works with both colour methods. (The old name `--histogram-phase` still works.) |
+| `--format F` | `text` | `text` prints the timing of each stage as lines while it runs. `json` prints nothing but one line of JSON at the end: `{"version":1,"stages":[{"name":"Coloring","ms":12.3},...],"remote":{"httpStatus":200,"roundTripMs":340,"samplingMs":12.3,"kernelMs":42.5},"warnings":[]}` (`remote` only when the remote worker was used). The app uses `json`. |
 | `--save-escape FILE` | – | Also save the escape results of the render, so it can be recoloured later. |
 | `--recolour-from FILE` | – | Paint a file written by `--save-escape` again, without iterating. Only the colour options and `--output` are allowed; the size, samples and escape radius come from the file. |
 

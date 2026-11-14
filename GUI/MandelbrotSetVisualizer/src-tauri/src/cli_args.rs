@@ -4,7 +4,9 @@
 // own and run the real renderer with the argument lists it builds, so a flag that is renamed or removed in the
 // renderer fails a test instead of failing at run time in the app.
 //
-// The renderer is driven by named flags (run `mandelbrot_visualizer --help` for the list).
+// The renderer is driven by named flags (run `mandelbrot_visualizer --help` for the list). The app always asks for
+// `--format json`: the renderer then prints one JSON object (timings, the remote worker's answer, warnings) that
+// the frontend reads with src/renderer-output.ts.
 
 /// The colour settings of an image.
 pub struct Colour {
@@ -78,6 +80,7 @@ pub fn render_args(render: &Render, output: &str, save_escape: Option<&str>) -> 
     let mut args = vec![
         "--mode".to_string(), render.mode.to_string(),
         "--output".to_string(), output.to_string(),
+        "--format".to_string(), "json".to_string(),
     ];
     match &render.view {
         View::Double { .. } => args.extend(["--precision".to_string(), "double".to_string()]),
@@ -110,6 +113,7 @@ pub fn recolour_args(escape_file: &str, output: &str, colour: &Colour) -> Vec<St
     let mut args = vec![
         "--recolour-from".to_string(), escape_file.to_string(),
         "--output".to_string(), output.to_string(),
+        "--format".to_string(), "json".to_string(),
     ];
     args.extend(colour_args(colour));
     args

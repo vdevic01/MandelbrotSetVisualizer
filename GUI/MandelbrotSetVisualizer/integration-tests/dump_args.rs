@@ -37,8 +37,10 @@ struct Scenario {
     output: String,
     /// The escape file this run writes (and later runs read), if any.
     escape_file: Option<String>,
-    /// Stage names the app reads from the renderer's output.
+    /// Stage names the app reads from the renderer's report.
     stages: &'static [&'static str],
+    /// Runs in CUDA_REMOTE mode: the test points the renderer at a fake worker.
+    remote: bool,
 }
 
 fn main() {
@@ -65,6 +67,7 @@ fn main() {
         args: render_args(&double(cyclic(), None, None), &file("shown.png"), Some(&escape)).unwrap(),
         output: file("shown.png"), escape_file: Some(escape.clone()),
         stages: &["Pixel mapping", "Calculating escape iterations", "Coloring", "Image generation", "Total generation time"],
+        remote: false,
     });
     // A colour change of that image, without rendering again.
     scenarios.push(Scenario {
@@ -72,12 +75,14 @@ fn main() {
         args: recolour_args(&escape, &file("recoloured_cyclic.png"), &Colour { palette_id: 3, color_phase: 0.25, ..cyclic() }),
         output: file("recoloured_cyclic.png"), escape_file: None,
         stages: &["Coloring", "Image generation", "Total recolour time"],
+        remote: false,
     });
     scenarios.push(Scenario {
         name: "recolour with the histogram method",
         args: recolour_args(&escape, &file("recoloured_histogram.png"), &histogram()),
         output: file("recoloured_histogram.png"), escape_file: None,
         stages: &["Coloring", "Image generation", "Total recolour time"],
+        remote: false,
     });
     // An export: an explicit size and no escape file.
     scenarios.push(Scenario {
@@ -85,21 +90,36 @@ fn main() {
         args: render_args(&double(histogram(), Some(96), Some(64)), &file("export.png"), None).unwrap(),
         output: file("export.png"), escape_file: None,
         stages: &["Coloring", "Image generation", "Total generation time"],
+        remote: false,
     });
     scenarios.push(Scenario {
         name: "render in fixed point",
         args: render_args(&fixed(cyclic()), &file("fixed.png"), None).unwrap(),
         output: file("fixed.png"), escape_file: None,
         stages: &["Calculating escape iterations", "Coloring", "Image generation", "Total generation time"],
+        remote: false,
+    });
+
+    // The remote worker does the sampling and the iterations; the renderer colours the answer.
+    scenarios.push(Scenario {
+        name: "render with the remote worker",
+        args: render_args(
+            &Render { mode: "CUDA_REMOTE", ..double(cyclic(), Some(64), Some(48)) },
+            &file("remote.png"), None,
+        ).unwrap(),
+        output: file("remote.png"), escape_file: None,
+        stages: &["Remote execution (sampling + iterations)", "Coloring", "Image generation", "Total generation time"],
+        remote: true,
     });
 
     let list = |items: &[String]| items.iter().map(|s| json_string(s)).collect::<Vec<_>>().join(", ");
     let entries: Vec<String> = scenarios.iter().map(|s| {
         format!(
-            "{{\"name\": {}, \"args\": [{}], \"output\": {}, \"escapeFile\": {}, \"stages\": [{}]}}",
+            "{{\"name\": {}, \"args\": [{}], \"output\": {}, \"escapeFile\": {}, \"stages\": [{}], \"remote\": {}}}",
             json_string(s.name), list(&s.args), json_string(&s.output),
             s.escape_file.as_deref().map(json_string).unwrap_or_else(|| "null".to_string()),
             s.stages.iter().map(|t| json_string(t)).collect::<Vec<_>>().join(", "),
+            s.remote,
         )
     }).collect();
     println!("[{}]", entries.join(",\n "));

@@ -520,6 +520,8 @@ class BoundaryManager{
       }
       if (info.warning) {
         setMessage(info.warning, "warning");
+      } else if (parsed.warnings.length > 0) {
+        setMessage(parsed.warnings.join("\n"), "warning");
       }
     } catch (e) {
       console.error(`Render failed (${command}, mode ${this.mode}):`, e);

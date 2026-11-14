@@ -22,6 +22,9 @@
 #include "ImageWriter.h"
 #include "EscapeFile.h"
 #include "Request.h"
+#include "RunReport.h"
+
+#include <nlohmann/json.hpp>
 
 using namespace std;
 
@@ -41,6 +44,25 @@ static void colorAndSave(const MandelbrotConfig& config, const ColorManager& col
         ScopedTimer timer("Image generation");
         saveColorImageToPng(pixels, config.imageWidth, config.imageHeight, config.outputFilename);
     }
+}
+
+// The run report (RunReport.h) as one line of JSON, for --format json:
+//   {"version":1,"stages":[{"name":"Coloring","ms":12.3},...],"remote":{"httpStatus":200,"roundTripMs":340,
+//    "samplingMs":12.3,"kernelMs":42.5},"warnings":["..."]}
+// "remote" is only there when the remote worker was used, and its timings only when the worker sent them.
+static string reportJson() {
+    const RunReport& report = RunReport::instance();
+    nlohmann::json out = {{"version", 1}, {"stages", nlohmann::json::array()}, {"warnings", report.warnings}};
+    for (const RunReport::Stage& stage : report.stages)
+        out["stages"].push_back({{"name", stage.name}, {"ms", stage.ms}});
+    if (report.remote) {
+        nlohmann::json remote = {{"httpStatus", report.remote->httpStatus}};
+        if (report.remote->roundTripMs >= 0) remote["roundTripMs"] = report.remote->roundTripMs;
+        if (report.remote->samplingMs >= 0) remote["samplingMs"] = report.remote->samplingMs;
+        if (report.remote->kernelMs >= 0) remote["kernelMs"] = report.remote->kernelMs;
+        out["remote"] = remote;
+    }
+    return out.dump();
 }
 
 // T_Points is vector<Complex> (double precision) or HpPoints (fixed point).
@@ -179,6 +201,10 @@ int main(int argc, char* argv[]) {
 
     MandelbrotConfig config = configOpt.value();
 
+    // With --format json nothing but the report is written to stdout: the lines the run would print are dropped
+    // (a stream without a buffer discards what is written to it) and the report is printed at the end.
+    streambuf* textBuffer = config.jsonOutput ? cout.rdbuf(nullptr) : nullptr;
+
     // Recolouring: the image size, samples and escape radius are those of the render that wrote the file.
     EscapeData saved;
     if (!config.recolourFrom.empty()) {
@@ -228,5 +254,10 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    if (config.jsonOutput) {
+        cout.rdbuf(textBuffer);
+        cout.clear();
+        cout << reportJson() << "\n";
+    }
     return 0;
 }

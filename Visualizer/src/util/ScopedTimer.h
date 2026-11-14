@@ -5,6 +5,8 @@
 #include <iostream>
 #include <string>
 
+#include "RunReport.h"
+
 class ScopedTimer {
 public:
     explicit ScopedTimer(std::string name)
@@ -15,6 +17,7 @@ public:
     ~ScopedTimer() {
         auto end      = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - m_start);
+        RunReport::instance().stages.push_back({m_name, std::chrono::duration<double, std::milli>(end - m_start).count()});
         std::cout << std::left << std::setw(36) << m_name + ":" << duration.count() << " ms\n";
         std::cout << "=====================================================\n";
     }
